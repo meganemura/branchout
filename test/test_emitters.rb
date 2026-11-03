@@ -179,7 +179,7 @@ class EmitterTest < Minitest::Test
         "FixtureVault#unlock" => [{ "new" => [3], "args" => [4] }],
         "FixtureVault.seal" => [[""], ["a"]]
       }
-      sources = cases.flat_map do |entry, list|
+      paths = cases.flat_map do |entry, list|
         inputs = File.join(dir, "inputs.json")
         File.write(inputs, JSON.generate({ "inputs" => list }))
         %w[test.rb spec.rb].map do |suffix|
@@ -190,11 +190,18 @@ class EmitterTest < Minitest::Test
           )
           assert status.success?, err
           assert_includes stdout, "EXCEPTIONS\n(none)"
-          _out, err, status = Open3.capture3(RbConfig.ruby, *("-rrspec/autorun" if suffix == "spec.rb"), path)
-          assert status.success?, "#{entry} #{suffix}: #{err}#{_out}"
-          File.read(path)
+          path
         end
-      end.join
+      end
+      tests, specs = paths.partition { |path| path.end_with?("_test.rb") }
+      # One process per format: each emitted file loads on its own.
+      out, err, status = Open3.capture3(RbConfig.ruby, "-e", "ARGV.each { |path| require path }", *tests)
+      assert status.success?, err + out
+      assert_includes out, "6 runs, 6 assertions, 0 failures, 0 errors"
+      out, err, status = Open3.capture3(RbConfig.ruby, "-rrspec/autorun", "-e", "", *specs)
+      assert status.success?, err + out
+      assert_includes out, "6 examples, 0 failures"
+      sources = paths.map { |path| File.read(path) }.join
       assert_includes sources, "assert_equal :open, FixtureVault.send(:new, 3).send(:check, 3)"
       assert_includes sources, "expect(FixtureVault.send(:new, 3).send(:peek, 3)).to eq(:match)"
       assert_includes sources, "assert_equal :shut, FixtureVault.send(:new, 3).unlock(4)"

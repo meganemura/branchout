@@ -89,6 +89,14 @@ module Branchout
           callee = index[[info.const_name, info.singleton, name]]
           queue << callee if callee
         end
+        next unless info.singleton
+
+        calls_on_new(body).each do |name|
+          [:initialize, name].each do |instance_name|
+            callee = index[[info.const_name, false, instance_name]]
+            queue << callee if callee
+          end
+        end
       end
 
       collect_literals(entry_def.node.parameters)
@@ -279,6 +287,20 @@ module Branchout
         acc << node.name if receiver.nil? || receiver.type == :self_node
       end
       node.compact_child_nodes.each { |child| bare_calls(child, acc) }
+      acc
+    end
+
+    # Methods a class method calls on an instance it builds itself, as in
+    # new(doc).apply.
+    def calls_on_new(node, acc = [])
+      return acc unless node.is_a?(Prism::Node)
+      return acc if node.type == :def_node
+
+      if node.type == :call_node && node.receiver&.type == :call_node
+        maker = node.receiver
+        acc << node.name if maker.name == :new && (maker.receiver.nil? || maker.receiver.type == :self_node)
+      end
+      node.compact_child_nodes.each { |child| calls_on_new(child, acc) }
       acc
     end
 

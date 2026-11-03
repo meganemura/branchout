@@ -130,6 +130,7 @@ ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \
 ## フロンティアの作り方
 
 `--require` のファイルと対象ファイルは `Coverage.setup(lines: true, branches: true)` のあとで読み、ロード時のカウントは捨てる。入力ごとに coverage を resume し、メソッドを呼び、suspend して `Coverage.result` を読む。残すのは入口メソッドと、同じファイル内で裸呼び出しまたは `self.` から届く callee だけである。
+`def self.apply(doc) = new(doc).apply` のように自分のインスタンスを作るクラスメソッドは、`initialize` と、そのインスタンスで呼ぶメソッドまで追う。
 
 腕の id は Coverage の分岐キーから作る `kind@行:列/arm@行:列` である。列は 0 始まり。`cond` は Prism の述語で、`when` または `in` の腕ではその行である。位置が一致しないときはソースの行を使う。
 
@@ -178,9 +179,10 @@ ln -s /path/to/branchout/skills/branchout .agents/skills/branchout
 - 時刻、乱数、I/O に依存するメソッドは、同じ入力でもレポートが揃わない。
 - 経路は腕の集合であり、順序ではない。`&&` と `||` は腕にならない。`while` と `until` が記録するのは本体の腕で、条件は実行されたが本体に入らなかったことは行カウントで補う。
 - 修飾子の `unless` は then と else が同じ位置になることがある。id の腕名で区別する。
-- 同じファイルの裸呼び出しと `self.` 以外は追わない。
-  `def self.apply(x) = new.check(x)` には腕がなく、`explore` は stderr に警告を出す。
-  この場合は `Const#check` を対象にする。
+- 追うのは同じファイルの裸呼び出し、`self.` 呼び出し、裸の `new(...)` に対する呼び出しだけである。
+  `Other.new.check(x)` のような別のレシーバーへの呼び出しは追わない。
+  入口がどの腕にも届かないとき、`explore` は stderr に警告を出す。
+  この場合は分岐するメソッドを対象にする。
 - `Timeout.timeout` はすべてのブロックを止められない。タイムアウトのバックトレースに対象行が無いとき、`loc` はメソッド定義行になる。
 - 充足できない条件はフロンティアに残る。`examples/arithmetic.rb` の `x == 114514 && x == 0` がそれである。
 - 上のランダムと変異の範囲は、意図して狭い。

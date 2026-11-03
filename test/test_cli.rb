@@ -240,17 +240,39 @@ class CLITest < Minitest::Test
     end
   end
 
-  def test_an_entry_with_no_arms_warns
+  def test_a_class_method_is_followed_through_new_to_the_instance_method
     Dir.mktmpdir do |dir|
-      path = write_inputs(dir, { "inputs" => [[1]] })
+      path = write_inputs(dir, { "inputs" => [[1], [-1]] })
       stdout, stderr, status = run_cli(
         "explore", "test/fixtures/delegate.rb", "FixtureDelegate.apply",
         "--strategy", "inputs", "--random", "0", "--inputs", path
       )
       assert status.success?, stderr
+      assert_includes stdout, "arms_covered: 2\narms_total: 2"
+      assert_empty stderr
+
+      path = write_inputs(dir, { "inputs" => [["# a"], ["b"]] })
+      stdout, stderr, status = run_cli(
+        "explore", "test/fixtures/delegate.rb", "FixtureDocument.apply",
+        "--strategy", "inputs", "--random", "0", "--inputs", path
+      )
+      assert status.success?, stderr
+      assert_includes stdout, "arms_covered: 3\narms_total: 4"
+      assert_includes stdout, "FRONTIER\nid: if@17:11/then@17:24\nloc: test/fixtures/delegate.rb:17:24\ncond: doc.empty?"
+    end
+  end
+
+  def test_an_entry_with_no_arms_warns
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [[1]] })
+      stdout, stderr, status = run_cli(
+        "explore", "test/fixtures/delegate.rb", "FixtureDelegate.forward",
+        "--strategy", "inputs", "--random", "0", "--inputs", path
+      )
+      assert status.success?, stderr
       assert_includes stdout, "arms_total: 0"
-      assert_equal "branchout: FixtureDelegate.apply and its bare callees in test/fixtures/delegate.rb have no branches. " \
-                   "A call on another receiver, such as new.method, is not followed; target that method.\n", stderr
+      assert_equal "branchout: FixtureDelegate.forward and the methods it calls in test/fixtures/delegate.rb have no branches. " \
+                   "Only a bare call, a self. call, and a call on new are followed; target the method that branches.\n", stderr
     end
   end
 

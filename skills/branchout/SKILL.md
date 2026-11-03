@@ -152,7 +152,7 @@ A test that passes on base and fails on head is a changed return value or except
 - The target really runs. Files, globals, and the network are not sandboxed.
 - A method that depends on time, randomness, or I/O will not stay stable across runs.
 - A path is a set of arms, not an order. Two orders that take the same arms look the same. A modifier `unless` can put `then` and `else` at the same `loc`; the arm name in the id distinguishes them.
-- Only a bare call or `self.` in the same file is followed. `send` and other files are out of scope. `def self.apply(x) = new.check(x)` has no arms of its own, and `explore` warns on stderr. Target `Const#check` instead.
+- Only a bare call, a `self.` call, and a call on a bare `new(...)` in the same file are followed. `def self.apply(doc) = new(doc).apply` reaches `initialize` and `#apply`. `send`, another receiver, and other files are out of scope. When the entry reaches no arm, `explore` warns on stderr; target the method that branches.
 - `new` passes constructor arguments only. A receiver whose state comes from later calls, such as `cart.add(...)`, cannot be set up. Target a method that takes that state as arguments.
 - Emitted tests pin exception messages exactly. Ruby 3.4 changed the text of `NoMethodError`, so run emitted tests on the Ruby that emitted them.
 - `Timeout.timeout` does not stop every block. If the timeout backtrace has no target line, `loc` is the method definition line.

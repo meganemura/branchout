@@ -115,7 +115,7 @@ That run covers 4 of 4 arms and records `ZeroDivisionError` (`divided by 0`) for
 
 ## How it builds the frontier
 
-branchout loads the `--require` files and then the target after `Coverage.setup(lines: true, branches: true)` and discards the counts from loading. For each input it resumes coverage, calls the method, suspends coverage, and reads `Coverage.result`. It keeps the entry method and same-file callees reached by a bare call or `self.`.
+branchout loads the `--require` files and then the target after `Coverage.setup(lines: true, branches: true)` and discards the counts from loading. For each input it resumes coverage, calls the method, suspends coverage, and reads `Coverage.result`. It keeps the entry method and same-file callees reached by a bare call or `self.`. A class method that builds its own instance, as in `def self.apply(doc) = new(doc).apply`, is followed into `initialize` and the instance method it calls.
 
 An arm id is `kind@line:column/arm@line:column`, from the Coverage branch key. Columns are 0-based. `cond` is the Prism predicate. For a `when` or `in` arm it is that line. If the locations do not match, the source line is used.
 
@@ -164,7 +164,7 @@ ln -s /path/to/branchout/skills/branchout .agents/skills/branchout
 - A method that depends on time, randomness, or I/O will not produce a stable report.
 - A path is a set of arms, not an order. `&&` and `||` are not arms. `while` and `until` record a body arm; a condition that ran but did not enter the body is recovered from the line count.
 - A modifier `unless` can put `then` and `else` at the same location. The arm name in the id distinguishes them.
-- Calls other than a bare call or `self.` in the same file are not followed. `def self.apply(x) = new.check(x)` has no arms, and `explore` warns on stderr; target `Const#check` instead.
+- Only a bare call, a `self.` call, and a call on a bare `new(...)` in the same file are followed. A call on another receiver, such as `Other.new.check(x)`, is not. When the entry reaches no arm, `explore` warns on stderr; target the method that branches instead.
 - `Timeout.timeout` does not stop every block. If the timeout backtrace has no target line, `loc` is the method definition line.
 - An unsatisfiable condition stays on the frontier. In `examples/arithmetic.rb`, `x == 114514 && x == 0` is one.
 - The random and mutation domains above are narrow on purpose.

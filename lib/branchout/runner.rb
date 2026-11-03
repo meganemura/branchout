@@ -78,6 +78,9 @@ module Branchout
         end
       rescue LoadError, SyntaxError => e
         raise Error, "failed to load #{@target.display_path}: #{e.message}"
+      rescue NameError => e
+        hint = " Pass the file that defines #{e.name} with --require." unless e.is_a?(NoMethodError)
+        raise Error, "failed to load #{@target.display_path}: #{e.message.lines.first.strip} (#{e.class}).#{hint}"
       end
       Coverage.result(stop: false, clear: true)
       resolve

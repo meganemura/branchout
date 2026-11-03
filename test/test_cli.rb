@@ -387,6 +387,19 @@ class CLITest < Minitest::Test
     end
   end
 
+  # A superclass or constant from another file is a NameError at load time.
+  # The run stops with one line that names it and the flag that fixes it.
+  def test_a_constant_missing_at_load_time_suggests_require
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "child.rb")
+      File.write(target, "class Child < Parent\n  def f = 1\nend\n")
+      _stdout, stderr, status = run_cli("explore", target, "Child#f", "--strategy", "inputs", "--random", "0")
+      refute status.success?
+      assert_equal "branchout: failed to load #{target}: uninitialized constant Parent (NameError). " \
+                   "Pass the file that defines Parent with --require.\n", stderr
+    end
+  end
+
   # Two inputs that are the same value run once. The person who wrote both
   # learns it, because inputs_ran alone does not say why it is lower.
   def test_a_repeated_input_runs_once_and_says_so

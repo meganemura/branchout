@@ -402,6 +402,29 @@ class EmitterTest < Minitest::Test
                   'returns tests[0].disposition: "reported", tests[0].file: "b_spec.rb"',
                   'returns tests[0].disposition: "flaky", tests[0].file: "c_spec.rb"'],
                  support.outcomes(pins).values
+
+    # A leaf the method changed is not a repeat of its input, even at a path the input has.
+    pins = [%w[open closed 1], %w[open merged 2], %w[open closed 3]].map do |given, state, id|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [{ "state" => given, "id" => id }]),
+                                 value: { "state" => state, "id" => id }, error: nil, arm_ids: [])
+    end
+    assert_equal ['returns state: "closed", id: "1"', 'returns state: "merged", id: "2"', 'returns state: "closed", id: "3"'],
+                 support.outcomes(pins).values
+  end
+
+  # At most three leaves name a Hash outcome, a leaf that would make a
+  # minitest outcome longer than 45 characters is not taken, and an empty
+  # collection says empty.
+  def test_hash_outcome_leaves_stop_at_three_and_at_the_length_limit
+    support = Branchout::Emitters::Support
+    pin = ->(arg, value) { Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [arg]), value: value, error: nil, arm_ids: []) }
+    base = { a: 0, b: 0, c: 0, d: 0 }
+    pins = [pin.(0, base)] + %i[a b c d].each_with_index.map { |key, index| pin.(index + 1, base.merge(key => 1)) }
+    assert_equal [3], support.outcomes(pins).values.map { |text| text.count(":") }.uniq
+    long = :a_very_long_key_name_that_goes_on
+    pins = [[0, 0], [1, 0], [2, 0], [0, 1]].each_with_index.map { |(a, x), index| pin.(index, { a: a, long => x }) }
+    assert_equal ["returns a: 0", "returns a: 1", "returns a: 2", "returns a: 0"], support.outcomes(pins).values
+    assert_equal %w[test_1_returns__tags_empty test_2_returns__tags_empty], support.test_names([pin.(1, { tags: [] }), pin.(2, { tags: {} })])
   end
 
   # A scalar deep in a Hash argument reaches the name: 7 % 0, -7 % 3, and

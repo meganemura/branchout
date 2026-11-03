@@ -9,7 +9,7 @@ module FixtureShape
     if n.positive?
       Point.new(n)
     else
-      {"n" => n}
+      {"n" => n, "as" => :zero}
     end
   end
 end

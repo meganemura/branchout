@@ -93,8 +93,9 @@ module Branchout
         when Array
           "[#{value.map { |item| ruby_literal(item, mutable: mutable) }.join(", ")}]"
         when Hash
-          pairs = value.map { |key, item| [key, item] }.sort_by { |key, _| key.to_s }
-          "{#{pairs.map { |key, item| "#{ruby_literal(key)} => #{ruby_literal(item, mutable: mutable)}" }.join(", ")}}"
+          # Insertion order, as the value prints: a failure diff then lines
+          # up key by key, and Hash equality ignores order anyway.
+          "{#{value.map { |key, item| "#{ruby_literal(key)} => #{ruby_literal(item, mutable: mutable)}" }.join(", ")}}"
         else
           raise Error, "cannot emit a literal for #{value.class}"
         end

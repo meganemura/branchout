@@ -141,7 +141,8 @@ module Branchout
         $stdout.write(stdout)
         if result.covered.empty? && result.frontier.empty?
           warn "branchout: #{entry} and the methods it calls in #{result.target} have no branches. " \
-               "Only a bare call, a self. call, and a call on new are followed; target the method that branches."
+               "Only a bare call, a self. call, and a call on new are followed; target the method that branches. " \
+               "--emit-tests still pins the return value or error of each input."
         end
         write_optional(opts[:json_out], Report.json(result))
         write_optional(opts[:md_out], Report.markdown(result))

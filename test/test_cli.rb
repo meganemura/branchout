@@ -328,7 +328,8 @@ class CLITest < Minitest::Test
       assert status.success?, stderr
       assert_includes stdout, "arms_total: 0"
       assert_equal "branchout: FixtureDelegate.forward and the methods it calls in test/fixtures/delegate.rb have no branches. " \
-                   "Only a bare call, a self. call, and a call on new are followed; target the method that branches.\n", stderr
+                   "Only a bare call, a self. call, and a call on new are followed; target the method that branches. " \
+                   "--emit-tests still pins the return value or error of each input.\n", stderr
     end
   end
 

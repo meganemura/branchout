@@ -189,7 +189,10 @@ ruby test/run_all.rb
 bundle exec rspec spec/generated
 ```
 
-`test/run_all.rb` は `test/test_*.rb` と `test/generated/*_test.rb` を読み込む。`spec/generated/` は `examples/` から出した RSpec である。Coverage はプロセス全体で 1 系統なので、CLI のテストは `bin/branchout` を子プロセスで起動する。
+`test/run_all.rb` は `test/test_*.rb` と `test/generated/*_test.rb` を読み込む。
+プロパティテストは hegeltest を使うので、Ruby 3.4 以上が要る。
+Ruby 3.3 では `BUNDLE_WITHOUT=property bundle install` とし、プロパティテストはスキップ 1 件になる。
+`spec/generated/` は `examples/` から出した RSpec である。Coverage はプロセス全体で 1 系統なので、CLI のテストは `bin/branchout` を子プロセスで起動する。
 
 ## ライセンス
 

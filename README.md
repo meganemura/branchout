@@ -180,7 +180,7 @@ ruby test/run_all.rb
 bundle exec rspec spec/generated
 ```
 
-`test/run_all.rb` loads `test/test_*.rb` and `test/generated/*_test.rb`. `spec/generated/` is the emitted RSpec for `examples/`. The CLI tests start `bin/branchout` in a subprocess because coverage is process-global.
+`test/run_all.rb` loads `test/test_*.rb` and `test/generated/*_test.rb`. The property tests use hegeltest, which needs Ruby 3.4 or newer. On Ruby 3.3, run `BUNDLE_WITHOUT=property bundle install`, and they report one skip. `spec/generated/` is the emitted RSpec for `examples/`. The CLI tests start `bin/branchout` in a subprocess because coverage is process-global.
 
 ## License
 

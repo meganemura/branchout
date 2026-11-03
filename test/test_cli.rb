@@ -372,6 +372,33 @@ class CLITest < Minitest::Test
     end
   end
 
+  # Each input's arms are its own: counts left over from the input before
+  # would give ["a",0] the else arm of ["z",0] too, and make ["z",0] the
+  # nearest input with fewer taken arms.
+  def test_an_input_takes_only_its_own_arms
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [["z", 0], ["a", 0]] })
+      stdout, stderr, status = run_cli(
+        "explore", "test/fixtures/branches.rb", "FixtureBranches.demo",
+        "--strategy", "inputs", "--random", "0", "--inputs", path
+      )
+      assert status.success?, stderr
+      assert_includes stdout, "nearest: [\"a\",0]\npath: case@5:12/when@7:14\n\nid: while@13:4/body@14:6"
+    end
+  end
+
+  # A call the target file makes while it loads is not an input's.
+  def test_a_call_made_while_loading_is_not_counted
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "early.rb")
+      File.write(target, "module Early\n  def self.f(x)\n    x > 0 ? :pos : :neg\n  end\n  NEG = f(-1)\nend\n")
+      path = write_inputs(dir, { "inputs" => [[1]] })
+      stdout, stderr, status = run_cli("explore", target, "Early.f", "--strategy", "inputs", "--random", "0", "--inputs", path)
+      assert status.success?, stderr
+      assert_includes stdout, "arms_covered: 1\n"
+    end
+  end
+
   # Only a file that opens the Branchout namespace is a copy. A project file
   # that shares a path with one of branchout's own files is not.
   def test_a_project_file_named_like_a_branchout_file_is_explored

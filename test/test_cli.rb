@@ -228,6 +228,20 @@ class CLITest < Minitest::Test
     end
   end
 
+  def test_an_entry_with_no_arms_warns
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [[1]] })
+      stdout, stderr, status = run_cli(
+        "explore", "test/fixtures/delegate.rb", "FixtureDelegate.apply",
+        "--strategy", "inputs", "--random", "0", "--inputs", path
+      )
+      assert status.success?, stderr
+      assert_includes stdout, "arms_total: 0"
+      assert_equal "branchout: FixtureDelegate.apply and its bare callees in test/fixtures/delegate.rb have no branches. " \
+                   "A call on another receiver, such as new.method, is not followed; target that method.\n", stderr
+    end
+  end
+
   def test_require_loads_the_library_before_the_target
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [[0], [4]] })

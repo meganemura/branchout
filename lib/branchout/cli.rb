@@ -139,6 +139,10 @@ module Branchout
         )
         stdout = opts[:json] ? Report.json(result) : Report.text(result)
         $stdout.write(stdout)
+        if result.covered.empty? && result.frontier.empty?
+          warn "branchout: #{entry} and its bare callees in #{result.target} have no branches. " \
+               "A call on another receiver, such as new.method, is not followed; target that method."
+        end
         write_optional(opts[:json_out], Report.json(result))
         write_optional(opts[:md_out], Report.markdown(result))
         if opts[:emit_tests]

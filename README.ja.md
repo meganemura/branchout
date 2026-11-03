@@ -172,6 +172,8 @@ ln -s /path/to/branchout/skills/branchout .agents/skills/branchout
 - 経路は腕の集合であり、順序ではない。`&&` と `||` は腕にならない。`while` と `until` が記録するのは本体の腕で、条件は実行されたが本体に入らなかったことは行カウントで補う。
 - 修飾子の `unless` は then と else が同じ位置になることがある。id の腕名で区別する。
 - 同じファイルの裸呼び出しと `self.` 以外は追わない。
+  `def self.apply(x) = new.check(x)` には腕がなく、`explore` は stderr に警告を出す。
+  この場合は `Const#check` を対象にする。
 - `Timeout.timeout` はすべてのブロックを止められない。タイムアウトのバックトレースに対象行が無いとき、`loc` はメソッド定義行になる。
 - 充足できない条件はフロンティアに残る。`examples/arithmetic.rb` の `x == 114514 && x == 0` がそれである。
 - 上のランダムと変異の範囲は、意図して狭い。

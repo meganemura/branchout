@@ -186,7 +186,7 @@ bundle exec rspec spec/generated
 
 ## License
 
-No license has been chosen yet.
+MIT
 
 ---
 

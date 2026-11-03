@@ -230,4 +230,4 @@ Ruby 3.3 では `BUNDLE_WITHOUT=property bundle install` とし、プロパテ�
 
 ## ライセンス
 
-ライセンスはまだ決めていない。
+MIT

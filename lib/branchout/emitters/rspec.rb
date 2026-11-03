@@ -99,7 +99,7 @@ module Branchout
             if member.is_a?(Example)
               out.concat(example_lines(member, texts[member], indent))
             else
-              out << "#{indent}context #{texts[member].inspect} do"
+              out << "#{indent}context #{quoted(texts[member])} do"
               out.concat(node_lines(member, "#{indent}  "))
               out << "#{indent}end"
             end
@@ -109,7 +109,7 @@ module Branchout
 
         def example_lines(example, text, indent)
           pin = example.pin
-          lines = ["#{indent}it #{text.inspect} do"]
+          lines = ["#{indent}it #{quoted(text)} do"]
           lines.concat(Support.cover_comment(pin, "#{indent}  "))
           inline = example.steps.select { |step| step.kind == :inline }.map(&:code)
           call = @subject || (@subject == false ? "subject" : entry_call(pin.input))
@@ -198,6 +198,17 @@ module Branchout
 
           outcome = (short ? @short_outcomes : @outcomes)[member.pin]
           text.empty? ? outcome : "#{outcome} #{text}"
+        end
+
+        # A text as a literal that needs no escape, so it reads as it prints:
+        # 'when kind is "int"', or %q(...) when it holds both quotes.
+        def quoted(text)
+          plain = text.inspect
+          return plain unless text.include?('"') && plain == "\"#{text.gsub('"', '\"')}\""
+          return "'#{text}'" unless text.include?("'")
+          return "%q(#{text})" unless text.match?(/[()]/)
+
+          plain
         end
 
         def pins_of(member)

@@ -243,7 +243,7 @@ class CLITest < Minitest::Test
       # The input that raises keeps its setup inside the expect block, so
       # the raise is pinned wherever it comes from.
       assert_includes File.read(spec), "    context \"with new\" do\n      let(:fixture_cart) { FixtureCart.new }\n\n" \
-                                       "      it \"raises ArgumentError after add(\\\"apple\\\", 0)\" do\n        expect {\n" \
+                                       "      it 'raises ArgumentError after add(\"apple\", 0)' do\n        expect {\n" \
                                        "          fixture_cart.add(+\"apple\", 0)\n          volume_discount_cents\n" \
                                        "        }.to raise_error(ArgumentError, \"quantity must be positive\")\n"
       _out, err, status = Open3.capture3(RbConfig.ruby, "-rrspec/autorun", "-e", "", spec)

@@ -568,7 +568,7 @@ class EmitterTest < Minitest::Test
       rspec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/cart_spec.rb"))
       if pin.error
         assert_includes minitest, "    error = assert_raises(KeyError) do\n      #{arrange}      cart.add(+\"apple\", qty: 2)\n      cart.total\n    end\n"
-        assert_includes rspec, "    let(:cart) { Shop::Cart.new(+\"EUR\") }\n\n    it \"raises KeyError after add(\\\"apple\\\", qty: 2)\" do\n" \
+        assert_includes rspec, "    let(:cart) { Shop::Cart.new(+\"EUR\") }\n\n    it 'raises KeyError after add(\"apple\", qty: 2)' do\n" \
                                "      expect {\n        cart.add(+\"apple\", qty: 2)\n        total\n      }.to raise_error(KeyError)\n"
       else
         assert_includes minitest, "    #{arrange}    cart.add(+\"apple\", qty: 2)\n    assert_equal 7, cart.total\n"
@@ -626,14 +626,14 @@ class EmitterTest < Minitest::Test
               expect(cart.total(1, true)).to eq(0)
             end
 
-            it "raises ArgumentError after add(\"apple\", 0) when tax is 1" do
+            it 'raises ArgumentError after add("apple", 0) when tax is 1' do
               expect {
                 cart.add(+"apple", 0)
                 cart.total(1, true)
               }.to raise_error(ArgumentError, "m")
             end
 
-            context "after add(\"apple\", 3)" do
+            context 'after add("apple", 3)' do
               before do
                 cart.add(+"apple", 3)
               end
@@ -646,7 +646,7 @@ class EmitterTest < Minitest::Test
                 expect(cart.total(2, true)).to eq(600)
               end
 
-              context "after add(\"pear\", 4)" do
+              context 'after add("pear", 4)' do
                 before do
                   cart.add(+"pear", 4)
                 end
@@ -658,7 +658,7 @@ class EmitterTest < Minitest::Test
             end
           end
 
-          context "with new(\"EUR\")" do
+          context 'with new("EUR")' do
             let(:cart) { Shop::Cart.new(+"EUR") }
 
             it "returns 5 when tax is 1" do
@@ -724,10 +724,21 @@ class EmitterTest < Minitest::Test
     end
     node = ->(value) { { "kind" => "app", "args" => [{ "kind" => "int", "value" => value }], "a b" => value } }
     labels = render.(target_for.(:node), [[node.(7)], [node.(0)]])
-    assert_includes labels, '"returns 1 when args[0].value is 7 and [\"a b\"] is 7"'
+    assert_includes labels, %q('returns 1 when args[0].value is 7 and ["a b"] is 7')
     labels = render.(target_for.(:node, :env), [[node.(7), 1], [node.(0), 1]])
-    assert_includes labels, '"returns 1 when node.args[0].value is 7 and node[\"a b\"] is 7"'
+    assert_includes labels, %q('returns 1 when node.args[0].value is 7 and node["a b"] is 7')
     assert_includes render.(target_for.(:x), [[7], [0]]), '"returns 1 when x is 7"'
+  end
+
+  # A text is quoted so that it needs no escape where one quoting allows it.
+  def test_rspec_texts_need_no_escapes
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Box", :put, "Box.put", "lib/x.rb", File.join(ROOT, "lib/x.rb"), [], [Struct.new(:name).new(:x)])
+    pins = ["it's", "(it's)", "a\\b", "tab\t"].map { |arg| Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [arg]), value: 1, error: nil, arm_ids: []) }
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+    texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *it (.*) do$/).flatten
+    assert_equal [%q(%q(returns 1 when x is "it's")), %q("returns 1 when x is \"(it's)\""),
+                  "returns 1 when x is #{"a\\b".inspect}".inspect, "returns 1 when x is #{"tab\t".inspect}".inspect], texts
   end
 
   # A text over 80 characters keeps only the facts that tell it from its
@@ -745,9 +756,9 @@ class EmitterTest < Minitest::Test
     end
     result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
     texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *((?:it|context) .*) do$/).flatten
-    assert_equal ['it "returns 1 when methods is [] and tests is []"', 'context "when methods[0].id is \"m01\""',
-                  'it "returns 1 when tests[0].head.last_run.result.status is \"failed\""',
-                  'it "returns 1 when status is \"timed out after 30 seconds\""'], texts
+    assert_equal ['it "returns 1 when methods is [] and tests is []"', %q(context 'when methods[0].id is "m01"'),
+                  %q(it 'returns 1 when tests[0].head.last_run.result.status is "failed"'),
+                  %q(it 'returns 1 when status is "timed out after 30 seconds"')], texts
   end
 
   def test_rspec_names_subjects_receivers_and_facts
@@ -774,17 +785,17 @@ class EmitterTest < Minitest::Test
     long = ->(tail) { pin.(Branchout::Input.new(args: ["#{"a" * 40}#{tail}", 5, 6], kwargs: { "k" => 2 })) }
     pins = [pin.(Branchout::Input.new(args: [fits, 5, 7], kwargs: { "k" => 3 })), long.("x"), long.("y")]
     source = render.(target_for.("Box", :put, singleton: true), pins)
-    assert_includes source, "it #{"returns 1 when x is #{fits.inspect}, argument 3 is 7 and k is 3".inspect} do"
+    assert_includes source, "it '#{"returns 1 when x is #{fits.inspect}, argument 3 is 7 and k is 3"}' do"
     # Two long strings that share their start are cut where they part.
-    assert_includes source, "it #{"returns 1 when x is \"...#{"a" * 10}x\", argument 3 is 6 and k is 2".inspect} do"
-    assert_includes source, "it #{"returns 1 when x is \"...#{"a" * 10}y\", argument 3 is 6 and k is 2".inspect} do"
+    assert_includes source, "it '#{"returns 1 when x is \"...#{"a" * 10}x\", argument 3 is 6 and k is 2"}' do"
+    assert_includes source, "it '#{"returns 1 when x is \"...#{"a" * 10}y\", argument 3 is 6 and k is 2"}' do"
     refute_includes source, "(input"
     refute_includes source, "subject"
     sentence = "a fairly long string that keeps going and going"
     texts = render.(target_for.("Box", :put, singleton: true), ["#{sentence} on", "#{sentence} off", "an early part #{sentence}"].map { |arg| pin.(Branchout::Input.new(args: [arg])) })
-    assert_includes texts, "it #{"returns 1 when x is \"...and going on\"".inspect} do"
-    assert_includes texts, "it #{"returns 1 when x is \"...and going off\"".inspect} do"
-    assert_includes texts, "it #{"returns 1 when x is \"an early part a fairly...\"".inspect} do"
+    assert_includes texts, "it '#{"returns 1 when x is \"...and going on\""}' do"
+    assert_includes texts, "it '#{"returns 1 when x is \"...and going off\""}' do"
+    assert_includes texts, "it '#{"returns 1 when x is \"an early part a fairly...\""}' do"
 
     struct = Struct.new(:a)
     shaped = [pin.(Branchout::Input.new(args: [1]), { total: 1, tax: 0 }), pin.(Branchout::Input.new(args: [2]), [struct.new(1)]),

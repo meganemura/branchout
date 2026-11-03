@@ -93,11 +93,14 @@ module Branchout
       end
 
       def call_text(on, method_name, arguments, private_calls)
-        unless private_calls.include?(method_name)
+        # A setter or an operator goes through send: "cart.limit=" and
+        # "cart.limit=(a: 1)" do not parse, and "cart.limit=()" passes nil.
+        plain = method_name.to_s.match?(/\A[A-Za-z_][A-Za-z0-9_]*[?!]?\z/)
+        if plain && !private_calls.include?(method_name)
           return arguments.empty? ? "#{on}.#{method_name}" : "#{on}.#{method_name}(#{arguments})"
         end
 
-        "#{on}.send(#{[method_name.inspect, *(arguments unless arguments.empty?)].join(", ")})"
+        "#{on}.send(#{[method_name.to_sym.inspect, *(arguments unless arguments.empty?)].join(", ")})"
       end
 
       # The class name in snake case, as a reader would name the object.

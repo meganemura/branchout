@@ -248,7 +248,7 @@ class EmitterTest < Minitest::Test
     assert_equal [[], 'Foo::Bar.baz?(1, "a b": +"s", z: 1)'], support.arrange(target, input)
     target.singleton = false
     setup = [Branchout::Input::SetupCall.new("<<", Branchout::Input.new(args: ["x"])), Branchout::Input::SetupCall.new("clear", Branchout::Input.new(args: []))]
-    assert_equal [["bar = Foo::Bar.new(2)", 'bar.<<(+"x")', "bar.clear"], "bar.baz?"],
+    assert_equal [["bar = Foo::Bar.new(2)", 'bar.send(:<<, +"x")', "bar.clear"], "bar.baz?"],
                  support.arrange(target, Branchout::Input.new(args: [], receiver: Branchout::Input.new(args: [2]), setup: setup))
     { "HTTPClient" => "http_client", "Class" => "subject", "Error" => "subject", "X" => "x" }.each do |const, name|
       target.const_name = const
@@ -379,6 +379,17 @@ class EmitterTest < Minitest::Test
     assert_equal ['require "shop"', 'require_relative "../../other/cart.rb"'], lines
     lines = support.require_lines(["/w/repo/lib/shop.rb"], "/w/repo/lib/shop/cart.rb", "/w/repo/test/cart_test.rb")
     assert_equal ['require_relative "../lib/shop.rb"', 'require_relative "../lib/shop/cart.rb"'], lines
+  end
+
+  # A setter or an operator in a setup call has no plain form that keeps
+  # its arguments, so it goes through send.
+  def test_a_setter_or_an_operator_is_called_through_send
+    support = Branchout::Emitters::Support
+    assert_equal "cart.send(:limit=)", support.call_text("cart", "limit=", "", [])
+    assert_equal "cart.send(:limit=, a: 1)", support.call_text("cart", "limit=", "a: 1", [])
+    assert_equal "cart.send(:<<, 1)", support.call_text("cart", "<<", "1", [])
+    assert_equal "cart.empty?", support.call_text("cart", "empty?", "", [])
+    assert_equal "cart.add(1)", support.call_text("cart", "add", "1", [])
   end
 
   def test_clip_keeps_a_word_that_fills_the_limit

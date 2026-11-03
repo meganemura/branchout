@@ -250,6 +250,31 @@ class TargetTest < Minitest::Test
     end
   end
 
+  # An entry inherited from a superclass in the same file is found there,
+  # and a call it makes reaches the subclass's override, as at run time.
+  def test_an_inherited_entry_follows_the_subclass_overrides
+    source = <<~RUBY
+      module M
+        class Base
+          def lend(n) = allowed?(n) ? :lent : :kept
+          def self.open(n) = n > 2
+          private def allowed?(n) = n < 3
+        end
+        class Open < Base
+          private def allowed?(n) = n < 10
+        end
+      end
+      class Wide < M::Open
+      end
+    RUBY
+    parse_source(source, "M::Open#lend") do |target|
+      assert_equal [3..3, 8..8], target.ranges
+      assert_equal [10], target.literals.ints
+    end
+    parse_source(source, "Wide#lend") { |target| assert_equal [3..3, 8..8], target.ranges }
+    parse_source(source, "Wide.open") { |target| assert_equal [4..4], target.ranges }
+  end
+
   def test_a_nested_def_is_not_part_of_the_method
     parse_source("module T\n  def self.f(x)\n    def self.g = 9\n    x > 1\n  end\nend\n", "T.f") do |target|
       assert_equal [1], target.literals.ints

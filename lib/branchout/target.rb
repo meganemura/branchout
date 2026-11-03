@@ -53,6 +53,7 @@ module Branchout
       end
 
       defs = []
+      @superclasses = {}
       collect_defs(result.value, [], false, defs)
       index = {}
       defs.each do |info|
@@ -63,7 +64,11 @@ module Branchout
         index[key] = info
       end
 
-      entry_def = index[[const_name, singleton, method_name]]
+      lineage = lineage_of(const_name, defs)
+      # The first definition along the superclass chain, as Ruby finds it
+      # for the entry's own class.
+      find = ->(in_singleton, name) { lineage.lazy.filter_map { |const| index[[const, in_singleton, name]] }.first }
+      entry_def = find.(singleton, method_name)
       unless entry_def
         kind = singleton ? "." : "#"
         raise Error, "cannot find #{const_name}#{kind}#{method_name} in #{display_path}"
@@ -86,14 +91,14 @@ module Branchout
         bodies << body if body
         index_conditions(body) if body
         bare_calls(body).each do |name|
-          callee = index[[info.const_name, info.singleton, name]]
+          callee = find.(info.singleton, name)
           queue << callee if callee
         end
         next unless info.singleton
 
         calls_on_new(body).each do |name|
           [:initialize, name].each do |instance_name|
-            callee = index[[info.const_name, false, instance_name]]
+            callee = find.(false, instance_name)
             queue << callee if callee
           end
         end
@@ -172,6 +177,21 @@ module Branchout
         param.inferred_type = choose_type(param, evidence[param.name])
       end
       list
+    end
+
+    # +const+ and its superclasses declared in this file, nearest first. A
+    # superclass name resolves in the scope its class was written in.
+    def lineage_of(const, defs)
+      declared = defs.map(&:const_name) | @superclasses.keys
+      chain = [const]
+      while (parent = @superclasses[chain.last])
+        scope, text = parent
+        name = scope.length.downto(0).map { |depth| [*scope[0, depth], text].join("::") }.find { |candidate| declared.include?(candidate) }
+        break if name.nil? || chain.include?(name)
+
+        chain << name
+      end
+      chain
     end
 
     def module_segment(node, stack)
@@ -411,9 +431,10 @@ module Branchout
 
       case node.type
       when :module_node, :class_node
+        inner = stack + [module_segment(node, stack)]
+        @superclasses[inner.join("::")] = [stack, node.superclass.slice.delete_prefix("::")] if node.type == :class_node && node.superclass
         return unless node.body
 
-        inner = stack + [module_segment(node, stack)]
         functions = { after: false, names: [], all: false }
         collect_defs(node.body, inner, false, acc, functions)
         named = acc.select do |info|

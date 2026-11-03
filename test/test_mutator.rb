@@ -175,6 +175,20 @@ class MutatorTest < Minitest::Test
       assert_equal [[false], [true]], samples.uniq.sort_by(&:inspect)
     end
   end
+  # A bool given by the types list with no default starts at false, the
+  # value the other parameters' mutations hold it at.
+  def test_a_typed_bool_with_no_default_starts_false
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "t.rb")
+      File.write(path, "module T\n  def self.f(n, flag) = flag && n > 1 ? :big : :small\nend\n")
+      target = Branchout::Target.parse(path, "T.f", type_overrides: %w[int bool])
+      inputs = Branchout::Mutator.new(target, cap: 64).inputs.map(&:args)
+      assert_includes inputs, [2, false]
+      assert_includes inputs, [0, true]
+      assert(inputs.all? { |_n, flag| [true, false].include?(flag) }, inputs.inspect)
+    end
+  end
+
   def test_mutate_and_random_fill_the_constructor_arguments
     target = Branchout::Target.parse(File.join(@root, "test/fixtures/account.rb"), "FixtureAccount#withdraw")
     assert_equal [[:balance, "int"], [:limit, "int"]], target.constructor.map { |param| [param.name, param.inferred_type] }

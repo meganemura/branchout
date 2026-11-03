@@ -4,6 +4,7 @@ require "minitest/autorun"
 require "json"
 require "open3"
 require "fileutils"
+require "branchout"
 
 class CLITest < Minitest::Test
   ROOT = File.expand_path("..", __dir__)
@@ -359,5 +360,37 @@ class CLITest < Minitest::Test
     _stdout, stderr, status = run_cli("nope")
     refute status.success?
     assert_includes stderr, "unknown command"
+  end
+
+  USAGE_ERRORS = {
+    %w[explore test/fixtures/magic.rb] => "missing ENTRY",
+    %w[explore test/fixtures/magic.rb A.b extra] => "unexpected arguments: extra",
+    %w[explore t.rb A.b --seed -1] => "seed must be >= 0",
+    %w[explore t.rb A.b --seed x] => "seed must be an integer",
+    %w[explore t.rb A.b --random -1] => "random count must be >= 0",
+    %w[explore t.rb A.b --mutate-cap -1] => "mutate-cap must be >= 0",
+    %w[explore t.rb A.b --timeout 0] => "timeout must be > 0",
+    %w[explore t.rb A.b --timeout x] => "timeout must be a number",
+    %w[explore t.rb A.b --strategy inputs,guess] => "unknown strategy guess",
+    %w[explore t.rb A.b --strategy ,] => "strategy list is empty",
+    %w[explore t.rb A.b --inputs] => "--inputs needs a value",
+    %w[explore t.rb A.b --verbose] => "unknown option --verbose",
+    %w[explore t.rb A.b --format rspec] => "--format requires --emit-tests",
+    %w[explore t.rb A.b --emit-tests x.rb --format tap] => "format must be minitest or rspec",
+    %w[baselines t.rb A.b --emit-tests x.rb] => "--emit-tests is only valid with explore"
+  }.freeze
+
+  def test_each_usage_error_names_the_problem
+    USAGE_ERRORS.each do |argv, message|
+      error = assert_raises(Branchout::Error, argv.join(" ")) { Branchout::CLI.run(argv) }
+      assert_equal message, error.message, argv.join(" ")
+    end
+  end
+
+  def test_help_after_a_command_prints_help
+    status = nil
+    stdout, _stderr = capture_io { status = Branchout::CLI.run(%w[explore --help]) }
+    assert_equal 0, status
+    assert_includes stdout, "Usage:"
   end
 end

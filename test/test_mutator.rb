@@ -71,4 +71,40 @@ class MutatorTest < Minitest::Test
     assert(inputs.all? { |input| input.kwargs.keys == ["label"] })
     assert_includes inputs.map(&:kwargs), { "label" => "x" }
   end
+
+  INPUT_FILE_ERRORS = {
+    "[1" => "invalid JSON in",
+    "{}" => "is missing \"inputs\"",
+    "{\"inputs\": 1}" => "inputs must be an array",
+    "{\"inputs\": [], \"types\": \"int\"}" => "types must be an array",
+    "{\"inputs\": [], \"types\": [\"bool\"]}" => "has an unknown type (int, float, string, array, hash)",
+    "{\"inputs\": [{\"args\": [], \"note\": 1}]}" => "inputs[0] has unknown keys: note",
+    "{\"inputs\": [{\"kwargs\": {}}]}" => "inputs[0] is missing args",
+    "{\"inputs\": [1]}" => "inputs[0] must be an array or an object",
+    "{\"inputs\": [{\"args\": 1}]}" => "input args must be an array",
+    "{\"inputs\": [{\"args\": [], \"kwargs\": 1}]}" => "input kwargs must be an object"
+  }.freeze
+
+  def test_each_bad_inputs_file_names_the_problem
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "inputs.json")
+      error = assert_raises(Branchout::Error) { Branchout::InputFile.load(path) }
+      assert_equal "inputs file not found: #{path}", error.message
+      INPUT_FILE_ERRORS.each do |body, message|
+        File.write(path, body)
+        error = assert_raises(Branchout::Error, body) { Branchout::InputFile.load(path) }
+        assert_includes error.message, message, body
+      end
+    end
+  end
+
+  def test_null_kwargs_is_no_keywords
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "inputs.json")
+      File.write(path, JSON.generate({ "inputs" => [{ "args" => [nil], "kwargs" => nil }] }))
+      inputs, types = Branchout::InputFile.load(path)
+      assert_nil types
+      assert_equal [[nil], {}], [inputs.first.args, inputs.first.kwargs]
+    end
+  end
 end

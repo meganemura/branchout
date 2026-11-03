@@ -58,4 +58,33 @@ class CanonTest < Minitest::Test
     minus = Branchout::Input.new(args: [-1])
     assert_operator zero.weight, :<, minus.weight
   end
+
+  def test_pretty_layout
+    body = { "b" => [1, { "c" => [] }], "a" => {} }
+    expected = "{\n  \"b\": [\n    1,\n    {\n      \"c\": []\n    }\n  ],\n  \"a\": {}\n}"
+    assert_equal expected, Branchout::Canon.pretty(body)
+  end
+
+  def test_symbol_is_escaped_like_a_string
+    assert_equal '"\\u3042"', Branchout::Canon.json(:"\u3042")
+  end
+
+  def test_rng_rejects_an_empty_range
+    error = assert_raises(Branchout::Error) { Branchout::Rng.new(1).rand_inclusive(1, 0) }
+    assert_equal "empty range 1..0", error.message
+  end
+
+  def test_input_weight_counts_nesting_kwargs_and_new
+    receiver = Branchout::Input.new(args: [4])
+    input = Branchout::Input.new(args: [[1, -2], "ab"], kwargs: { "k" => 3 }, receiver: receiver)
+    assert_equal (2 + 1 + 2) + 2 + 3 + 4, input.weight
+  end
+
+  def test_input_freezes_nested_values_and_refuses_non_finite_floats
+    input = Branchout::Input.new(args: [[[1]], { "a" => [2] }])
+    assert input.args.first.first.frozen?
+    assert input.args.last["a"].frozen?
+    error = assert_raises(Branchout::Error) { Branchout::Input.new(args: [Float::NAN]) }
+    assert_equal "non-finite float", error.message
+  end
 end

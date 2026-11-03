@@ -462,6 +462,31 @@ class CLITest < Minitest::Test
     end
   end
 
+  # An RSpec example pins an Array of Structs by its size and each
+  # element's class and members, so a changed member fails it.
+  def test_rspec_pins_the_members_of_structs_in_an_array
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "rules.rb")
+      source = "require \"set\"\nmodule Rules\n  Rule = Struct.new(:action, :args, :tags)\n" \
+               "  def self.list(n) = Array.new(n) { |i| Rule.new(\"a\#{i}\", [i], Set[i]) }\nend\n"
+      File.write(target, source)
+      path = write_inputs(dir, { "inputs" => [[2]] })
+      spec = File.join(dir, "rules_spec.rb")
+      _out, err, status = run_cli("explore", target, "Rules.list", "--strategy", "inputs", "--random", "0",
+                                  "--inputs", path, "--emit-tests", spec)
+      assert status.success?, err
+      text = File.read(spec)
+      assert_includes text, "    it \"returns an Array of 2\" do\n"
+      assert_includes text, "expect(Rules.list(2)).to match([a_kind_of(Rules::Rule).and(have_attributes(action: \"a0\", args: [0], tags: a_kind_of(Set))), " \
+                            "a_kind_of(Rules::Rule).and(have_attributes(action: \"a1\", args: [1], tags: a_kind_of(Set)))])\n"
+      _out, err, status = Open3.capture3(RbConfig.ruby, "-rrspec/autorun", "-e", "", spec)
+      assert status.success?, err
+      File.write(target, source.sub("[i]", "[i + 1]"))
+      out, _err, status = Open3.capture3(RbConfig.ruby, "-rrspec/autorun", "-e", "", spec)
+      refute status.success?, out
+    end
+  end
+
   # With --require-by-name the emitted test loads the library from the load
   # path, so it tests whichever checkout -I names: jitcatch runs it in a base
   # and a head worktree.

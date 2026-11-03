@@ -116,7 +116,9 @@ class EmitterTest < Minitest::Test
         assert status.success?, err
       end
       assert_includes File.read(test), "assert_kind_of FixtureShape::Point, FixtureShape.build(1)"
-      assert_includes File.read(spec), "expect(FixtureShape.build(1)).to be_a(FixtureShape::Point)"
+      assert_includes File.read(spec), "expect(FixtureShape.build(1)).to a_kind_of(FixtureShape::Point).and(have_attributes(x: 1))"
+      _out, err, status = Open3.capture3(RbConfig.ruby, "-rrspec/autorun", "-e", "", spec)
+      assert status.success?, err
       _out, err, status = Open3.capture3(RbConfig.ruby, test)
       assert status.success?, err
     end

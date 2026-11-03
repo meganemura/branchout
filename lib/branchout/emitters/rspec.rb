@@ -135,7 +135,12 @@ module Branchout
         def value_matcher(value)
           pinned = Support.pinned_value(value, @pin_keys)
           return "include(#{Support.ruby_literal(pinned)})" if !pinned.equal?(value) && Support.literal?(pinned)
-          return "be_a(#{Support.class_literal(value)})" unless Support.literal?(value)
+          unless Support.literal?(value)
+            return "match(#{Support.shape_matcher(value)})" if value.is_a?(Array) || value.is_a?(Hash)
+            return Support.shape_matcher(value) if value.is_a?(Struct) || value.is_a?(Data)
+
+            return "be_a(#{Support.class_literal(value)})"
+          end
 
           "eq(#{Support.ruby_literal(value)})"
         end

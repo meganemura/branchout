@@ -299,7 +299,11 @@ module Branchout
 
       def outcome_text(pin, differing)
         return "raises #{pin.error.class_name}" if pin.error
-        return "returns #{article(class_literal(pin.value))}" unless literal?(pin.value)
+        unless literal?(pin.value)
+          return "returns an Array of #{pin.value.length}" if pin.value.is_a?(Array)
+
+          return "returns #{article(class_literal(pin.value))}"
+        end
 
         value = pin.value
         unless differing.empty?
@@ -314,6 +318,22 @@ module Branchout
         when Array then "returns an Array of #{value.length}"
         when String then "returns a String of #{value.length} characters"
         else "returns #{text}"
+        end
+      end
+
+      # An RSpec matcher argument for a value with no literal: a Struct or
+      # Data by its class and members, an Array or Hash by its items, and
+      # anything else by its class.
+      def shape_matcher(value)
+        case value
+        when Struct, Data
+          members = value.to_h.map { |key, item| "#{key}: #{literal?(item) ? ruby_literal(item) : shape_matcher(item)}" }
+          "a_kind_of(#{class_literal(value)}).and(have_attributes(#{members.join(", ")}))"
+        when Array then "[#{value.map { |item| literal?(item) ? ruby_literal(item) : shape_matcher(item) }.join(", ")}]"
+        when Hash
+          entries = value.map { |key, item| "#{literal?(key) ? hash_key_literal(key) : "#{shape_matcher(key)} =>"} #{literal?(item) ? ruby_literal(item) : shape_matcher(item)}" }
+          "{#{entries.join(", ")}}"
+        else "a_kind_of(#{class_literal(value)})"
         end
       end
 

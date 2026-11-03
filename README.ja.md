@@ -136,7 +136,9 @@ ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \
 この実行は 4 腕のうち 4 腕を覆い、`[24,12]` で `ZeroDivisionError`（`divided by 0`）を記録する。出力ファイルは戻り値、または例外クラスとメッセージを固定する。
 `NameError` と `NoMethodError` は、クラスと見つからなかった名前（`error.name`）で固定する。
 Ruby 3.4 でメッセージの文言が変わったためである。
-`Set` や `Struct` のように Ruby のリテラルで書けない戻り値は、クラスだけを固定する。
+`Set` のように Ruby のリテラルで書けない戻り値は、クラスだけを固定する。
+RSpec では、`Struct` と `Data` の値はクラスとメンバーで固定し、それを含む Array や Hash は要素ごとに固定する（`match([a_kind_of(Rule).and(have_attributes(action: "borrow"))])`）。
+minitest は `Struct` をクラスだけで固定する。
 期待する Hash は値そのもののキー順で書くので、失敗時の差分をキーごとに見比べられる。
 private や protected の入口と private な `new` は、`explore` と同じく `send` で呼ぶ。
 minitest のテスト名は入力と結果から作る。

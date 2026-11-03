@@ -241,8 +241,8 @@ class EmitterTest < Minitest::Test
 
   def test_literals_calls_and_class_names
     support = Branchout::Emitters::Support
-    assert_equal '{"b" => true, :c => +"x", "a" => [nil, false]}',
-                 support.ruby_literal({ "b" => true, c: "x", "a" => [nil, false] }, mutable: true)
+    assert_equal '{"b" => true, c: +"x", "a" => [nil, false], d?: 1, "e f": 2, "+": 3}',
+                 support.ruby_literal({ "b" => true, c: "x", "a" => [nil, false], d?: 1, "e f": 2, "+": 3 }, mutable: true)
     target = Struct.new(:singleton, :const_name, :method_name, :entry).new(true, "Foo::Bar", :baz?, "Foo::Bar.baz?")
     input = Branchout::Input.new(args: [1], kwargs: { "z" => 1, "a b" => "s" })
     assert_equal [[], 'Foo::Bar.baz?(1, "a b": +"s", z: 1)'], support.arrange(target, input)

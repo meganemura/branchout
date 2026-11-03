@@ -57,6 +57,13 @@ class PropertyTest < Minitest::Test
     end
   end
 
+  def test_an_emitted_hash_with_symbol_keys_evaluates_to_the_value
+    Hegel.test do |tc|
+      value = tc.draw(hashes(text(max_size: 4), json_values, max_size: 3)).transform_keys(&:to_sym)
+      assert_equal [value], [eval(Branchout::Emitters::Support.ruby_literal(value))] # rubocop:disable Security/Eval
+    end
+  end
+
   def test_the_reported_input_pastes_back_as_the_same_input
     Hegel.test do |tc|
       input = draw_input(tc)

@@ -99,7 +99,7 @@ module Branchout
         when Hash
           # Insertion order, as the value prints: a failure diff then lines
           # up key by key, and Hash equality ignores order anyway.
-          "{#{value.map { |key, item| "#{ruby_literal(key)} => #{ruby_literal(item, mutable: mutable)}" }.join(", ")}}"
+          "{#{value.map { |key, item| "#{hash_key_literal(key)} #{ruby_literal(item, mutable: mutable)}" }.join(", ")}}"
         else
           raise Error, "cannot emit a literal for #{value.class}"
         end
@@ -122,9 +122,14 @@ module Branchout
         value.class.ancestors.find { |mod| mod.is_a?(Class) && mod.name }.name
       end
 
+      # A Symbol key takes the key: form, as the keyword of a call does.
+      def hash_key_literal(key)
+        key.is_a?(Symbol) ? "#{keyword_literal(key)}:" : "#{ruby_literal(key)} =>"
+      end
+
       def keyword_literal(key)
         text = key.to_s
-        return text if text.match?(/\A[A-Za-z_][A-Za-z0-9_]*\z/)
+        return text if text.match?(/\A[A-Za-z_][A-Za-z0-9_]*[?!]?\z/)
 
         text.inspect
       end

@@ -87,6 +87,7 @@ EXCEPTIONS
 | `--md-out PATH` | | テキストレポートを Markdown で書く |
 | `--emit-tests PATH` | | 特徴づけテストを書く。`explore` のみ |
 | `--format NAME` | `minitest` | `minitest` か `rspec`。`--emit-tests` が要る。省くと、パスが `_spec.rb` で終わるときだけ RSpec |
+| `--require-by-name` | オフ | 出力するテストは `--require` のファイルと対象を、ロードパス経由で `require` する。名前は各 `--require` ファイルのディレクトリから作る（`require "shop/cart"`）。`--require` と `--emit-tests` が要る |
 | `--entry ENTRY` | 位置引数 | `Const.method` か `Const#method` |
 
 | 戦略 | 実行するもの |
@@ -146,6 +147,7 @@ private や protected の入口と private な `new` は、`explore` と同じ�
 空白だけの文字列は `blank` になり、Hash の引数は値で名付ける。
 Hash の結果はキーで名付け、各キーの前に `__` を置く。
 対象のディレクトリの外に出力したテストは、対象を絶対パスで読み込む。
+`--require-by-name` を付けたときは、ロードパス経由で読み込む。
 minitest のパスは `--format minitest` で、`ruby` で実行する。RSpec には `rspec` gem が要る。
 
 ## フロンティアの作り方

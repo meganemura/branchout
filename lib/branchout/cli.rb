@@ -30,6 +30,8 @@ module Branchout
         --md-out PATH       write the text report as Markdown
         --emit-tests PATH   write characterization tests (explore only)
         --format NAME       minitest or rspec (default minitest; _spec.rb infers rspec)
+        --require-by-name   emitted tests require the --require files and the target
+                            through the load path, from each --require file's directory
         --help
         --version
     TEXT
@@ -70,6 +72,7 @@ module Branchout
         md_out: nil,
         emit_tests: nil,
         format: nil,
+        require_by_name: false,
         requires: []
       }
       positionals = []
@@ -89,6 +92,7 @@ module Branchout
         when "--md-out" then opts[:md_out] = take(args, arg)
         when "--emit-tests" then opts[:emit_tests] = take(args, arg)
         when "--format" then opts[:format] = take(args, arg)
+        when "--require-by-name" then opts[:require_by_name] = true
         when "--help", "-h"
           puts HELP
           return 0
@@ -109,6 +113,10 @@ module Branchout
       raise Error, "mutate-cap must be >= 0" if opts[:mutate_cap].negative?
       if opts[:emit_tests] && command != "explore"
         raise Error, "--emit-tests is only valid with explore"
+      end
+      if opts[:require_by_name]
+        raise Error, "--require-by-name requires --require" if opts[:requires].empty?
+        raise Error, "--require-by-name requires --emit-tests" unless opts[:emit_tests]
       end
       if opts[:format] && !opts[:emit_tests]
         raise Error, "--format requires --emit-tests"
@@ -153,7 +161,7 @@ module Branchout
         if opts[:emit_tests]
           parsed = Target.parse(target, entry, type_overrides: type_overrides)
           format = Emitters.resolve(opts[:format], opts[:emit_tests])
-          Emitters.write(format, result, parsed, opts[:emit_tests])
+          Emitters.write(format, result, parsed, opts[:emit_tests], require_by_name: opts[:require_by_name])
         end
       when "baselines"
         info = {

@@ -23,12 +23,12 @@ module Branchout
       "minitest"
     end
 
-    def write(format, result, target, destination)
-      emitter_for(format).write(result, target, destination)
+    def write(format, result, target, destination, require_by_name: false)
+      Support.write_file(destination, render(format, result, target, destination, require_by_name: require_by_name))
     end
 
-    def render(format, result, target, destination)
-      emitter_for(format).render(result, target, destination)
+    def render(format, result, target, destination, require_by_name: false)
+      emitter_for(format).render(result, target, destination, require_by_name: require_by_name)
     end
 
     def emitter_for(format)

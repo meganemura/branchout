@@ -5,17 +5,11 @@ module Branchout
     module Minitest
       module_function
 
-      def write(result, target, destination)
-        Support.write_file(destination, render(result, target, destination))
-      end
-
-      def render(result, target, destination)
-        relative = Support.relative_require(destination, target.path)
+      def render(result, target, destination, require_by_name: false)
         lines = Support.header(target, "tests")
         lines << ""
         lines << 'require "minitest/autorun"'
-        result.requires.each { |path| lines << "require_relative #{Support.relative_require(destination, path).inspect}" }
-        lines << "require_relative #{relative.inspect}"
+        lines.concat(Support.require_lines(result.requires, target.path, destination, by_name: require_by_name))
         lines << ""
         lines << "class #{Support.class_name_for(target)} < Minitest::Test"
         if result.pins.empty?

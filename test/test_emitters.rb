@@ -375,7 +375,7 @@ class EmitterTest < Minitest::Test
       target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path)
                      .new(true, "Foo", :bar, "Foo.bar", "lib/foo.rb", File.join(dir, "lib/foo.rb"))
       destination = File.join(dir, "new/dir/foo_test.rb")
-      Branchout::Emitters::Minitest.write(Branchout::Engine::Result.new(pins: [], requires: []), target, destination)
+      Branchout::Emitters.write("minitest", Branchout::Engine::Result.new(pins: [], requires: []), target, destination)
       assert_includes File.read(destination), "def test_no_inputs_discovered"
     end
   end

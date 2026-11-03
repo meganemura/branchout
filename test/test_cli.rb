@@ -430,6 +430,52 @@ class CLITest < Minitest::Test
     end
   end
 
+  # With --require-by-name the emitted test loads the library from the load
+  # path, so it tests whichever checkout -I names: jitcatch runs it in a base
+  # and a head worktree.
+  def test_emitted_tests_can_require_the_library_by_name
+    Dir.mktmpdir do |dir|
+      lib = File.join(dir, "repo/lib")
+      FileUtils.mkdir_p(File.join(lib, "shop"))
+      File.write(File.join(lib, "shop.rb"), "require_relative \"shop/cart\"\n")
+      File.write(File.join(lib, "shop/cart.rb"), "module Shop\n  def self.size(n) = n > 2 ? :big : :small\nend\n")
+      path = write_inputs(dir, { "inputs" => [[2], [3]] })
+      %w[cart_test.rb cart_spec.rb].each do |name|
+        test = File.join(dir, "out", name)
+        _out, err, status = run_cli(
+          "explore", File.join(lib, "shop/cart.rb"), "Shop.size", "--require", File.join(lib, "shop.rb"),
+          "--strategy", "inputs", "--random", "0", "--inputs", path, "--emit-tests", test, "--require-by-name"
+        )
+        assert status.success?, err
+        assert_includes File.read(test), "\nrequire \"shop\"\nrequire \"shop/cart\"\n"
+        refute_includes File.read(test), "require_relative"
+      end
+
+      copy = File.join(dir, "head/lib")
+      FileUtils.mkdir_p(File.dirname(copy))
+      FileUtils.cp_r(lib, copy)
+      File.write(File.join(copy, "shop/cart.rb"), "module Shop\n  def self.size(n) = n > 1 ? :big : :small\nend\n")
+      test = File.join(dir, "out/cart_test.rb")
+      _out, err, status = Open3.capture3(RbConfig.ruby, "-I", lib, test)
+      assert status.success?, err
+      out, _err, status = Open3.capture3(RbConfig.ruby, "-I", copy, test)
+      refute status.success?, out
+    end
+  end
+
+  def test_require_by_name_needs_a_require_and_emitted_tests
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [[1]] })
+      base = ["explore", "test/fixtures/scale.rb", "FixtureScale.scale", "--inputs", path, "--require-by-name"]
+      _out, err, status = run_cli(*base, "--emit-tests", File.join(dir, "t_test.rb"))
+      refute status.success?
+      assert_equal "branchout: --require-by-name requires --require\n", err
+      _out, err, status = run_cli(*base, "--require", "test/fixtures/helpers.rb")
+      refute status.success?
+      assert_equal "branchout: --require-by-name requires --emit-tests\n", err
+    end
+  end
+
   # Only a file that opens the Branchout namespace is a copy. A project file
   # that shares a path with one of branchout's own files is not.
   def test_a_project_file_named_like_a_branchout_file_is_explored

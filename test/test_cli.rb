@@ -511,4 +511,39 @@ class CLITest < Minitest::Test
     assert_equal 0, status
     assert_includes stdout, "Usage:"
   end
+
+  def test_the_target_output_load_time_calls_and_long_messages_stay_out_of_the_report
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "noisy.rb")
+      File.write(target, <<~RUBY)
+        class Noisy
+          def initialize(scale = 1) = @scale = scale
+
+          def self.f(x)
+            puts "to stdout"
+            warn "to stderr"
+            raise ArgumentError, "z" * 300 if x > 9
+            x > 5 ? :big : :small
+          end
+
+          def g(x) = x * @scale > 1 ? :big : :small
+        end
+        Noisy.f(7)
+      RUBY
+      path = write_inputs(dir, { "inputs" => [[0], [10]] })
+      stdout, stderr, status = run_cli("explore", target, "Noisy.f", "--strategy", "inputs", "--random", "0", "--inputs", path)
+      assert status.success?, stderr
+      assert_empty stderr
+      assert stdout.start_with?("branchout explore\n")
+      refute_includes stdout, "to stdout"
+      # The load-time call took the :big arm; only the inputs' arms count.
+      assert_includes stdout, "FRONTIER\nid: if@8:4/then@8:12\n"
+      assert_includes stdout, "message: #{"z" * 180}\n"
+
+      path = write_inputs(dir, { "inputs" => [[2]] })
+      stdout, stderr, status = run_cli("explore", target, "Noisy#g", "--strategy", "inputs", "--random", "0", "--inputs", path)
+      assert status.success?, stderr
+      assert_includes stdout, "arms_covered: 1"
+    end
+  end
 end

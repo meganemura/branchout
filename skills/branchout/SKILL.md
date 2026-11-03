@@ -54,7 +54,7 @@ Start from one seed. [inputs.example.json](inputs.example.json) shows every acce
 - Values may be null, booleans, numbers, strings, arrays, and objects. `-0.0` is stored as `0.0`.
 - Append. Do not delete or reorder entries. Leave a failed attempt in the file so you do not retry it blindly.
 
-The target file must load and define the entry. When it needs the rest of its library (a constant from another file), pass the library's entry file with `--require PATH`, repeatable. It loads before the target, and emitted tests require it too. The method's own stdout and stderr are discarded.
+The target file must load and define the entry. When it needs the rest of its library (a constant from another file), pass the library's entry file with `--require PATH`, repeatable. It loads before the target, and emitted tests require it too. The target's stdout and stderr are discarded, while it loads and in each call.
 
 An instance method of a library class, with constructor arguments in each input's `new`:
 

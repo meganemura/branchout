@@ -60,9 +60,11 @@ module Branchout
     def boot
       CoverageSession.install
       begin
-        measure do
-          @requires.each { |path| require path }
-          require @target.path
+        quietly do
+          measure do
+            @requires.each { |path| require path }
+            require @target.path
+          end
         end
       rescue LoadError, SyntaxError => e
         raise Error, "failed to load #{@target.display_path}: #{e.message}"
@@ -103,11 +105,24 @@ module Branchout
       end
     end
 
-    def invoke(input)
+    # The target's own output is discarded, at load time too, so stdout
+    # stays the report.
+    def quietly
       previous_out = $stdout
       previous_err = $stderr
       $stdout = StringIO.new
       $stderr = StringIO.new
+      yield
+    ensure
+      $stdout = previous_out
+      $stderr = previous_err
+    end
+
+    def invoke(input)
+      quietly { run_entry(input) }
+    end
+
+    def run_entry(input)
       args, kwargs = fresh_arguments(input)
       run = proc do
         if @target.singleton
@@ -122,9 +137,6 @@ module Branchout
       else
         run.call
       end
-    ensure
-      $stdout = previous_out if defined?(previous_out) && previous_out
-      $stderr = previous_err if defined?(previous_err) && previous_err
     end
 
     # Each input gets a new receiver, as an emitted test does, so one input

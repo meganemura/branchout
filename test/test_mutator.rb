@@ -64,4 +64,11 @@ class MutatorTest < Minitest::Test
       assert_match(/new cannot have its own new/, error.message)
     end
   end
+
+  def test_every_mutated_input_passes_the_required_keywords
+    target = Branchout::Target.parse(File.join(@root, "test/fixtures/pools.rb"), "FixturePools.mix")
+    inputs = Branchout::Mutator.new(target, cap: 256).inputs
+    assert(inputs.all? { |input| input.kwargs.keys == ["label"] })
+    assert_includes inputs.map(&:kwargs), { "label" => "x" }
+  end
 end

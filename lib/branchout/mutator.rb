@@ -20,10 +20,11 @@ module Branchout
       positions = @target.positional
       pools = positions.map { |param| pool_for(param) }
       base_args = positions.map { |param| base_value(param) }
-      base_kwargs = {}
-      keyword_pools = @target.keywords.select { |param| param.kind == :keyreq }.map { |param|
-        [param, pool_for(param)]
-      }
+      required_keywords = @target.keywords.select { |param| param.kind == :keyreq }
+      # Every input passes each required keyword, or the call stops at
+      # ArgumentError before the method body runs.
+      base_kwargs = required_keywords.to_h { |param| [param.name.to_s, base_value(param)] }
+      keyword_pools = required_keywords.map { |param| [param, pool_for(param)] }
 
       tier_one = []
       tier_one << Input.new(args: base_args, kwargs: base_kwargs)

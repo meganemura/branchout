@@ -7,7 +7,7 @@ module Branchout
     Result = Struct.new(
       :command, :target, :entry, :seed, :strategies, :random, :mutate_cap, :timeout,
       :inputs_ran, :mutate_ran, :random_ran, :executions,
-      :covered, :frontier, :exceptions, :pins, :requires,
+      :covered, :frontier, :exceptions, :pins, :requires, :private_calls,
       keyword_init: true
     )
 
@@ -75,14 +75,14 @@ module Branchout
         execution.origin = origin
         execution
       end
-      build_result(target, runner.template, executions, counts)
+      build_result(target, runner, executions, counts)
     end
 
     private
 
-    def build_result(target, template, executions, counts)
+    def build_result(target, runner, executions, counts)
       catalog = {}
-      template[:branches].each do |branch_key, arms|
+      runner.template[:branches].each do |branch_key, arms|
         catalog[branch_key] ||= []
         arms.each_key { |arm_key| catalog[branch_key] << arm_key unless catalog[branch_key].include?(arm_key) }
       end
@@ -118,7 +118,8 @@ module Branchout
         frontier: frontier,
         exceptions: findings,
         pins: pins,
-        requires: @requires
+        requires: @requires,
+        private_calls: runner.private_calls
       )
     end
 

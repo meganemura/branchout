@@ -29,15 +29,17 @@ module Branchout
 
       # The statements that build the receiver, and the entry call. With no
       # setup calls the receiver is built inline and there is no statement.
-      def arrange(target, input)
+      # A name in +private_calls+ (the entry, or new) is called through send,
+      # as explore called it.
+      def arrange(target, input, private_calls: [])
         receiver = if target.singleton
           target.const_name
-        elsif input.receiver
-          "#{target.const_name}.new(#{argument_list(input.receiver)})"
+        elsif input.receiver || private_calls.include?(:new)
+          call_text(target.const_name, :new, input.receiver ? argument_list(input.receiver) : "", private_calls)
         else
           "#{target.const_name}.new"
         end
-        call = ->(on) { "#{on}.#{target.method_name}(#{argument_list(input)})" }
+        call = ->(on) { call_text(on, target.method_name, argument_list(input), private_calls) }
         return [[], call.(receiver)] if input.setup.empty?
 
         name = receiver_name(target)
@@ -46,6 +48,12 @@ module Branchout
           statements << "#{name}.#{setup_call.method_name}(#{argument_list(setup_call.arguments)})"
         end
         [statements, call.(name)]
+      end
+
+      def call_text(on, method_name, arguments, private_calls)
+        return "#{on}.#{method_name}(#{arguments})" unless private_calls.include?(method_name)
+
+        "#{on}.send(#{[method_name.inspect, *(arguments unless arguments.empty?)].join(", ")})"
       end
 
       # The class name in snake case, as a reader would name the object.

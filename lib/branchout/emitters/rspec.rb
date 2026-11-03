@@ -25,17 +25,17 @@ module Branchout
         else
           result.pins.each_with_index do |pin, index|
             lines << "" unless index.zero?
-            lines.concat(example_lines(target, pin))
+            lines.concat(example_lines(target, pin, result.private_calls))
           end
         end
         lines << "end"
         "#{lines.join("\n")}\n"
       end
 
-      def example_lines(target, pin)
+      def example_lines(target, pin, private_calls)
         lines = ["  it #{Support.description(pin).inspect} do"]
         lines.concat(Support.cover_comment(pin, "    "))
-        arrange, call = Support.arrange(target, pin.input)
+        arrange, call = Support.arrange(target, pin.input, private_calls: private_calls)
         if pin.error
           matcher = if pin.error.name
             "raise_error(#{pin.error.class_name}) { |error| expect(error.name).to eq(#{pin.error.name.inspect}) }"

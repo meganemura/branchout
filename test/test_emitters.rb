@@ -167,6 +167,39 @@ class EmitterTest < Minitest::Test
     end
   end
 
+  # explore calls a private or protected method, and so does the emitted
+  # test, through send. A private new is reached the same way.
+  def test_private_and_protected_targets_and_a_private_new_are_called_through_send
+    Dir.mktmpdir do |dir|
+      cases = {
+        "FixtureVault#check" => [{ "new" => [3], "args" => [3] }, { "new" => [3], "args" => [4] }],
+        "FixtureVault#peek" => [{ "new" => [3], "args" => [3] }],
+        "FixtureVault#unlock" => [{ "new" => [3], "args" => [4] }],
+        "FixtureVault.seal" => [[""], ["a"]]
+      }
+      sources = cases.flat_map do |entry, list|
+        inputs = File.join(dir, "inputs.json")
+        File.write(inputs, JSON.generate({ "inputs" => list }))
+        %w[test.rb spec.rb].map do |suffix|
+          path = File.join(dir, "#{entry.tr("#.", "__").downcase}_#{suffix}")
+          stdout, err, status = run_cli(
+            "explore", "test/fixtures/vault.rb", entry,
+            "--inputs", inputs, "--strategy", "inputs", "--random", "0", "--emit-tests", path
+          )
+          assert status.success?, err
+          assert_includes stdout, "EXCEPTIONS\n(none)"
+          _out, err, status = Open3.capture3(RbConfig.ruby, *("-rrspec/autorun" if suffix == "spec.rb"), path)
+          assert status.success?, "#{entry} #{suffix}: #{err}#{_out}"
+          File.read(path)
+        end
+      end.join
+      assert_includes sources, "assert_equal :open, FixtureVault.send(:new, 3).send(:check, 3)"
+      assert_includes sources, "expect(FixtureVault.send(:new, 3).send(:peek, 3)).to eq(:match)"
+      assert_includes sources, "assert_equal :shut, FixtureVault.send(:new, 3).unlock(4)"
+      assert_includes sources, 'expect(FixtureVault.send(:seal, +"")).to eq(:blank)'
+    end
+  end
+
   def test_a_nil_return_value_emits_assert_nil
     Dir.mktmpdir do |dir|
       inputs = File.join(dir, "inputs.json")

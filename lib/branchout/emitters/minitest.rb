@@ -26,17 +26,17 @@ module Branchout
           names = Support.test_names(result.pins)
           result.pins.each_with_index do |pin, index|
             lines << "" unless index.zero?
-            lines.concat(example_lines(target, pin, names[index]))
+            lines.concat(example_lines(target, pin, names[index], result.private_calls))
           end
         end
         lines << "end"
         "#{lines.join("\n")}\n"
       end
 
-      def example_lines(target, pin, name)
+      def example_lines(target, pin, name, private_calls)
         lines = ["  def #{name}"]
         lines.concat(Support.cover_comment(pin, "    "))
-        arrange, call = Support.arrange(target, pin.input)
+        arrange, call = Support.arrange(target, pin.input, private_calls: private_calls)
         if pin.error
           lines << "    error = assert_raises(#{pin.error.class_name}) do"
           (arrange + [call]).each { |line| lines << "      #{line}" }

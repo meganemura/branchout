@@ -25,7 +25,9 @@ module Branchout
     # message is not: Ruby 3.4 reworded both NameError and NoMethodError.
     ExceptionInfo = Struct.new(:class_name, :message, :loc, :stable_message, :name, keyword_init: true)
 
-    attr_reader :template
+    # +private_calls+ names the entry and new when they are private or
+    # protected, so a test has to call them through send.
+    attr_reader :template, :private_calls
 
     # +requires+ are files the target needs loaded first, such as its
     # library's entry file. They load after coverage starts, so the target
@@ -81,6 +83,7 @@ module Branchout
       end
       if @target.singleton
         @method = const.method(@target.method_name)
+        @private_calls = const.singleton_class.public_method_defined?(@target.method_name) ? [] : [@target.method_name]
       else
         unless const.is_a?(Class)
           raise Error, "#{@target.const_name} is a module, so its methods have no receiver; " \
@@ -90,6 +93,8 @@ module Branchout
         @const = const
         @method = const.instance_method(@target.method_name)
         @required_new_arguments = const.instance_method(:initialize).parameters.count { |kind, _name| kind == :req }
+        @private_calls = [[const.singleton_class, :new], [const, @target.method_name]]
+                         .reject { |owner, name| owner.public_method_defined?(name) }.map(&:last)
       end
     rescue NameError => e
       raise Error, "cannot resolve #{@target.entry}: #{e.message}"
@@ -144,7 +149,7 @@ module Branchout
     # run outside coverage: the arms they take are not the entry's.
     def prepared_receiver(input)
       new_args, new_kwargs = input.receiver ? fresh_arguments(input.receiver) : [[], {}]
-      receiver = @const.new(*new_args, **new_kwargs)
+      receiver = @const.send(:new, *new_args, **new_kwargs)
       input.setup.each do |call|
         call_args, call_kwargs = fresh_arguments(call.arguments)
         receiver.public_send(call.method_name, *call_args, **call_kwargs)

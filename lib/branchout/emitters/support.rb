@@ -38,10 +38,8 @@ module Branchout
       def arrange(target, input, private_calls: [])
         receiver = if target.singleton
           target.const_name
-        elsif input.receiver || private_calls.include?(:new)
-          call_text(target.const_name, :new, input.receiver ? argument_list(input.receiver) : "", private_calls)
         else
-          "#{target.const_name}.new"
+          call_text(target.const_name, :new, input.receiver ? argument_list(input.receiver) : "", private_calls)
         end
         call = ->(on) { call_text(on, target.method_name, argument_list(input), private_calls) }
         return [[], call.(receiver)] if input.setup.empty?
@@ -49,13 +47,15 @@ module Branchout
         name = receiver_name(target)
         statements = ["#{name} = #{receiver}"]
         input.setup.each do |setup_call|
-          statements << "#{name}.#{setup_call.method_name}(#{argument_list(setup_call.arguments)})"
+          statements << call_text(name, setup_call.method_name, argument_list(setup_call.arguments), [])
         end
         [statements, call.(name)]
       end
 
       def call_text(on, method_name, arguments, private_calls)
-        return "#{on}.#{method_name}(#{arguments})" unless private_calls.include?(method_name)
+        unless private_calls.include?(method_name)
+          return arguments.empty? ? "#{on}.#{method_name}" : "#{on}.#{method_name}(#{arguments})"
+        end
 
         "#{on}.send(#{[method_name.inspect, *(arguments unless arguments.empty?)].join(", ")})"
       end

@@ -247,8 +247,8 @@ class EmitterTest < Minitest::Test
     input = Branchout::Input.new(args: [1], kwargs: { "z" => 1, "a b" => "s" })
     assert_equal [[], 'Foo::Bar.baz?(1, "a b": +"s", z: 1)'], support.arrange(target, input)
     target.singleton = false
-    setup = [Branchout::Input::SetupCall.new("<<", Branchout::Input.new(args: ["x"]))]
-    assert_equal [["bar = Foo::Bar.new(2)", 'bar.<<(+"x")'], "bar.baz?()"],
+    setup = [Branchout::Input::SetupCall.new("<<", Branchout::Input.new(args: ["x"])), Branchout::Input::SetupCall.new("clear", Branchout::Input.new(args: []))]
+    assert_equal [["bar = Foo::Bar.new(2)", 'bar.<<(+"x")', "bar.clear"], "bar.baz?"],
                  support.arrange(target, Branchout::Input.new(args: [], receiver: Branchout::Input.new(args: [2]), setup: setup))
     { "HTTPClient" => "http_client", "Class" => "subject", "Error" => "subject", "X" => "x" }.each do |const, name|
       target.const_name = const
@@ -366,11 +366,11 @@ class EmitterTest < Minitest::Test
       minitest = Branchout::Emitters.render("minitest", result, target, File.join(ROOT, "test/cart_test.rb"))
       rspec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/cart_spec.rb"))
       if pin.error
-        assert_includes minitest, "    error = assert_raises(KeyError) do\n      #{arrange}      cart.add(+\"apple\", qty: 2)\n      cart.total()\n    end\n"
-        assert_includes rspec, "    expect {\n      #{arrange}      cart.add(+\"apple\", qty: 2)\n      cart.total()\n    }.to raise_error(KeyError)\n"
+        assert_includes minitest, "    error = assert_raises(KeyError) do\n      #{arrange}      cart.add(+\"apple\", qty: 2)\n      cart.total\n    end\n"
+        assert_includes rspec, "    expect {\n      #{arrange}      cart.add(+\"apple\", qty: 2)\n      cart.total\n    }.to raise_error(KeyError)\n"
       else
-        assert_includes minitest, "    #{arrange}    cart.add(+\"apple\", qty: 2)\n    assert_equal 7, cart.total()\n"
-        assert_includes rspec, "    #{arrange}    cart.add(+\"apple\", qty: 2)\n    expect(cart.total()).to eq(7)\n"
+        assert_includes minitest, "    #{arrange}    cart.add(+\"apple\", qty: 2)\n    assert_equal 7, cart.total\n"
+        assert_includes rspec, "    #{arrange}    cart.add(+\"apple\", qty: 2)\n    expect(cart.total).to eq(7)\n"
       end
     end
     name = Branchout::Emitters::Support.test_names(pins.take(1)).first

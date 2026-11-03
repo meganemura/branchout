@@ -91,12 +91,15 @@ module Branchout
       previous_err = $stderr
       $stdout = StringIO.new
       $stderr = StringIO.new
-      kwargs = input.kwargs.transform_keys(&:to_sym)
+      # Each call gets its own mutable copy, as a literal in an emitted test
+      # does, so the target cannot raise FrozenError or rewrite the input.
+      args = Marshal.load(Marshal.dump(input.args))
+      kwargs = Marshal.load(Marshal.dump(input.kwargs)).transform_keys(&:to_sym)
       run = proc do
         if kwargs.empty?
-          @method.call(*input.args)
+          @method.call(*args)
         else
-          @method.call(*input.args, **kwargs)
+          @method.call(*args, **kwargs)
         end
       end
       if @timeout

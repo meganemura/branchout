@@ -52,6 +52,26 @@ class EmitterTest < Minitest::Test
     end
   end
 
+  def test_a_target_that_mutates_its_arguments_sees_the_values_the_test_passes
+    Dir.mktmpdir do |dir|
+      inputs = File.join(dir, "inputs.json")
+      File.write(inputs, JSON.generate({ "inputs" => [[[], "a"]] }))
+      test = File.join(dir, "grow_test.rb")
+      stdout, err, status = run_cli(
+        "explore", "test/fixtures/grow.rb", "FixtureGrow.add",
+        "--inputs", inputs, "--strategy", "inputs", "--random", "0",
+        "--emit-tests", test
+      )
+      assert status.success?, err
+      assert_includes stdout, "input: [[],\"a\"]"
+      assert_includes stdout, "EXCEPTIONS\n(none)"
+      assert_includes File.read(test), "assert_equal :one, FixtureGrow.add([], +\"a\")"
+
+      _out, err, status = Open3.capture3(RbConfig.ruby, test)
+      assert status.success?, err
+    end
+  end
+
   def test_explicit_format_overrides_extension
     Dir.mktmpdir do |dir|
       inputs = File.join(dir, "inputs.json")

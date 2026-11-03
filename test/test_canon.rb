@@ -37,6 +37,14 @@ class CanonTest < Minitest::Test
     assert_in_delta 5.0, input.weight, 0.001
   end
 
+  def test_input_freezes_its_own_strings_and_not_the_callers
+    text = +"ab"
+    input = Branchout::Input.new(args: [text])
+    text << "c"
+    assert_equal ["ab"], input.args
+    assert input.args.first.frozen?
+  end
+
   def test_input_weight_prefers_zero
     zero = Branchout::Input.new(args: [0])
     minus = Branchout::Input.new(args: [-1])

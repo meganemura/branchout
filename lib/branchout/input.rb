@@ -66,8 +66,10 @@ module Branchout
 
     def normalize(value)
       case value
-      when nil, true, false, Integer, String, Symbol
-        value.is_a?(Symbol) ? value.to_s : value
+      when nil, true, false, Integer
+        value
+      when String, Symbol
+        -value.to_s
       when Float
         raise Error, "non-finite float" unless value.finite?
 

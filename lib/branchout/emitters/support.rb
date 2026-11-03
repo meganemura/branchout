@@ -27,9 +27,9 @@ module Branchout
       end
 
       def render_call(target, input)
-        args = input.args.map { |value| ruby_literal(value) }
+        args = input.args.map { |value| ruby_literal(value, mutable: true) }
         kwargs = input.kwargs.keys.sort.map { |key|
-          "#{keyword_literal(key)}: #{ruby_literal(input.kwargs[key])}"
+          "#{keyword_literal(key)}: #{ruby_literal(input.kwargs[key], mutable: true)}"
         }
         list = (args + kwargs).join(", ")
         receiver = if target.singleton
@@ -40,20 +40,22 @@ module Branchout
         "#{receiver}(#{list})"
       end
 
-      def ruby_literal(value)
+      # An emitted test has frozen_string_literal, so a +mutable+ string is
+      # written with a leading + to match the copy the explore run passed.
+      def ruby_literal(value, mutable: false)
         case value
         when nil then "nil"
         when true then "true"
         when false then "false"
         when Integer then value.to_s
         when Float then Canon.format_float(value)
-        when String then value.inspect
+        when String then mutable ? "+#{value.inspect}" : value.inspect
         when Symbol then value.inspect
         when Array
-          "[#{value.map { |item| ruby_literal(item) }.join(", ")}]"
+          "[#{value.map { |item| ruby_literal(item, mutable: mutable) }.join(", ")}]"
         when Hash
           pairs = value.map { |key, item| [key, item] }.sort_by { |key, _| key.to_s }
-          "{#{pairs.map { |key, item| "#{ruby_literal(key)} => #{ruby_literal(item)}" }.join(", ")}}"
+          "{#{pairs.map { |key, item| "#{ruby_literal(key)} => #{ruby_literal(item, mutable: mutable)}" }.join(", ")}}"
         else
           raise Error, "cannot emit a literal for #{value.class}"
         end

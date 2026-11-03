@@ -30,7 +30,7 @@ branchout explore TARGET.rb Const.method \
 
 `ENTRY` is `Const.method` for a class or module method, including one under `module_function` or in a module that calls `extend self`, or `Const#method` for an instance method. The instance form builds a new receiver for each input with `Const.new`. When `initialize` takes arguments, put them in `new` on every input. `--entry ENTRY` may replace the positional entry.
 
-`--strategy` is a comma list of `inputs`, `mutate`, and `random` (default: all three). `--random` defaults to 16 and `--seed` to 0. During the search, pass `--strategy inputs --random 0` and keep `--seed` fixed. The same inputs, flags, and CRuby produce the same stdout.
+`--strategy` is a comma list of `inputs`, `mutate`, and `random` (default: all three). `--random` defaults to 16 and `--seed` to 0. During the search, pass `--strategy inputs --random 0` and keep `--seed` fixed. The same inputs, flags, and CRuby produce the same stdout. An input equal to an earlier one runs once, and stderr says how many repeated.
 
 Other flags: `--require PATH`, `--mutate-cap N` (default 256), `--timeout SEC` (default 1, must be > 0), `--json` (JSON on stdout instead of text), `--json-out PATH`, `--md-out PATH`.
 
@@ -54,7 +54,7 @@ Start from one seed. [inputs.example.json](inputs.example.json) shows every acce
 - Values may be null, booleans, numbers, strings, arrays, and objects. `-0.0` is stored as `0.0`.
 - Append. Do not delete or reorder entries. Leave a failed attempt in the file so you do not retry it blindly.
 
-The target file must load and define the entry. When it needs the rest of its library (a constant from another file), pass the library's entry file with `--require PATH`, repeatable. It loads before the target, and emitted tests require it too. The target's stdout and stderr are discarded, while it loads and in each call.
+The target file must load and define the entry. When it needs the rest of its library (a constant from another file), pass the library's entry file with `--require PATH`, repeatable. It loads before the target, and emitted tests require it too. Its directory joins the load path, so `lib/name.rb` can `require "name/part"`; run the emitted test with that directory on the load path too (`ruby -Ilib`). The target's stdout and stderr are discarded, while it loads and in each call.
 
 An instance method of a library class, with constructor arguments in each input's `new`:
 
@@ -94,9 +94,9 @@ In one round, add inputs only for arms that are reached now and for faults you c
 
 ## Emit tests
 
-When you stop, emit characterization tests. Each one pins a discovered input's return value, or the exception class and message. A `NameError` or `NoMethodError` is pinned by its class and `error.name`, so the test passes on Ruby 3.3 and 3.4+ alike. A return value with no Ruby literal, such as a `Set` or a `Struct`, is pinned by its class only.
+When you stop, emit characterization tests. Each one pins a discovered input's return value, or the exception class and message. A `NameError` or `NoMethodError` is pinned by its class and `error.name`, so the test passes on Ruby 3.3 and 3.4+ alike. A return value with no Ruby literal, such as a `Set` or a `Struct`, is pinned by its class only. An expected Hash keeps the value's key order, so a failure diff reads key by key. A private or protected entry, and a private `new`, are called through `send`, as `explore` calls them.
 
-Each test is named after its input and what it pins. A minitest name is the input's values, the outcome, and six hex digits of the input's digest (`test_0_0_returns_out_of_range_59a230`). An RSpec description is the input as the report prints it and the outcome (`"[0,0] returns :out_of_range"`). A name depends only on its own input and outcome, so adding inputs and emitting again keeps the earlier names.
+Each test is named after its input and what it pins. A minitest name is the input's values, the outcome, and six hex digits of the input's digest (`test_0_0_returns_out_of_range_59a230`). An RSpec description is the input as the report prints it and the outcome (`"[0,0] returns :out_of_range"`). A name depends only on its own input and outcome, so adding inputs and emitting again keeps the earlier names. Names are cut between words: a blank string argument shows as `blank`, a Hash outcome is named by its keys (`returns_hash_lines_discount`), and an Array of collections by its size (`returns_array_of_2`).
 
 ```sh
 branchout explore TARGET.rb Const.method \
@@ -154,10 +154,10 @@ A test that passes on base and fails on head is a changed return value or except
 
 - The target really runs. Files, globals, and the network are not sandboxed.
 - The target loads into branchout's own process. A target that defines constants under `Branchout`, such as another checkout of branchout, replaces the tool's own classes, and the run uses the target's code. Run that checkout's own `bin/branchout` instead.
-- The entry must be defined in the target file under that constant. A method a subclass inherits, such as `BrokenLoans#borrow` from `Loans`, is "cannot find"; target the class that defines it, and reach the subclass's override through `setup` or a test of its own.
+- The entry must be defined in the target file, under that constant or a superclass declared in the same file. `BrokenLoans#borrow`, defined on `Loans`, runs `Loans#borrow` and follows `BrokenLoans`'s override of `limited?`, as Ruby does.
 - A method that depends on time, randomness, or I/O will not stay stable across runs.
 - A path is a set of arms, not an order. Two orders that take the same arms look the same. A modifier `unless` can put `then` and `else` at the same `loc`; the arm name in the id distinguishes them.
-- Only a bare call, a `self.` call, and a call on a bare `new(...)` in the same file are followed. `def self.apply(doc) = new(doc).apply` reaches `initialize` and `#apply`. `send`, another receiver, and other files are out of scope. When the entry reaches no arm, `explore` warns on stderr; target the method that branches.
+- Only a bare call, a `self.` call, and a call on a bare `new(...)` in the same file are followed. `def self.apply(doc) = new(doc).apply` reaches `initialize` and `#apply`. `send`, another receiver, and other files are out of scope. When the entry reaches no arm, `explore` warns on stderr; target the method that branches. `--emit-tests` still pins each input's return value or error, so the warning does not block characterization.
 - Emitted tests pin other exception messages exactly. A message that differs between Ruby versions fails on a Ruby other than the one that emitted it.
 - `Timeout.timeout` does not stop every block. If the timeout backtrace has no target line, `loc` is the method definition line.
 - An unsatisfiable condition stays on the frontier. Stop trying it.

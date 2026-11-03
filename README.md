@@ -64,7 +64,7 @@ While searching, pass `--strategy inputs --random 0` and keep `--seed` fixed, so
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--inputs PATH` | none | JSON file of inputs |
-| `--require PATH` | none | Load PATH before the target, for a target that needs the rest of its library. Repeatable. Emitted tests require it too |
+| `--require PATH` | none | Load PATH before the target, for a target that needs the rest of its library. Repeatable. PATH's directory joins the load path, so `lib/name.rb` can `require "name/part"`. Emitted tests require PATH too |
 | `--seed N` | `0` | RNG seed |
 | `--random N` | `16` | Number of random samples |
 | `--mutate-cap N` | `256` | Literal-mutation budget |
@@ -111,7 +111,7 @@ ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \
   --format rspec
 ```
 
-That run covers 4 of 4 arms and records `ZeroDivisionError` (`divided by 0`) for `[24,12]`. The emitted file pins each return value, or the exception class and message. A `NameError` or `NoMethodError` is pinned by its class and missing name (`error.name`), because Ruby 3.4 reworded their messages. A return value with no Ruby literal, such as a `Set` or a `Struct`, is pinned by its class only. Each test is named after its input and outcome, such as `test_24_12_raises_zero_division_error_bba48b` or `it "[24,12] raises ZeroDivisionError"`, and adding inputs does not rename the others. A minitest path uses `--format minitest` and runs with `ruby`. An RSpec file needs the `rspec` gem.
+That run covers 4 of 4 arms and records `ZeroDivisionError` (`divided by 0`) for `[24,12]`. The emitted file pins each return value, or the exception class and message. A `NameError` or `NoMethodError` is pinned by its class and missing name (`error.name`), because Ruby 3.4 reworded their messages. A return value with no Ruby literal, such as a `Set` or a `Struct`, is pinned by its class only. An expected Hash keeps the value's own key order, so a failure diff lines up key by key. A private or protected entry, and a private `new`, are called through `send`, as `explore` called them. Each test is named after its input and outcome, such as `test_24_12_raises_zero_division_error_bba48b` or `it "[24,12] raises ZeroDivisionError"`, and adding inputs does not rename the others. A name is cut between words, a blank string shows as `blank`, and a Hash outcome is named by its keys. A minitest path uses `--format minitest` and runs with `ruby`. An RSpec file needs the `rspec` gem.
 
 ## How it builds the frontier
 
@@ -123,7 +123,7 @@ The frontier is every arm whose count is 0. `parent: reached` means some input e
 
 `sense` is the direction that selects the arm: `cond-true` (`if` then, `unless` else), `cond-false` (`if` else, `unless` then), `arm-matched` (that `when` or `in`), `arm-else`, `body-entered` (`while` or `until` body), `receiver-present`, or `receiver-nil` (`&.`).
 
-Exceptions are listed apart from arm coverage. A covered arm can still raise. The same inputs, flags, and CRuby produce the same stdout. The report has no timestamps. Paths are relative to the working directory.
+Exceptions are listed apart from arm coverage. A covered arm can still raise. The same inputs, flags, and CRuby produce the same stdout. An input equal to an earlier one runs once, and stderr says how many repeated. The report has no timestamps. Paths are relative to the working directory.
 
 ## Install
 
@@ -162,11 +162,11 @@ ln -s /path/to/branchout/skills/branchout .agents/skills/branchout
 
 - The target runs. Its stdout and stderr, at load time and in each call, are discarded. Files, globals, and the network are not sandboxed.
 - The target loads into branchout's own process. A target that defines constants under `Branchout` replaces the tool's classes.
-- The entry must be defined under its constant in the target file. An inherited method is not found; target the class that defines it.
+- The entry must be defined in the target file, under its constant or under a superclass declared in the same file. An inherited entry follows the subclass's overrides, as Ruby does.
 - A method that depends on time, randomness, or I/O will not produce a stable report.
 - A path is a set of arms, not an order. `&&` and `||` are not arms. `while` and `until` record a body arm; a condition that ran but did not enter the body is recovered from the line count.
 - A modifier `unless` can put `then` and `else` at the same location. The arm name in the id distinguishes them.
-- Only a bare call, a `self.` call, and a call on a bare `new(...)` in the same file are followed. A call on another receiver, such as `Other.new.check(x)`, is not. When the entry reaches no arm, `explore` warns on stderr; target the method that branches instead.
+- Only a bare call, a `self.` call, and a call on a bare `new(...)` in the same file are followed. A call on another receiver, such as `Other.new.check(x)`, is not. When the entry reaches no arm, `explore` warns on stderr; target the method that branches instead. `--emit-tests` still pins each input's return value or error.
 - `Timeout.timeout` does not stop every block. If the timeout backtrace has no target line, `loc` is the method definition line.
 - An unsatisfiable condition stays on the frontier. In `examples/arithmetic.rb`, `x == 114514 && x == 0` is one.
 - The random and mutation domains above are narrow on purpose.

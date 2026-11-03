@@ -76,7 +76,7 @@ EXCEPTIONS
 | フラグ | 既定 | 意味 |
 | --- | --- | --- |
 | `--inputs PATH` | なし | 入力の JSON ファイル |
-| `--require PATH` | なし | ターゲットより先に PATH を読み込む。ライブラリの残りが要るターゲットに使う。繰り返し指定できる。出力するテストも同じファイルを読み込む |
+| `--require PATH` | なし | ターゲットより先に PATH を読み込む。ライブラリの残りが要るターゲットに使う。繰り返し指定できる。PATH のディレクトリはロードパスに入るので、`lib/name.rb` は `require "name/part"` できる。出力するテストも PATH を読み込む |
 | `--seed N` | `0` | 乱数の種 |
 | `--random N` | `16` | ランダム標本の個数 |
 | `--mutate-cap N` | `256` | リテラル変異の予算 |
@@ -134,9 +134,12 @@ ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \
 `NameError` と `NoMethodError` は、クラスと見つからなかった名前（`error.name`）で固定する。
 Ruby 3.4 でメッセージの文言が変わったためである。
 `Set` や `Struct` のように Ruby のリテラルで書けない戻り値は、クラスだけを固定する。
+期待する Hash は値そのもののキー順で書くので、失敗時の差分をキーごとに見比べられる。
+private や protected の入口と private な `new` は、`explore` と同じく `send` で呼ぶ。
 各テストの名前は入力と結果から作る。
 `test_24_12_raises_zero_division_error_bba48b` や `it "[24,12] raises ZeroDivisionError"` のようになる。
 入力を足しても、ほかのテストの名前は変わらない。
+名前は単語の切れ目で切る。空白だけの文字列は `blank` になり、Hash の結果はキーで名付ける。
 minitest のパスは `--format minitest` で、`ruby` で実行する。RSpec には `rspec` gem が要る。
 
 ## フロンティアの作り方
@@ -150,7 +153,7 @@ minitest のパスは `--format minitest` で、`ruby` で実行する。RSpec �
 
 `sense` は腕を選ぶ向きである。`cond-true`（`if` の then、`unless` の else）、`cond-false`（`if` の else、`unless` の then）、`arm-matched`（その `when` または `in`）、`arm-else`、`body-entered`（`while` または `until` の本体）、`receiver-present`、`receiver-nil`（`&.`）。
 
-例外は腕のカバーとは別に出す。カバー済みの腕でも例外は起きる。同じ入力、同じフラグ、同じ CRuby なら標準出力は同じバイト列になる。レポートに時刻はない。パスは作業ディレクトリからの相対パスである。
+例外は腕のカバーとは別に出す。カバー済みの腕でも例外は起きる。同じ入力、同じフラグ、同じ CRuby なら標準出力は同じバイト列になる。前の入力と同じ入力は一度だけ実行し、重複した数を標準エラーに出す。レポートに時刻はない。パスは作業ディレクトリからの相対パスである。
 
 ## インストール
 
@@ -189,7 +192,8 @@ ln -s /path/to/branchout/skills/branchout .agents/skills/branchout
 
 - 対象は実際に実行される。対象の標準出力と標準エラーは、ロード時も呼び出しごとにも捨てる。ファイル、グローバル、ネットワークはサンドボックスしない。
 - 対象は branchout と同じプロセスに読み込まれる。`Branchout` の下に定数を定義する対象は、ツール自身のクラスを置き換える。
-- 入口は対象ファイルの中で、その定数の下に定義されていなければならない。継承したメソッドは見つからないので、定義しているクラスを対象にする。
+- 入口は対象ファイルの中で、その定数か、同じファイルで宣言したスーパークラスの下に定義されていなければならない。
+  継承した入口は、Ruby と同じくサブクラスの上書きを追う。
 - 時刻、乱数、I/O に依存するメソッドは、同じ入力でもレポートが揃わない。
 - 経路は腕の集合であり、順序ではない。`&&` と `||` は腕にならない。`while` と `until` が記録するのは本体の腕で、条件は実行されたが本体に入らなかったことは行カウントで補う。
 - 修飾子の `unless` は then と else が同じ位置になることがある。id の腕名で区別する。
@@ -197,6 +201,7 @@ ln -s /path/to/branchout/skills/branchout .agents/skills/branchout
   `Other.new.check(x)` のような別のレシーバーへの呼び出しは追わない。
   入口がどの腕にも届かないとき、`explore` は stderr に警告を出す。
   この場合は分岐するメソッドを対象にする。
+  それでも `--emit-tests` は入力ごとの戻り値または例外を固定する。
 - `Timeout.timeout` はすべてのブロックを止められない。タイムアウトのバックトレースに対象行が無いとき、`loc` はメソッド定義行になる。
 - 充足できない条件はフロンティアに残る。`examples/arithmetic.rb` の `x == 114514 && x == 0` がそれである。
 - 上のランダムと変異の範囲は、意図して狭い。

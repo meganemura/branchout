@@ -775,14 +775,16 @@ class EmitterTest < Minitest::Test
     pins = [pin.(Branchout::Input.new(args: [fits, 5, 7], kwargs: { "k" => 3 })), long.("x"), long.("y")]
     source = render.(target_for.("Box", :put, singleton: true), pins)
     assert_includes source, "it #{"returns 1 when x is #{fits.inspect}, argument 3 is 7 and k is 3".inspect} do"
-    # Two strings cut to the same 30 characters are two facts, and the
-    # digest tells their examples apart within 80 characters.
-    pins.drop(1).each do |item|
-      text = source[/^    it "(.*\(input #{Digest::SHA256.hexdigest(item.input.canonical)[0, 6]}\))" do$/, 1]
-      assert text, source
-      assert_operator "\"#{text}\"".undump.length, :<=, 80
-    end
+    # Two long strings that share their start are cut where they part.
+    assert_includes source, "it #{"returns 1 when x is \"...#{"a" * 10}x\", argument 3 is 6 and k is 2".inspect} do"
+    assert_includes source, "it #{"returns 1 when x is \"...#{"a" * 10}y\", argument 3 is 6 and k is 2".inspect} do"
+    refute_includes source, "(input"
     refute_includes source, "subject"
+    sentence = "a fairly long string that keeps going and going"
+    texts = render.(target_for.("Box", :put, singleton: true), ["#{sentence} on", "#{sentence} off", "an early part #{sentence}"].map { |arg| pin.(Branchout::Input.new(args: [arg])) })
+    assert_includes texts, "it #{"returns 1 when x is \"...and going on\"".inspect} do"
+    assert_includes texts, "it #{"returns 1 when x is \"...and going off\"".inspect} do"
+    assert_includes texts, "it #{"returns 1 when x is \"an early part a fairly...\"".inspect} do"
 
     struct = Struct.new(:a)
     shaped = [pin.(Branchout::Input.new(args: [1]), { total: 1, tax: 0 }), pin.(Branchout::Input.new(args: [2]), [struct.new(1)]),

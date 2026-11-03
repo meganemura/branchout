@@ -156,12 +156,13 @@ module Branchout
         # Texts that would still be the same end in their first input's
         # digest.
         def member_texts(members)
+          peers = members.flat_map { |member| pins_of(member) }
           texts = members.to_h do |member|
             others = members.reject { |other| other.equal?(member) }.flat_map { |other| pins_of(other) }
             steps = member.is_a?(Example) ? member.facts : member.steps
-            text = member_text(member, steps)
-            text = member_text(member, telling(steps, others)) if text.length > LIMIT
-            text = member_text(member, telling(steps, others), short: true) if text.length > LIMIT
+            text = member_text(member, steps, peers)
+            text = member_text(member, telling(steps, others), peers) if text.length > LIMIT
+            text = member_text(member, telling(steps, others), peers, short: true) if text.length > LIMIT
             [member, text.length > LIMIT ? "#{text[0, LIMIT - 3]}..." : text]
           end
           repeated = texts.values.tally
@@ -191,8 +192,8 @@ module Branchout
           steps.reject { |step| step.kind == :fact && !chosen.include?(step) }
         end
 
-        def member_text(member, steps, short: false)
-          text = label(steps, short: short)
+        def member_text(member, steps, peers, short: false)
+          text = label(steps, peers, short: short)
           return text unless member.is_a?(Example)
 
           outcome = (short ? @short_outcomes : @outcomes)[member.pin]
@@ -205,10 +206,10 @@ module Branchout
 
         # "with new(10) after add("apple", 3) when price is 5": the receiver,
         # the calls, then the facts.
-        def label(steps, short: false)
+        def label(steps, peers = [], short: false)
           receiver = steps.select { |step| step.kind == :let }.map(&:label)
           calls = steps.select { |step| CALLS.include?(step.kind) }.map(&:label)
-          facts = steps.select { |step| step.kind == :fact }.map { |step| fact_label(step.leaf, short: short) }
+          facts = steps.select { |step| step.kind == :fact }.map { |step| fact_label(step.leaf, peers, short: short) }
           parts = receiver
           parts += ["after #{series(calls)}"] unless calls.empty?
           parts += ["when #{series(facts)}"] unless facts.empty?
@@ -284,16 +285,37 @@ module Branchout
 
         # +short+ names the leaf from its deepest key (status), as a
         # minitest name does, for a text that is still too long.
-        def fact_label(leaf, short: false)
+        def fact_label(leaf, peers = [], short: false)
           (root, *path), value = leaf
           deepest = path.rindex { |step| step.is_a?(String) }
           name = if short && deepest then Support.path_text(path.drop(deepest))
                  elsif path.empty? || !@one_argument then Support.path_text(path, root)
                  else Support.path_text(path)
                  end
+          "#{name} is #{value_text(value, peer_values(leaf, peers))}"
+        end
+
+        # A value longer than 30 characters is cut. A String is cut where it
+        # parts from the other Strings at its leaf, so two values that share
+        # a long start do not read alike.
+        def value_text(value, peer_values)
           text = Support.ruby_literal(value)
-          text = "#{text[0, 27]}..." if text.length > 30
-          "#{name} is #{text}"
+          return text if text.length <= 30
+          return "#{text[0, 27]}..." unless value.is_a?(String)
+
+          parts = peer_values.grep(String).reject { |other| other == value }.map do |other|
+            value.each_char.zip(other.each_char).take_while { |mine, theirs| mine == theirs }.length
+          end
+          start = (parts.max || 0) < 20 ? 0 : parts.max - 10
+          # Start at a word when one begins shortly before.
+          space = value.rindex(/\s/, start)
+          start = space + 1 if start.positive? && space && start - space <= 12
+          piece = value[start, 22]
+          Support.ruby_literal("#{"..." if start.positive?}#{piece}#{"..." if start + 22 < value.length}")
+        end
+
+        def peer_values(leaf, peers)
+          peers.flat_map { |pin| steps_of(pin).filter_map { |step| step.leaf[1] if step.kind == :fact && step.leaf[0] == leaf[0] } }
         end
 
         def parameter_names

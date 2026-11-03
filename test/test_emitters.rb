@@ -820,6 +820,62 @@ class EmitterTest < Minitest::Test
                   %q('returns 1 when x is "say \"hi\""')], texts
   end
 
+  # The cuts at their edges: a String parts from its peers 20 characters
+  # in, starts at a word up to 12 characters back, and ends with "..."
+  # only when something follows; another long value is cut at 27; and a
+  # digest goes inside the 80 characters, cutting only past them.
+  def test_rspec_texts_are_cut_at_their_limits
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Box", :put, "Box.put", "lib/x.rb", File.join(ROOT, "lib/x.rb"), [], [Struct.new(:name).new(:x)])
+    pin = ->(arg, value = 1) { Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [arg]), value: value, error: nil, arm_ids: []) }
+    texts = lambda do |pins|
+      result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+      Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *it (.*) do$/).flatten
+    end
+    args = ["#{"a" * 20}X#{"c" * 11}", "#{"a" * 20}Z#{"c" * 11}", "#{"b" * 8} #{"b" * 21}X#{"d" * 15}", "#{"b" * 8} #{"b" * 21}Z#{"d" * 15}", 10**40]
+    assert_equal [%q('returns 1 when x is "...aaaaaaaaaaXccccccccccc"'), %q('returns 1 when x is "...aaaaaaaaaaZccccccccccc"'),
+                  %q('returns 1 when x is "...bbbbbbbbbbbbbbbbbbbbbX..."'), %q('returns 1 when x is "...bbbbbbbbbbbbbbbbbbbbbZ..."'),
+                  %q("returns 1 when x is 100000000000000000000000000...")], texts.(args.map { |arg| pin.(arg) })
+    fits = texts.([10**40 + 1, 10**40 + 2].map { |arg| pin.(arg, "w" * 14) })
+    assert_equal [%q('returns "wwwwwwwwwwwwww" when x is 100000000000000000000000000... (input 724252)'),
+                  %q('returns "wwwwwwwwwwwwww" when x is 100000000000000000000000000... (input 574625)')], fits
+    cut = texts.([10**40 + 1, 10**40 + 2].map { |arg| pin.(arg, "w" * 15) })
+    assert_equal [%q('returns "wwwwwwwwwwwwwww" when x is 10000000000000000000000000... (input 724252)'),
+                  %q('returns "wwwwwwwwwwwwwww" when x is 10000000000000000000000000... (input 574625)')], cut
+  end
+
+  # A context after a receiver keeps the facts that tell it apart; one
+  # whose every fact its sibling shares keeps its first; and a long
+  # example names a deep outcome leaf by its last key.
+  def test_rspec_contexts_keep_the_facts_a_reader_needs
+    target_for = lambda do |singleton|
+      Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+            .new(singleton, "Box", :put, "Box#put", "lib/x.rb", File.join(ROOT, "lib/x.rb"), [], [Struct.new(:name).new(:x)])
+    end
+    pin = ->(input, value = 1) { Branchout::Engine::Pin.new(input: input, value: value, error: nil, arm_ids: []) }
+    texts = lambda do |target, pins|
+      result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+      Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *((?:it|context) .*) do$/).flatten
+    end
+    received = [[1, 1, 1, 1], [1, 1, 1, 2], [2, 1, 2, 1], [3, 5, 1, 1]].map do |r, *args|
+      pin.(Branchout::Input.new(receiver: Branchout::Input.new(args: [r]), args: args))
+    end
+    assert_equal ['context "with new(1) when x is 1 and argument 2 is 1"', 'it "returns 1 when argument 3 is 1"',
+                  'it "returns 1 when argument 3 is 2"', 'context "with new(2)"',
+                  'it "returns 1 when x is 1, argument 2 is 2 and argument 3 is 1"', 'context "with new(3)"',
+                  'it "returns 1 when x is 5, argument 2 is 1 and argument 3 is 1"'], texts.(target_for.(false), received)
+    shapes = [{ "r" => 1, "q" => 2, "s" => 1 }, { "r" => 1, "q" => 2, "s" => 2 }, { "r" => 1, "p" => 1, "q" => 2, "s" => 1 },
+              { "r" => 2, "q" => 3, "s" => 1 }]
+    assert_includes texts.(target_for.(true), shapes.map { |arg| pin.(Branchout::Input.new(args: [arg])) }), 'context "when q is 2"'
+    shapes = [{ "r" => 1, "q" => 2, "t" => 5, "s" => 1 }, { "r" => 1, "q" => 2, "t" => 5, "s" => 2 },
+              { "r" => 1, "p" => 1, "q" => 2, "t" => 6, "s" => 1 }, { "r" => 2, "q" => 3, "t" => 5, "s" => 1 }]
+    assert_includes texts.(target_for.(true), shapes.map { |arg| pin.(Branchout::Input.new(args: [arg])) }), 'context "when t is 5"'
+    deep = ->(status) { { "report" => { "summary" => { "last_run" => { "status" => status } } } } }
+    long = [["failed", "one"], ["passed", "two"]].map { |status, word| pin.(Branchout::Input.new(args: ["a long piece of text #{word}"]), deep.(status)) }
+    assert_equal [%q(it 'returns status: "failed" when x is "a long piece of text one"'),
+                  %q(it 'returns status: "passed" when x is "a long piece of text two"')], texts.(target_for.(true), long)
+  end
+
   # A text over 80 characters keeps only the facts that tell it from its
   # siblings, then names them by their deepest key, so a deep document
   # reads "when status is "timeout"" and not its whole tree.

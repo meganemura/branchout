@@ -17,10 +17,19 @@ module Branchout
       Array.new(@count) { build }
     end
 
+    # The entry's values are drawn before the constructor's, so the stream
+    # for a class method is the same as before constructors were sampled.
     def build
-      args = @target.positional.map { |param| sample(param.inferred_type) }
+      entry = draw(@target.parameters)
+      return entry if @target.constructor.empty?
+
+      Input.new(args: entry.args, kwargs: entry.kwargs, receiver: draw(@target.constructor))
+    end
+
+    def draw(parameters)
+      args = parameters.select { |param| param.kind == :req || param.kind == :opt }.map { |param| sample(param.inferred_type) }
       kwargs = {}
-      @target.keywords.each do |param|
+      parameters.each do |param|
         next unless param.kind == :keyreq
 
         kwargs[param.name.to_s] = sample(param.inferred_type)

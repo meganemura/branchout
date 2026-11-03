@@ -3,6 +3,7 @@
 require "minitest/autorun"
 require "json"
 require "tmpdir"
+require "open3"
 require "branchout"
 
 class MutatorTest < Minitest::Test
@@ -162,6 +163,30 @@ class MutatorTest < Minitest::Test
       assert_equal [[false], [true]], Branchout::Mutator.new(target, cap: 8).inputs.map(&:args)
       samples = Branchout::Sampler.new(target, seed: 1, count: 16).inputs.map(&:args)
       assert_equal [[false], [true]], samples.uniq.sort_by(&:inspect)
+    end
+  end
+  def test_mutate_and_random_fill_the_constructor_arguments
+    target = Branchout::Target.parse(File.join(@root, "test/fixtures/account.rb"), "FixtureAccount#withdraw")
+    assert_equal [[:balance, "int"], [:limit, "int"]], target.constructor.map { |param| [param.name, param.inferred_type] }
+    mutated = Branchout::Mutator.new(target, cap: 256).inputs
+    assert(mutated.all? { |input| input.receiver&.args&.length == 1 })
+    assert_includes mutated.map { |input| [input.args, input.receiver.args] }, [[0], [-1]]
+    sampled = Branchout::Sampler.new(target, seed: 1, count: 4).inputs
+    assert(sampled.all? { |input| input.receiver.args.first.between?(-3, 12) && input.receiver.kwargs.empty? })
+
+    singleton = Branchout::Target.parse(File.join(@root, "test/fixtures/magic.rb"), "FixtureMagic.classify")
+    assert_empty singleton.constructor
+    assert(Branchout::Mutator.new(singleton, cap: 8).inputs.none?(&:receiver))
+  end
+
+  def test_mutate_covers_an_account_with_no_inputs_file
+    Dir.mktmpdir do |dir|
+      stdout, stderr, status = Open3.capture3(
+        RbConfig.ruby, File.join(@root, "bin/branchout"), "explore", "test/fixtures/account.rb", "FixtureAccount#withdraw",
+        "--strategy", "mutate,random", "--seed", "1", chdir: @root
+      )
+      assert status.success?, stderr
+      assert_includes stdout, "arms_covered: 2\narms_total: 2"
     end
   end
 end

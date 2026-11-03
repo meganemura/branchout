@@ -14,43 +14,28 @@ module Branchout
       raise Error, "mutate-cap must be >= 0" if cap.negative?
     end
 
+    # A slot is one value an input passes: a positional or required keyword
+    # parameter of the entry, or of initialize when the entry is an instance
+    # method. Optional keywords keep their defaults.
+    Slot = Struct.new(:owner, :param)
+
     def inputs
       return [] if @cap.zero?
 
-      positions = @target.positional
-      pools = positions.map { |param| pool_for(param) }
-      base_args = positions.map { |param| base_value(param) }
-      required_keywords = @target.keywords.select { |param| param.kind == :keyreq }
-      # Every input passes each required keyword, or the call stops at
-      # ArgumentError before the method body runs.
-      base_kwargs = required_keywords.to_h { |param| [param.name.to_s, base_value(param)] }
-      keyword_pools = required_keywords.map { |param| [param, pool_for(param)] }
+      slots = slots_of(:entry, @target.parameters) + slots_of(:new, @target.constructor)
+      base = slots.to_h { |slot| [slot, base_value(slot.param)] }
+      pools = slots.to_h { |slot| [slot, pool_for(slot.param)] }
 
-      tier_one = []
-      tier_one << Input.new(args: base_args, kwargs: base_kwargs)
-      pools.each_with_index do |pool, index|
-        pool.each do |value|
-          args = base_args.dup
-          args[index] = value
-          tier_one << Input.new(args: args, kwargs: base_kwargs)
-        end
-      end
-      keyword_pools.each do |param, pool|
-        pool.each do |value|
-          kwargs = base_kwargs.merge(param.name.to_s => value)
-          tier_one << Input.new(args: base_args, kwargs: kwargs)
-        end
+      tier_one = [build(base)]
+      slots.each do |slot|
+        pools[slot].each { |value| tier_one << build(base.merge(slot => value)) }
       end
 
       tier_two = []
-      if positions.length >= 2 && numeric?(positions[0]) && numeric?(positions[1])
-        pools[0].each do |left|
-          pools[1].each do |right|
-            args = base_args.dup
-            args[0] = left
-            args[1] = right
-            tier_two << Input.new(args: args, kwargs: base_kwargs)
-          end
+      first, second = slots.select { |slot| slot.owner == :entry && slot.param.kind != :keyreq }
+      if second && numeric?(first.param) && numeric?(second.param)
+        pools[first].each do |left|
+          pools[second].each { |right| tier_two << build(base.merge(first => left, second => right)) }
         end
       end
 
@@ -65,6 +50,25 @@ module Branchout
         break if deduped.length >= @cap
       end
       deduped
+    end
+
+    # Every input passes each required keyword, or the call stops at
+    # ArgumentError before the method body runs.
+    def slots_of(owner, parameters)
+      parameters.select { |param| %i[req opt keyreq].include?(param.kind) }.map { |param| Slot.new(owner, param) }
+    end
+
+    def build(values)
+      entry = values.select { |slot, _| slot.owner == :entry }
+      made = values.reject { |slot, _| slot.owner == :entry }
+      receiver = arguments(made) unless @target.constructor.empty?
+      arguments(entry, receiver)
+    end
+
+    def arguments(values, receiver = nil)
+      args = values.reject { |slot, _| slot.param.kind == :keyreq }.values
+      kwargs = values.select { |slot, _| slot.param.kind == :keyreq }.to_h { |slot, value| [slot.param.name.to_s, value] }
+      Input.new(args: args, kwargs: kwargs, receiver: receiver)
     end
 
     def pool_for(param)

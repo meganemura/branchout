@@ -23,7 +23,7 @@ module Branchout
     ENTRY_RE = /\A([A-Z][A-Za-z0-9_]*(?:::[A-Z][A-Za-z0-9_]*)*)([.#])([A-Za-z_][A-Za-z0-9_]*[?!=]?)\z/
 
     attr_reader :path, :display_path, :source, :const_name, :method_name, :singleton,
-                :parameters, :ranges, :literals, :entry
+                :parameters, :constructor, :ranges, :literals, :entry
 
     def self.parse(path, entry, type_overrides: nil)
       new(path, entry, type_overrides: type_overrides).tap(&:parse)
@@ -104,16 +104,16 @@ module Branchout
       @literals.ints = @literals.ints.uniq.sort
       @literals.floats = @literals.floats.uniq.sort
       @literals.strings = @literals.strings.uniq.sort
-      @parameters = build_parameters(entry_def.node.parameters, bodies)
+      @parameters = build_parameters(entry_def.node.parameters, bodies, @type_overrides)
+      # The parameters of initialize, which an input's "new" fills for an
+      # instance method. Empty when this file does not define initialize.
+      init = singleton ? nil : index[[const_name, false, :initialize]]
+      @constructor = init ? build_parameters(init.node.parameters, [init.node.body].compact, nil) : []
       self
     end
 
     def positional
       parameters.select { |param| param.kind == :req || param.kind == :opt }
-    end
-
-    def keywords
-      parameters.select { |param| param.kind == :keyreq || param.kind == :key }
     end
 
     def covers_line?(line)
@@ -137,7 +137,7 @@ module Branchout
 
     private
 
-    def build_parameters(params_node, bodies)
+    def build_parameters(params_node, bodies, type_overrides)
       list = []
       return list unless params_node
 
@@ -159,11 +159,11 @@ module Branchout
       evidence = Hash.new { |hash, key| hash[key] = Hash.new(0) }
       bodies.each { |body| walk_evidence(body, evidence) }
       positional_params = list.select { |param| param.kind == :req || param.kind == :opt }
-      if @type_overrides
-        unless @type_overrides.length == positional_params.length
-          raise Error, "types length #{@type_overrides.length} does not match #{positional_params.length} positional parameters"
+      if type_overrides
+        unless type_overrides.length == positional_params.length
+          raise Error, "types length #{type_overrides.length} does not match #{positional_params.length} positional parameters"
         end
-        positional_params.each_with_index { |param, index| param.inferred_type = @type_overrides[index] }
+        positional_params.each_with_index { |param, index| param.inferred_type = type_overrides[index] }
       end
 
       list.each do |param|

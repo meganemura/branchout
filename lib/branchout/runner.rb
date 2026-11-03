@@ -99,7 +99,7 @@ module Branchout
         raise Error, "#{@target.entry} is not an instance method, so its inputs take no \"setup\"" unless input.setup.empty?
       elsif input.receiver.nil? && @required_new_arguments.positive?
         raise Error, "#{@target.const_name}#initialize requires #{@required_new_arguments} arguments; " \
-                     "give them in \"new\" on each input and pass --strategy inputs"
+                     "give them in \"new\" on each input. mutate and random fill \"new\" only when #{@target.display_path} defines initialize"
       end
     end
 

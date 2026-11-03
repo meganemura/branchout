@@ -68,6 +68,7 @@ EXCEPTIONS
 `{"args": [], "setup": [{"method": "add", "args": ["apple", 3]}]}` は、新しいレシーバーで `add("apple", 3)` を呼んでからメソッドを呼ぶ。
 各ステップは `method`、`args`、`kwargs` を取る。
 カバレッジが数えるのはメソッドの呼び出しだけで、`new` と `setup` は数えない。
+対象ファイルが `initialize` を定義していれば、`mutate` と `random` はその引数から `new` も埋める。
 `--entry ENTRY` は位置引数の代わりになる。
 
 探索中は `--strategy inputs --random 0` とし、`--seed` は固定する。新しく覆われた腕は、足した入力だけから来る。探索手順は [skills/branchout/SKILL.md](skills/branchout/SKILL.md) にある。

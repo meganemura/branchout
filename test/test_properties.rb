@@ -138,6 +138,40 @@ class PropertyTest < Minitest::Test
     end
   end
 
+  # An emitted spec parses, and no two examples of one group share a
+  # description, so rspec --format documentation tells every input apart.
+  def test_an_emitted_spec_parses_and_tells_its_examples_apart
+    param = Struct.new(:name)
+    Hegel.test do |tc|
+      singleton = tc.draw(booleans)
+      target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                     .new(singleton, "Foo::Bar", :run, "Foo::Bar#run", "lib/bar.rb", File.join(ROOT, "lib/bar.rb"),
+                          [], [param.new(:a), param.new(:b)])
+      pins = tc.draw(arrays(booleans, min_size: 1, max_size: 6)).map do |raises|
+        error = raises ? Branchout::Runner::ExceptionInfo.new(class_name: "Foo::BarError") : nil
+        Branchout::Engine::Pin.new(input: draw_input(tc, receiver: !singleton), value: tc.draw(json_values), error: error, arm_ids: [])
+      end
+      pins = pins.uniq { |pin| pin.input.canonical }
+      result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+      source = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/bar_spec.rb"))
+      parsed = Prism.parse(source)
+      assert parsed.success?, source
+      groups = []
+      walk = lambda do |node, group|
+        if node.is_a?(Prism::CallNode) && node.name == :it
+          group << node.arguments.arguments.first.unescaped
+        elsif node.is_a?(Prism::CallNode) && %i[describe context].include?(node.name) && node.block
+          groups << (inner = [])
+          return walk.(node.block, inner)
+        end
+        node.compact_child_nodes.each { |child| walk.(child, group) }
+      end
+      walk.(parsed.value, [])
+      assert_equal pins.length, groups.sum(&:length), source
+      groups.each { |descriptions| assert_equal descriptions.uniq, descriptions, source }
+    end
+  end
+
   def test_an_emitted_class_name_is_a_constant
     Hegel.test do |tc|
       method_name = tc.draw(from_regex("[a-z_][a-z0-9_]{0,12}[?!=]?", fullmatch: true))

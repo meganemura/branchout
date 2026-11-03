@@ -41,7 +41,7 @@ class EmitterTest < Minitest::Test
 
       spec_source = File.read(spec)
       test_source = File.read(test)
-      assert_includes spec_source, 'RSpec.describe "FixtureScale.scale" do'
+      assert_includes spec_source, "RSpec.describe FixtureScale do\n  describe \".scale\" do\n"
       assert_includes spec_source, "expect(FixtureScale.scale(0, 0)).to eq(:out_of_range)"
       assert_includes spec_source, "expect(FixtureScale.scale(11, 11)).to eq(-91)"
       assert_includes spec_source, 'expect { FixtureScale.scale(24, 12) }.to raise_error(ZeroDivisionError, "divided by 0")'
@@ -76,8 +76,8 @@ class EmitterTest < Minitest::Test
       assert_empty test_names[0] - test_names[1]
       assert_equal test_names[1].uniq, test_names[1]
 
-      spec_names = sources.map { |_test, spec| spec.scan(/^  it (".*") do$/).flatten }
-      assert_equal ['"[0,0] returns :out_of_range"', '"[24,12] raises ZeroDivisionError"'], spec_names[0]
+      spec_names = sources.map { |_test, spec| spec.scan(/^    it (".*") do$/).flatten }
+      assert_equal ['"returns :out_of_range when a is 0 and b is 0"', '"raises ZeroDivisionError when a is 24 and b is 12"'], spec_names[0]
       assert_empty spec_names[0] - spec_names[1]
     end
   end
@@ -203,7 +203,8 @@ class EmitterTest < Minitest::Test
       assert_includes out, "6 examples, 0 failures"
       sources = paths.map { |path| File.read(path) }.join
       assert_includes sources, "assert_equal :open, FixtureVault.send(:new, 3).send(:check, 3)"
-      assert_includes sources, "expect(FixtureVault.send(:new, 3).send(:peek, 3)).to eq(:match)"
+      assert_includes sources, "let(:fixture_vault) { FixtureVault.send(:new, 3) }"
+      assert_includes sources, "expect(fixture_vault.send(:peek, 3)).to eq(:match)"
       assert_includes sources, "assert_equal :shut, FixtureVault.send(:new, 3).unlock(4)"
       assert_includes sources, 'expect(FixtureVault.send(:seal, +"")).to eq(:blank)'
     end
@@ -473,24 +474,106 @@ class EmitterTest < Minitest::Test
       rspec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/cart_spec.rb"))
       if pin.error
         assert_includes minitest, "    error = assert_raises(KeyError) do\n      #{arrange}      cart.add(+\"apple\", qty: 2)\n      cart.total\n    end\n"
-        assert_includes rspec, "    expect {\n      #{arrange}      cart.add(+\"apple\", qty: 2)\n      cart.total\n    }.to raise_error(KeyError)\n"
+        assert_includes rspec, "    let(:cart) { Shop::Cart.new(+\"EUR\") }\n\n    it \"raises KeyError after add(\\\"apple\\\", qty: 2)\" do\n" \
+                               "      expect {\n        cart.add(+\"apple\", qty: 2)\n        total\n      }.to raise_error(KeyError)\n"
       else
         assert_includes minitest, "    #{arrange}    cart.add(+\"apple\", qty: 2)\n    assert_equal 7, cart.total\n"
-        assert_includes rspec, "    #{arrange}    cart.add(+\"apple\", qty: 2)\n    expect(cart.total).to eq(7)\n"
+        assert_includes rspec, "    subject(:total) { cart.total }\n\n    let(:cart) { Shop::Cart.new(+\"EUR\") }\n\n" \
+                               "    before do\n      cart.add(+\"apple\", qty: 2)\n    end\n\n    it \"returns 7\" do\n      expect(total).to eq(7)\n"
       end
     end
     name = Branchout::Emitters::Support.test_names(pins.take(1)).first
     assert_match(/\Atest_new_eur_add_apple_qty_2_returns_7\z/, name)
   end
 
-  def test_names_and_descriptions_of_keywords_nil_and_long_values
-    pin = ->(input, value) { Branchout::Engine::Pin.new(input: input, value: value, error: nil, arm_ids: []) }
-    keywords = pin.(Branchout::Input.new(args: [1], kwargs: { "k" => 2 }), nil)
+  def test_names_and_outcomes_of_keywords_nil_and_long_values
+    pin = ->(value) { Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1]), value: value, error: nil, arm_ids: []) }
+    keywords = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1], kwargs: { "k" => 2 }), value: nil, error: nil, arm_ids: [])
     assert_match(/\Atest_1_k_2_returns_nil\z/, Branchout::Emitters::Support.test_names([keywords]).first)
-    fits = "a" * 58
-    too_long = "a" * 59
-    assert_equal "[1] returns #{fits.inspect}", Branchout::Emitters::Support.description(pin.(Branchout::Input.new(args: [1]), fits))
-    assert_equal "[1] returns #{too_long.inspect[0, 57]}...", Branchout::Emitters::Support.description(pin.(Branchout::Input.new(args: [1]), too_long))
+    outcome = ->(value) { Branchout::Emitters::Support.outcomes([pin.(value)]).values.first }
+    assert_equal "returns #{("a" * 38).inspect}", outcome.("a" * 38)
+    assert_equal "returns a String of 39 characters", outcome.("a" * 39)
+    assert_equal "returns an Array of 20", outcome.([1] * 20)
+    assert_equal "returns a Hash of #{(1..9).map { |n| "key#{n}" }.join(", ")}", outcome.((1..9).to_h { |n| [:"key#{n}", n] })
+    assert_equal "returns a Set", outcome.(Set[1])
+    assert_equal "returns an Object", outcome.(Object.new)
+  end
+
+  # Inputs that share their first steps share a context with the let or
+  # the before that holds them; a raising input keeps its calls inline; the
+  # facts every input shares are left out.
+  def test_rspec_groups_inputs_by_the_steps_they_share
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(false, "Shop::Cart", :total, "Shop::Cart#total", "lib/cart.rb", File.join(ROOT, "lib/cart.rb"),
+                        [], [Struct.new(:name).new(:tax), Struct.new(:name).new(:round)])
+    call = ->(name, *args) { Branchout::Input::SetupCall.new(name, Branchout::Input.new(args: args)) }
+    pin = lambda do |args, value, new: nil, setup: [], error: nil|
+      input = Branchout::Input.new(args: args, receiver: new && Branchout::Input.new(args: new), setup: setup)
+      Branchout::Engine::Pin.new(input: input, value: value, error: error, arm_ids: [])
+    end
+    error = Branchout::Runner::ExceptionInfo.new(class_name: "ArgumentError", message: "m", stable_message: true)
+    pins = [
+      pin.([1, true], 0),
+      pin.([1, true], 300, setup: [call.("add", "apple", 3)]),
+      pin.([2, true], 600, setup: [call.("add", "apple", 3)]),
+      pin.([1, true], 700, setup: [call.("add", "apple", 3), call.("add", "pear", 4)]),
+      pin.([1, true], nil, setup: [call.("add", "apple", 0)], error: error),
+      pin.([1, true], 5, new: ["EUR"])
+    ]
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+    rspec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/cart_spec.rb"))
+    assert_equal <<~'RUBY', rspec.split("\n\n", 4).last
+      RSpec.describe Shop::Cart do
+        describe "#total" do
+          context "with new" do
+            let(:cart) { Shop::Cart.new }
+
+            it "returns 0 when tax is 1" do
+              expect(cart.total(1, true)).to eq(0)
+            end
+
+            it "raises ArgumentError after add(\"apple\", 0) when tax is 1" do
+              expect {
+                cart.add(+"apple", 0)
+                cart.total(1, true)
+              }.to raise_error(ArgumentError, "m")
+            end
+
+            context "after add(\"apple\", 3)" do
+              before do
+                cart.add(+"apple", 3)
+              end
+
+              it "returns 300 when tax is 1" do
+                expect(cart.total(1, true)).to eq(300)
+              end
+
+              it "returns 600 when tax is 2" do
+                expect(cart.total(2, true)).to eq(600)
+              end
+
+              context "after add(\"pear\", 4)" do
+                before do
+                  cart.add(+"pear", 4)
+                end
+
+                it "returns 700 when tax is 1" do
+                  expect(cart.total(1, true)).to eq(700)
+                end
+              end
+            end
+          end
+
+          context "with new(\"EUR\")" do
+            let(:cart) { Shop::Cart.new(+"EUR") }
+
+            it "returns 5 when tax is 1" do
+              expect(cart.total(1, true)).to eq(5)
+            end
+          end
+        end
+      end
+    RUBY
   end
 
   # A test written outside the target's tree requires it by absolute path,
@@ -536,6 +619,6 @@ class EmitterTest < Minitest::Test
     assert_includes minitest, "  def test_no_inputs_discovered\n    skip \"branchout did not discover an input\"\n  end\n"
     rspec = Branchout::Emitters.render("rspec", result, target, destination)
     assert_includes rspec, "require_relative \"../lib/all.rb\"\nrequire_relative \"../lib/foo.rb\"\n"
-    assert_includes rspec, "  it \"discovers no inputs\" do\n    skip \"branchout did not discover an input\"\n  end\n"
+    assert_includes rspec, "    it \"discovers no inputs\" do\n      skip \"branchout did not discover an input\"\n    end\n"
   end
 end

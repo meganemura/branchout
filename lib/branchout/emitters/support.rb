@@ -272,18 +272,56 @@ module Branchout
         children.each { |step, item| collect_leaves(item, path + [step], out) }
       end
 
-      # RSpec descriptions: the input as the report prints it, then what the
-      # test pins.
-      def description(pin)
-        outcome = if pin.error
-          "raises #{pin.error.class_name}"
-        elsif literal?(pin.value)
-          text = ruby_literal(pin.value)
-          "returns #{text.length > 60 ? "#{text[0, 57]}..." : text}"
-        else
-          "returns a #{class_literal(pin.value)}"
+      # What each pin's test pins, as RSpec says it: "raises KeyError",
+      # "returns :miss". A Hash says the scalar entries that differ between
+      # the Hashes of +pins+, so siblings say how their results differ.
+      def outcomes(pins)
+        differences = hash_differences(pins.map { |pin| pin.error ? nil : pin.value })
+        pins.zip(differences).to_h { |pin, differing| [pin, outcome_text(pin, differing)] }
+      end
+
+      def outcome_text(pin, differing)
+        return "raises #{pin.error.class_name}" if pin.error
+        return "returns #{article(class_literal(pin.value))}" unless literal?(pin.value)
+
+        value = pin.value
+        unless differing.empty?
+          return "returns #{differing.map { |key, item| "#{hash_key_literal(key)} #{ruby_literal(item)}" }.join(", ")}"
         end
-        "#{pin.input.text} #{outcome}"
+
+        text = ruby_literal(value)
+        return "returns #{text}" if text.length <= 40
+
+        case value
+        when Hash then "returns a Hash of #{value.keys.map(&:to_s).join(", ")}"
+        when Array then "returns an Array of #{value.length}"
+        when String then "returns a String of #{value.length} characters"
+        else "returns #{text}"
+        end
+      end
+
+      def article(name)
+        name.match?(/\A[AEIOU]/) ? "an #{name}" : "a #{name}"
+      end
+
+      # For each of +values+, the [key, value] entries of a Hash whose value
+      # is a scalar and is not the same in every Hash of +values+, at most
+      # three. A value that is not a Hash has none.
+      def hash_differences(values)
+        hashes = values.grep(Hash)
+        missing = Object.new
+        keys = hashes.flat_map(&:keys).uniq.select do |key|
+          hashes.map { |hash| hash.fetch(key, missing) }.uniq.length > 1
+        end
+        values.map do |value|
+          next [] unless value.is_a?(Hash)
+
+          keys.filter_map { |key| [key, value[key]] if value.key?(key) && scalar?(value[key]) }.first(3)
+        end
+      end
+
+      def scalar?(value)
+        !value.is_a?(Hash) && !value.is_a?(Array)
       end
 
       def input_words(input)

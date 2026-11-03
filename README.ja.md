@@ -140,7 +140,9 @@ private や protected の入口と private な `new` は、`explore` と同じ�
 各テストの名前は入力と結果から作る。
 `test_24_12_raises_zero_division_error_bba48b` や `it "[24,12] raises ZeroDivisionError"` のようになる。
 入力を足しても、ほかのテストの名前は変わらない。
-名前は単語の切れ目で切る。空白だけの文字列は `blank` になり、Hash の結果はキーで名付ける。
+名前は単語の切れ目で切る。
+空白だけの文字列は `blank` になり、Hash の引数は値で、Hash の結果はキーで名付ける。
+対象のディレクトリの外に出力したテストは、対象を絶対パスで読み込む。
 minitest のパスは `--format minitest` で、`ruby` で実行する。RSpec には `rspec` gem が要る。
 
 ## フロンティアの作り方

@@ -7,7 +7,7 @@ module Branchout
     Result = Struct.new(
       :command, :target, :entry, :seed, :strategies, :random, :mutate_cap, :timeout,
       :inputs_ran, :mutate_ran, :random_ran, :executions,
-      :covered, :frontier, :exceptions, :pins,
+      :covered, :frontier, :exceptions, :pins, :requires,
       keyword_init: true
     )
 
@@ -21,16 +21,18 @@ module Branchout
     Finding = Struct.new(:class_name, :message, :loc, :input, :stable_message, keyword_init: true)
 
     def self.explore(target:, entry:, user_inputs: [], type_overrides: nil, seed: 0, strategies: STRATEGY_ORDER,
-                     random: 16, mutate_cap: 256, timeout: 1, command: "explore")
+                     random: 16, mutate_cap: 256, timeout: 1, command: "explore", requires: [])
       new(
         target: target, entry: entry, user_inputs: user_inputs, type_overrides: type_overrides,
         seed: seed, strategies: strategies, random: random, mutate_cap: mutate_cap,
-        timeout: timeout, command: command
+        timeout: timeout, command: command, requires: requires
       ).explore
     end
 
-    def initialize(target:, entry:, user_inputs:, type_overrides:, seed:, strategies:, random:, mutate_cap:, timeout:, command:)
+    def initialize(target:, entry:, user_inputs:, type_overrides:, seed:, strategies:, random:, mutate_cap:, timeout:, command:,
+                   requires:)
       @path = target
+      @requires = requires.map { |path| File.expand_path(path) }
       @entry = entry
       @user_inputs = user_inputs
       @type_overrides = type_overrides
@@ -67,7 +69,7 @@ module Branchout
       enqueue.call(mutated, :mutate)
       enqueue.call(randoms, :random)
 
-      runner = Runner.new(target, timeout: @timeout)
+      runner = Runner.new(target, timeout: @timeout, requires: @requires)
       executions = plan.map do |input, origin|
         execution = runner.execute(input)
         execution.origin = origin
@@ -115,7 +117,8 @@ module Branchout
         covered: covered,
         frontier: frontier,
         exceptions: findings,
-        pins: pins
+        pins: pins,
+        requires: @requires
       )
     end
 

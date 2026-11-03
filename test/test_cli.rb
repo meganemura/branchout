@@ -213,6 +213,29 @@ class CLITest < Minitest::Test
     end
   end
 
+  def test_require_loads_the_library_before_the_target
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [[0], [4]] })
+      args = [
+        "explore", "test/fixtures/loaded.rb", "FixtureLoaded.over?",
+        "--strategy", "inputs", "--random", "0", "--inputs", path
+      ]
+      stdout, stderr, status = run_cli(*args)
+      assert status.success?, stderr
+      assert_includes stdout, "message: uninitialized constant FixtureLoaded::LIMIT"
+
+      test = File.join(dir, "loaded_test.rb")
+      stdout, stderr, status = run_cli(*args, "--require", "test/fixtures/loader.rb", "--emit-tests", test)
+      assert status.success?, stderr
+      assert_includes stdout, "arms_covered: 2"
+      assert_includes stdout, "EXCEPTIONS\n(none)"
+      source = File.read(test)
+      assert_match(/loader\.rb"\nrequire_relative ".*loaded\.rb"/, source)
+      _out, err, status = Open3.capture3(RbConfig.ruby, test)
+      assert status.success?, err
+    end
+  end
+
   def test_division_is_recorded
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [{ "args" => [24, 12] }] })

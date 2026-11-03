@@ -64,6 +64,7 @@ While searching, pass `--strategy inputs --random 0` and keep `--seed` fixed, so
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--inputs PATH` | none | JSON file of inputs |
+| `--require PATH` | none | Load PATH before the target, for a target that needs the rest of its library. Repeatable. Emitted tests require it too |
 | `--seed N` | `0` | RNG seed |
 | `--random N` | `16` | Number of random samples |
 | `--mutate-cap N` | `256` | Literal-mutation budget |
@@ -114,7 +115,7 @@ That run covers 4 of 4 arms and records `ZeroDivisionError` (`divided by 0`) for
 
 ## How it builds the frontier
 
-branchout loads the target after `Coverage.setup(lines: true, branches: true)` and discards the counts from loading. For each input it resumes coverage, calls the method, suspends coverage, and reads `Coverage.result`. It keeps the entry method and same-file callees reached by a bare call or `self.`.
+branchout loads the `--require` files and then the target after `Coverage.setup(lines: true, branches: true)` and discards the counts from loading. For each input it resumes coverage, calls the method, suspends coverage, and reads `Coverage.result`. It keeps the entry method and same-file callees reached by a bare call or `self.`.
 
 An arm id is `kind@line:column/arm@line:column`, from the Coverage branch key. Columns are 0-based. `cond` is the Prism predicate. For a `when` or `in` arm it is that line. If the locations do not match, the source line is used.
 

@@ -14,6 +14,7 @@ module Branchout
         relative = Support.relative_require(destination, target.path)
         lines = Support.header(target, "specs")
         lines << ""
+        result.requires.each { |path| lines << "require_relative #{Support.relative_require(destination, path).inspect}" }
         lines << "require_relative #{relative.inspect}"
         lines << ""
         lines << "RSpec.describe #{target.entry.inspect} do"

@@ -32,7 +32,7 @@ branchout explore TARGET.rb Const.method \
 
 `--strategy` is a comma list of `inputs`, `mutate`, and `random` (default: all three). `--random` defaults to 16 and `--seed` to 0. During the search, pass `--strategy inputs --random 0` and keep `--seed` fixed. The same inputs, flags, and CRuby produce the same stdout.
 
-Other flags: `--mutate-cap N` (default 256), `--timeout SEC` (default 1, must be > 0), `--json` (JSON on stdout instead of text), `--json-out PATH`, `--md-out PATH`.
+Other flags: `--require PATH`, `--mutate-cap N` (default 256), `--timeout SEC` (default 1, must be > 0), `--json` (JSON on stdout instead of text), `--json-out PATH`, `--md-out PATH`.
 
 ## Inputs JSON
 
@@ -53,7 +53,7 @@ Start from one seed. [inputs.example.json](inputs.example.json) shows every acce
 - Values may be null, booleans, numbers, strings, arrays, and objects. `-0.0` is stored as `0.0`.
 - Append. Do not delete or reorder entries. Leave a failed attempt in the file so you do not retry it blindly.
 
-The target file must load and define the entry. The method's own stdout and stderr are discarded.
+The target file must load and define the entry. When it needs the rest of its library (a constant from another file), pass the library's entry file with `--require PATH`, repeatable. It loads before the target, and emitted tests require it too. The method's own stdout and stderr are discarded.
 
 ## Reading the frontier
 

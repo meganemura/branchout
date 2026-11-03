@@ -14,6 +14,7 @@ module Branchout
         lines = Support.header(target, "tests")
         lines << ""
         lines << 'require "minitest/autorun"'
+        result.requires.each { |path| lines << "require_relative #{Support.relative_require(destination, path).inspect}" }
         lines << "require_relative #{relative.inspect}"
         lines << ""
         lines << "class #{Support.class_name_for(target)} < Minitest::Test"

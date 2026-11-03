@@ -19,6 +19,7 @@ module Branchout
 
       Options:
         --inputs PATH       JSON file of candidate inputs
+        --require PATH      load PATH before TARGET (repeatable)
         --seed N            RNG seed (default 0)
         --random N          random samples (default 16)
         --mutate-cap N      literal-mutation budget (default 256)
@@ -68,13 +69,15 @@ module Branchout
         json_out: nil,
         md_out: nil,
         emit_tests: nil,
-        format: nil
+        format: nil,
+        requires: []
       }
       positionals = []
       until args.empty?
         arg = args.shift
         case arg
         when "--inputs" then opts[:inputs] = take(args, arg)
+        when "--require" then opts[:requires] << take(args, arg)
         when "--seed" then opts[:seed] = parse_int(take(args, arg), "seed")
         when "--random" then opts[:random] = parse_int(take(args, arg), "random")
         when "--mutate-cap" then opts[:mutate_cap] = parse_int(take(args, arg), "mutate-cap")
@@ -131,7 +134,8 @@ module Branchout
           strategies: opts[:strategies],
           random: opts[:random],
           mutate_cap: opts[:mutate_cap],
-          timeout: opts[:timeout]
+          timeout: opts[:timeout],
+          requires: opts[:requires]
         )
         stdout = opts[:json] ? Report.json(result) : Report.text(result)
         $stdout.write(stdout)
@@ -175,7 +179,8 @@ module Branchout
         random: opts[:random],
         mutate_cap: opts[:mutate_cap],
         timeout: opts[:timeout],
-        command: "baselines"
+        command: "baselines",
+        requires: opts[:requires]
       )
     end
 

@@ -25,9 +25,13 @@ module Branchout
 
     attr_reader :template
 
-    def initialize(target, timeout:)
+    # +requires+ are files the target needs loaded first, such as its
+    # library's entry file. They load after coverage starts, so the target
+    # is measured even when one of them requires it.
+    def initialize(target, timeout:, requires: [])
       @target = target
       @timeout = timeout
+      @requires = requires
       boot
     end
 
@@ -54,7 +58,10 @@ module Branchout
     def boot
       CoverageSession.install
       begin
-        measure { require @target.path }
+        measure do
+          @requires.each { |path| require path }
+          require @target.path
+        end
       rescue LoadError, SyntaxError => e
         raise Error, "failed to load #{@target.display_path}: #{e.message}"
       end

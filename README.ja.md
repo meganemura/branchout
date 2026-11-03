@@ -70,6 +70,7 @@ EXCEPTIONS
 | フラグ | 既定 | 意味 |
 | --- | --- | --- |
 | `--inputs PATH` | なし | 入力の JSON ファイル |
+| `--require PATH` | なし | ターゲットより先に PATH を読み込む。ライブラリの残りが要るターゲットに使う。繰り返し指定できる。出力するテストも同じファイルを読み込む |
 | `--seed N` | `0` | 乱数の種 |
 | `--random N` | `16` | ランダム標本の個数 |
 | `--mutate-cap N` | `256` | リテラル変異の予算 |
@@ -120,7 +121,7 @@ ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \
 
 ## フロンティアの作り方
 
-対象ファイルは `Coverage.setup(lines: true, branches: true)` のあとで読み、ロード時のカウントは捨てる。入力ごとに coverage を resume し、メソッドを呼び、suspend して `Coverage.result` を読む。残すのは入口メソッドと、同じファイル内で裸呼び出しまたは `self.` から届く callee だけである。
+`--require` のファイルと対象ファイルは `Coverage.setup(lines: true, branches: true)` のあとで読み、ロード時のカウントは捨てる。入力ごとに coverage を resume し、メソッドを呼び、suspend して `Coverage.result` を読む。残すのは入口メソッドと、同じファイル内で裸呼び出しまたは `self.` から届く callee だけである。
 
 腕の id は Coverage の分岐キーから作る `kind@行:列/arm@行:列` である。列は 0 始まり。`cond` は Prism の述語で、`when` または `in` の腕ではその行である。位置が一致しないときはソースの行を使う。
 

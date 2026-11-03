@@ -406,7 +406,7 @@ module Branchout
       # is not a plain name keeps its brackets: ["a b"].
       # +root+, when given, is the name the path starts from.
       def path_text(path, root = nil)
-        path.each_with_object(+root.to_s) do |step, text|
+        path.each_with_object(+"#{root}") do |step, text|
           text << if step.is_a?(Integer) then "[#{step}]"
                   elsif !step.match?(/\A[A-Za-z_][A-Za-z0-9_]*[?!]?\z/) then "[#{step.inspect}]"
                   elsif text.empty? then step

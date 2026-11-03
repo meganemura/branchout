@@ -706,6 +706,10 @@ class EmitterTest < Minitest::Test
     assert_includes source, "expect(Box.put(2)).to match([a_kind_of(Struct).and(have_attributes(a: 1))])\n"
     assert_includes source, "expect(Box.put(3)).to match({\"s\" => a_kind_of(Set)})\n"
     assert_includes source, "expect(Box.put(4)).to be_a(Set)\n"
+    result = Branchout::Engine::Result.new(pins: shaped.first(1), requires: [], private_calls: [])
+    minitest = Branchout::Emitters.render("minitest", result, target_for.("Box", :put, singleton: true),
+                                          File.join(ROOT, "test/x_test.rb"), pin_keys: %w[tax])
+    assert_includes minitest, "    assert_equal({tax: 0}, Box.put(1).slice(:tax))\n"
   end
 
   def test_an_empty_run_emits_a_skip_and_requires_load_first

@@ -48,9 +48,12 @@ module Branchout
       # The requires of an emitted test: the --require files, then the
       # target. +by_name+ requires each through the load path, named from
       # its --require file's directory, so the test loads whichever checkout
-      # -I names. A target outside every such directory keeps its path.
+      # -I names. With no --require file the nearest lib directory above the
+      # target names it, or the target's own directory, as for a library's
+      # entry file. A target outside every such directory keeps its path.
       def require_lines(requires, target_path, destination, by_name: false)
         roots = requires.map { |path| "#{File.dirname(File.expand_path(path))}/" }
+        roots = [load_root(target_path)] if roots.empty? && target_path
         [*requires, *target_path].map do |path|
           absolute = File.expand_path(path)
           root = by_name && roots.find { |dir| absolute.start_with?(dir) }
@@ -58,6 +61,12 @@ module Branchout
 
           "require_relative #{relative_require(destination, path).inspect}"
         end
+      end
+
+      def load_root(path)
+        dir = File.dirname(File.expand_path(path))
+        lib = dir.split("/").rindex("lib")
+        "#{lib ? dir.split("/")[0..lib].join("/") : dir}/"
       end
 
       # Paths that share only / give the absolute path: a climb to / breaks

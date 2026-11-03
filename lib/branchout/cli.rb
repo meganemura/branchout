@@ -33,6 +33,7 @@ module Branchout
         --pin-keys LIST     comma list of keys: a returned Hash pins only these keys
         --require-by-name   emitted tests require the --require files and the target
                             through the load path, from each --require file's directory
+                            (or, with none, the nearest lib directory above the target)
         --help
         --version
     TEXT
@@ -118,7 +119,6 @@ module Branchout
         raise Error, "--emit-tests is only valid with explore"
       end
       if opts[:require_by_name]
-        raise Error, "--require-by-name requires --require" if opts[:requires].empty?
         raise Error, "--require-by-name requires --emit-tests" unless opts[:emit_tests]
       end
       raise Error, "--pin-keys requires --emit-tests" if !opts[:pin_keys].empty? && !opts[:emit_tests]

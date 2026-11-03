@@ -514,6 +514,10 @@ class EmitterTest < Minitest::Test
     assert_equal ['require "shop"', 'require_relative "../../other/cart.rb"'], lines
     lines = support.require_lines(["/w/repo/lib/shop.rb"], "/w/repo/lib/shop/cart.rb", "/w/repo/test/cart_test.rb")
     assert_equal ['require_relative "../lib/shop.rb"', 'require_relative "../lib/shop/cart.rb"'], lines
+    lines = support.require_lines([], "/w/repo/lib/shop/cart.rb", "/w/repo/test/cart_test.rb", by_name: true)
+    assert_equal ['require "shop/cart"'], lines
+    lines = support.require_lines([], "/w/repo/tools/cart.rb", "/w/repo/test/cart_test.rb", by_name: true)
+    assert_equal ['require "cart"'], lines
   end
 
   # A setter or an operator in a setup call has no plain form that keeps

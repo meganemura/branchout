@@ -520,13 +520,10 @@ class CLITest < Minitest::Test
     end
   end
 
-  def test_require_by_name_needs_a_require_and_emitted_tests
+  def test_require_by_name_needs_emitted_tests
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [[1]] })
       base = ["explore", "test/fixtures/scale.rb", "FixtureScale.scale", "--inputs", path, "--require-by-name"]
-      _out, err, status = run_cli(*base, "--emit-tests", File.join(dir, "t_test.rb"))
-      refute status.success?
-      assert_equal "branchout: --require-by-name requires --require\n", err
       _out, err, status = run_cli(*base, "--require", "test/fixtures/helpers.rb")
       refute status.success?
       assert_equal "branchout: --require-by-name requires --emit-tests\n", err

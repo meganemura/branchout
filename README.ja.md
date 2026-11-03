@@ -88,7 +88,7 @@ EXCEPTIONS
 | `--emit-tests PATH` | | 特徴づけテストを書く。`explore` のみ |
 | `--format NAME` | `minitest` | `minitest` か `rspec`。`--emit-tests` が要る。省くと、パスが `_spec.rb` で終わるときだけ RSpec |
 | `--pin-keys LIST` | | キーのカンマ区切り。戻り値の Hash はこのキーだけを固定する（minitest は `slice`、RSpec は `include`）。後からキーが増えてもテストは落ちない。`--emit-tests` が要る |
-| `--require-by-name` | オフ | 出力するテストは `--require` のファイルと対象を、ロードパス経由で `require` する。名前は各 `--require` ファイルのディレクトリから作る（`require "shop/cart"`）。`--require` と `--emit-tests` が要る |
+| `--require-by-name` | オフ | 出力するテストは `--require` のファイルと対象を、ロードパス経由で `require` する。名前は各 `--require` ファイルのディレクトリから作る（`require "shop/cart"`）。`--require` がないときは、対象より上で最も近い `lib` ディレクトリか、対象自身のディレクトリから作る。`--emit-tests` が要る |
 | `--entry ENTRY` | 位置引数 | `Const.method` か `Const#method` |
 
 | 戦略 | 実行するもの |

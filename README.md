@@ -76,7 +76,7 @@ While searching, pass `--strategy inputs --random 0` and keep `--seed` fixed, so
 | `--emit-tests PATH` | | Write characterization tests. `explore` only |
 | `--format NAME` | `minitest` | `minitest` or `rspec`. Requires `--emit-tests`. If omitted, a path ending in `_spec.rb` selects RSpec |
 | `--pin-keys LIST` | | Comma list of keys. A returned Hash pins only these keys (`slice` in minitest, `include` in RSpec), so a key added later fails no test. Requires `--emit-tests` |
-| `--require-by-name` | off | Emitted tests `require` the `--require` files and the target through the load path, named from each `--require` file's directory (`require "shop/cart"`). Requires `--require` and `--emit-tests` |
+| `--require-by-name` | off | Emitted tests `require` the `--require` files and the target through the load path, named from each `--require` file's directory (`require "shop/cart"`). With no `--require`, named from the nearest `lib` directory above the target, or the target's own directory. Requires `--emit-tests` |
 | `--entry ENTRY` | the positional argument | `Const.method` or `Const#method` |
 
 | Strategy | What it runs |

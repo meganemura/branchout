@@ -108,6 +108,7 @@ class TargetTest < Minitest::Test
     "def self.f(x = false) = x" => "bool",
     "def self.f(x = true) = x" => "bool",
     'def self.f(s) = s.include?("a") || s == 1' => "string",
+    'def self.f(s) = s.include?("a") || s.keys' => "string",
     "def self.f(h) = h.keys || h.first" => "hash",
     "def self.f(a) = a.first || a + 1" => "array",
     "def self.f(x) = x + 1.5 || x + 1" => "float",
@@ -198,5 +199,82 @@ class TargetTest < Minitest::Test
       )
     end
     assert_match(/types length/, error.message)
+  end
+
+  def parse_source(source, entry, **options)
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "t.rb")
+      File.write(path, source)
+      yield Branchout::Target.parse(path, entry, **options), path
+    end
+  end
+
+  def test_a_duplicate_definition_is_refused
+    parse_source("module T\n  def self.g = 1\nend\n", "T.g") { |target| assert_equal "T.g", target.entry }
+    error = assert_raises(Branchout::Error) do
+      parse_source("module T\n  def self.f = 1\n  def self.f = 2\nend\n", "T.f") { flunk }
+    end
+    assert_match(/\Aduplicate T\.f in /, error.message)
+  end
+
+  def test_mutual_recursion_is_parsed_once
+    parse_source("module T\n  def self.f(x) = x > 0 ? g(x - 1) : 0\n  def self.g(x) = x > 5 ? f(x) : 1\nend\n", "T.f") do |target|
+      assert_equal [2..2, 3..3], target.ranges
+      assert_equal [0, 1, 5], target.literals.ints
+    end
+  end
+
+  def test_literals_include_defaults_once_and_sorted
+    source = "module T\n  def self.f(x = 77, s = \"z\") = x == 3 || x == 1 || x == 3 || x == 2.5 || x == 0.5 || s == \"a\" || s == \"a\"\nend\n"
+    parse_source(source, "T.f") do |target|
+      assert_equal [1, 3, 77], target.literals.ints
+      assert_equal [0.5, 2.5], target.literals.floats
+      assert_equal %w[a z], target.literals.strings
+    end
+  end
+
+  def test_a_method_with_no_parameters_has_none
+    parse_source("module T\n  def self.f = 1\nend\n", "T.f") { |target| assert_empty target.parameters }
+  end
+
+  def test_compact_module_paths_and_singleton_class_methods
+    parse_source("module Foo::Bar\n  class << self\n    def f(x) = x > 1\n  end\nend\nmodule Empty\nend\n", "Foo::Bar.f") do |target|
+      assert target.covers_line?(3)
+    end
+  end
+
+  def test_a_same_named_method_on_another_receiver_is_not_followed
+    parse_source("module T\n  def self.f(x) = x.g\n  def self.g = 2 > 1\nend\n", "T.f") do |target|
+      refute target.covers_line?(3)
+      assert_empty target.literals.ints
+    end
+  end
+
+  def test_a_nested_def_is_not_part_of_the_method
+    parse_source("module T\n  def self.f(x)\n    def self.g = 9\n    x > 1\n  end\nend\n", "T.f") do |target|
+      assert_equal [1], target.literals.ints
+    end
+  end
+
+  def test_condition_text_without_a_decision_node_is_the_source_line
+    parse_source("module T\n  def self.f(x) =\n    x&.size\nend\n", "T.f") do |target|
+      assert_equal "x&.size", target.condition_text(:"&.", 3, 4, :then, 3, 4)
+    end
+    exact = "x == #{"1" * 155}"
+    parse_source("module T\n  def self.f(x) = #{exact} ? 1 : 2\nend\n", "T.f") do |target|
+      assert_equal exact, target.condition_text(:if, 2, 18, :then, 2, 18)
+    end
+  end
+
+  def test_display_path_is_relative_inside_the_working_directory
+    assert_equal "lib/x.rb", Branchout::Target.display_path(File.join(Dir.pwd, "lib/x.rb"))
+    assert_equal "/elsewhere/x.rb", Branchout::Target.display_path("/elsewhere/x.rb")
+  end
+
+  def test_type_overrides_apply_to_positional_parameters_only
+    parse_source("module T\n  def self.f(a, b = 1, *rest, k:) = a\nend\n", "T.f", type_overrides: %w[string float]) do |target|
+      assert_equal [%w[a string], %w[b float], %w[rest array], %w[k int]],
+                   target.parameters.map { |param| [param.name.to_s, param.inferred_type] }
+    end
   end
 end

@@ -75,6 +75,7 @@ While searching, pass `--strategy inputs --random 0` and keep `--seed` fixed, so
 | `--md-out PATH` | | Write the text report as Markdown |
 | `--emit-tests PATH` | | Write characterization tests. `explore` only |
 | `--format NAME` | `minitest` | `minitest` or `rspec`. Requires `--emit-tests`. If omitted, a path ending in `_spec.rb` selects RSpec |
+| `--pin-keys LIST` | | Comma list of keys. A returned Hash pins only these keys (`slice` in minitest, `include` in RSpec), so a key added later fails no test. Requires `--emit-tests` |
 | `--require-by-name` | off | Emitted tests `require` the `--require` files and the target through the load path, named from each `--require` file's directory (`require "shop/cart"`). Requires `--require` and `--emit-tests` |
 | `--entry ENTRY` | the positional argument | `Const.method` or `Const#method` |
 
@@ -112,7 +113,23 @@ ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \
   --format rspec
 ```
 
-That run covers 4 of 4 arms and records `ZeroDivisionError` (`divided by 0`) for `[24,12]`. The emitted file pins each return value, or the exception class and message. A `NameError` or `NoMethodError` is pinned by its class and missing name (`error.name`), because Ruby 3.4 reworded their messages. A return value with no Ruby literal, such as a `Set` or a `Struct`, is pinned by its class only. An expected Hash keeps the value's own key order, so a failure diff lines up key by key. A private or protected entry, and a private `new`, are called through `send`, as `explore` called them. Each test is named after its input and outcome, such as `test_24_12_raises_zero_division_error` or `it "[24,12] raises ZeroDivisionError"`. Inputs whose names would be the same are named by the values that differ between them, such as `test_status_timeout__error_class_timeout_returns_ok`, so adding an input can rename those. Strings that share their start are named from the words where they part. A name is cut between words, a blank string shows as `blank`, a Hash argument is named by its values, and a Hash outcome is named by its keys, each after `__`. A test emitted outside the target's directory tree requires the target by absolute path, unless `--require-by-name` is given. A minitest path uses `--format minitest` and runs with `ruby`. An RSpec file needs the `rspec` gem.
+That run covers 4 of 4 arms and records `ZeroDivisionError` (`divided by 0`) for `[24,12]`. The emitted file pins each return value, or the exception class and message. A `NameError` or `NoMethodError` is pinned by its class and missing name (`error.name`), because Ruby 3.4 reworded their messages. A return value with no Ruby literal, such as a `Set` or a `Struct`, is pinned by its class only. An expected Hash keeps the value's own key order, so a failure diff lines up key by key. A private or protected entry, and a private `new`, are called through `send`, as `explore` called them. A minitest test is named after its input and outcome, such as `test_24_12_raises_zero_division_error`. Inputs whose names would be the same are named by the values that differ between them, such as `test_status_timeout__error_class_timeout_returns_ok`, so adding an input can rename those. Strings that share their start are named from the words where they part. A name is cut between words, a blank string shows as `blank`, and a Hash argument is named by its values. A Hash outcome is named by the scalar entries that differ from its siblings, the one with the most distinct values first (`returns__due_cents_1200`), or by its keys when it has no sibling. A test emitted outside the target's directory tree requires the target by absolute path, unless `--require-by-name` is given. A target that a `--require` file already loads gets no require of its own.
+
+An RSpec file describes the constant, then `.method` or `#method`. The receiver is a `let`, each setup call a `before`, and inputs that start with the same receiver, calls, or argument values share a `context`. An example says its outcome first, then the argument values of its own, so `rspec --format documentation` reads like a spec:
+
+```text
+Arithmetic
+  .classify
+    returns :miss when x is 0, y is 0 and z is 0
+    returns :miss when x is 114514, y is 0 and z is 0
+    when x is 138
+      returns :x_only when y is 0 and z is 0
+      when y is 143
+        returns :need_z when z is 0
+        returns :hit when z is 7
+```
+
+A method that takes no argument in any input becomes the `subject`. An input that raised keeps its setup calls inside the `expect` block, so a raise from setup is still pinned. A minitest path uses `--format minitest` and runs with `ruby`. An RSpec file needs the `rspec` gem.
 
 ## How it builds the frontier
 

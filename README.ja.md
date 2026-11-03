@@ -87,6 +87,7 @@ EXCEPTIONS
 | `--md-out PATH` | | テキストレポートを Markdown で書く |
 | `--emit-tests PATH` | | 特徴づけテストを書く。`explore` のみ |
 | `--format NAME` | `minitest` | `minitest` か `rspec`。`--emit-tests` が要る。省くと、パスが `_spec.rb` で終わるときだけ RSpec |
+| `--pin-keys LIST` | | キーのカンマ区切り。戻り値の Hash はこのキーだけを固定する（minitest は `slice`、RSpec は `include`）。後からキーが増えてもテストは落ちない。`--emit-tests` が要る |
 | `--require-by-name` | オフ | 出力するテストは `--require` のファイルと対象を、ロードパス経由で `require` する。名前は各 `--require` ファイルのディレクトリから作る（`require "shop/cart"`）。`--require` と `--emit-tests` が要る |
 | `--entry ENTRY` | 位置引数 | `Const.method` か `Const#method` |
 
@@ -138,16 +139,41 @@ Ruby 3.4 でメッセージの文言が変わったためである。
 `Set` や `Struct` のように Ruby のリテラルで書けない戻り値は、クラスだけを固定する。
 期待する Hash は値そのもののキー順で書くので、失敗時の差分をキーごとに見比べられる。
 private や protected の入口と private な `new` は、`explore` と同じく `send` で呼ぶ。
-各テストの名前は入力と結果から作る。
-`test_24_12_raises_zero_division_error` や `it "[24,12] raises ZeroDivisionError"` のようになる。
+minitest のテスト名は入力と結果から作る。
+`test_24_12_raises_zero_division_error` のようになる。
 名前が同じになる入力どうしは、互いに異なる値で名付ける（`test_status_timeout__error_class_timeout_returns_ok` など）。
 そのため、入力を足すとそれらの名前が変わることがある。
 先頭が同じ文字列どうしは、分かれたところからの単語で名付ける。
 名前は単語の切れ目で切る。
 空白だけの文字列は `blank` になり、Hash の引数は値で名付ける。
-Hash の結果はキーで名付け、各キーの前に `__` を置く。
+Hash の結果は、兄弟と値が異なるスカラーの項目で名付ける。
+異なる値の多い項目が先に来る（`returns__due_cents_1200`）。
+兄弟がないときはキーで名付け、各キーの前に `__` を置く。
 対象のディレクトリの外に出力したテストは、対象を絶対パスで読み込む。
 `--require-by-name` を付けたときは、ロードパス経由で読み込む。
+`--require` のファイルがすでに対象を読み込むときは、対象の require を書かない。
+
+RSpec のファイルは定数を describe し、その中で `.method` か `#method` を describe する。
+レシーバーは `let` に、各 setup 呼び出しは `before` に置く。
+レシーバー、呼び出し、引数の値が先頭から同じ入力どうしは、1 つの `context` を共有する。
+各 example はまず結果を述べ、次にその example だけの引数の値を述べる。
+そのため `rspec --format documentation` は仕様のように読める。
+
+```text
+Arithmetic
+  .classify
+    returns :miss when x is 0, y is 0 and z is 0
+    returns :miss when x is 114514, y is 0 and z is 0
+    when x is 138
+      returns :x_only when y is 0 and z is 0
+      when y is 143
+        returns :need_z when z is 0
+        returns :hit when z is 7
+```
+
+どの入力でも引数をとらないメソッドは `subject` になる。
+例外を出した入力は、setup の呼び出しを `expect` のブロックの中に残す。
+そのため setup で出た例外も固定できる。
 minitest のパスは `--format minitest` で、`ruby` で実行する。RSpec には `rspec` gem が要る。
 
 ## フロンティアの作り方

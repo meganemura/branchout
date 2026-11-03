@@ -534,6 +534,21 @@ class EmitterTest < Minitest::Test
                     "assert_equal 1, Box.const_get(:Lid).put(1)"
   end
 
+  # A stable message is pinned as it was raised, newlines too; the report
+  # keeps the folded text.
+  def test_a_stable_message_is_pinned_as_raised
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Box", :put, "Box.put", "lib/x.rb", File.join(ROOT, "lib/x.rb"), [], [Struct.new(:name).new(:x)])
+    error = Branchout::Runner::ExceptionInfo.new(class_name: "ArgumentError", message: "bad x: 1", stable_message: true,
+                                                 exact_message: "bad\n  x: 1")
+    pins = [Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1]), value: nil, error: error, arm_ids: [])]
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+    assert_includes Branchout::Emitters.render("minitest", result, target, File.join(ROOT, "test/x_test.rb")),
+                    %(    assert_equal "bad\\n  x: 1", error.message\n)
+    assert_includes Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")),
+                    %(raise_error(ArgumentError, "bad\\n  x: 1"))
+  end
+
   # A setter or an operator in a setup call has no plain form that keeps
   # its arguments, so it goes through send.
   def test_a_setter_or_an_operator_is_called_through_send

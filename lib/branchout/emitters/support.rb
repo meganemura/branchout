@@ -193,7 +193,8 @@ module Branchout
       def test_names(pins, pin_keys = [])
         pinned = pins.map { |pin| pinned_pin(pin, pin_keys) }
         differences = hash_differences(pinned.map { |pin| pin.value unless pin.error })
-        outcomes = pinned.zip(differences).map { |pin, differing| outcome_words(pin, differing) }
+        # A Hash outcome may take more room, so the leaves RSpec names fit.
+        outcomes = pinned.zip(differences).map { |pin, differing| clip(outcome_words(pin, differing), differing.empty? ? 30 : OUTCOME_LIMIT) }
         names = pins.each_with_index.map { |pin, index| name_of(input_words(pin.input), outcomes[index]) }
         names.each_index.group_by { |index| names[index] }.each_value do |siblings|
           next if siblings.one?
@@ -209,8 +210,8 @@ module Branchout
         names.map { |name| (seen[name] += 1) == 1 ? name : "#{name}_#{seen[name]}" }
       end
 
-      def name_of(input_words, outcome_words)
-        ["test", clip(input_words, 40), clip(outcome_words, 30)].reject(&:empty?).join("_")
+      def name_of(input_words, outcome)
+        ["test", clip(input_words, 40), outcome].reject(&:empty?).join("_")
       end
 
       # For each input, the words of every leaf whose value is not the same
@@ -307,7 +308,7 @@ module Branchout
 
         value = pin.value
         unless differing.empty?
-          return "returns #{differing.map { |key, item| "#{hash_key_literal(key)} #{ruby_literal(item)}" }.join(", ")}"
+          return "returns #{differing.map { |path, item| "#{path_text(path)}: #{ruby_literal(item)}" }.join(", ")}"
         end
 
         text = ruby_literal(value)
@@ -341,27 +342,71 @@ module Branchout
         name.match?(/\A[AEIOU]/) ? "an #{name}" : "a #{name}"
       end
 
-      # For each of +values+, the [key, value] entries of a Hash whose value
-      # is a scalar and is not the same in every Hash of +values+, at most
-      # three. A value that is not a Hash has none.
+      # For each of +values+, the [path, leaf] entries of a Hash at the
+      # paths chosen to tell its siblings apart: the fewest leaves, nested
+      # ones too, that tell every two different Hashes of +values+ apart, at
+      # most three. Each pick is a leaf every Hash has, when one tells a
+      # pair apart, then tells the most pairs apart, then has the most
+      # distinct values. A pick that would make a minitest outcome longer
+      # than OUTCOME_LIMIT is left out, so both formats name the same
+      # leaves. A value that is not a Hash has none.
       def hash_differences(values)
-        hashes = values.grep(Hash)
-        missing = Object.new
-        spread = hashes.flat_map(&:keys).uniq.to_h do |key|
-          [key, hashes.map { |hash| hash.fetch(key, missing) }.uniq.length]
-        end
-        # The key that tells the most siblings apart comes first.
-        keys = spread.keys.select { |key| spread[key] > 1 }.each_with_index
-                     .sort_by { |key, index| [-spread[key], index] }.map(&:first)
-        values.map do |value|
-          next [] unless value.is_a?(Hash)
+        leaves = values.map { |value| value.is_a?(Hash) && literal?(value) ? hash_leaves(value) : nil }
+        distinct = leaves.compact.uniq.sort_by(&:inspect)
+        paths = distinct.flat_map(&:keys).uniq
+        pairs = distinct.combination(2).to_a
+        # A leaf every Hash has says something about each of them, so it
+        # comes before one that only some have.
+        shared = paths.to_h { |path| [path, distinct.all? { |map| map.key?(path) }] }
+        chosen = []
+        entries = ->(map, picks) { picks.filter_map { |path| [path, map[path]] if map.key?(path) } }
+        until pairs.empty? || chosen.length == 3
+          told = paths.to_h { |path| [path, pairs.count { |a, b| leaves_differ?(a, b, path) }] }
+          spread = paths.to_h { |path| [path, distinct.map { |map| map.fetch(path, MISSING) }.uniq.length] }
+          best = paths.each_with_index.max_by { |path, index| [told[path].positive? && shared[path] ? 1 : 0, told[path], spread[path], -index] }&.first
+          break if best.nil? || told[best].zero?
+          break if chosen.any? && distinct.any? { |map| outcome_length(entries.(map, chosen + [best])) > OUTCOME_LIMIT }
 
-          keys.filter_map { |key| [key, value[key]] if value.key?(key) && scalar?(value[key]) }.first(3)
+          chosen << best
+          pairs.reject! { |a, b| leaves_differ?(a, b, best) }
         end
+        leaves.map { |map| map ? entries.(map, chosen) : [] }
       end
 
-      def scalar?(value)
-        !value.is_a?(Hash) && !value.is_a?(Array)
+      MISSING = Object.new.freeze
+      # The longest minitest outcome part of a name, in characters.
+      OUTCOME_LIMIT = 45
+
+      def outcome_length(entries)
+        clip(outcome_entry_words(entries), Float::INFINITY).length
+      end
+
+      # path => leaf for every scalar or empty collection under a Hash.
+      def hash_leaves(value)
+        [].tap { |out| collect_leaves(value, [], out) }.reject { |path, _| path.empty? }.to_h
+      end
+
+      def leaves_differ?(a, b, path)
+        !(a.key?(path) && b.key?(path) && a[path].eql?(b[path]))
+      end
+
+      # "returns", then each entry's deepest key and its value.
+      def outcome_entry_words(entries)
+        words = entries.flat_map do |path, item|
+          [Key.new(path.reverse.find { |step| step.is_a?(String) }), *(item == [] || item == {} ? ["empty"] : value_words(item))]
+        end
+        ["returns", *words]
+      end
+
+      # A path into a value as a reader writes it: lines[0].sku. A key that
+      # is not a plain name keeps its brackets: ["a b"].
+      def path_text(path)
+        path.each_with_index.map do |step, index|
+          next "[#{step}]" if step.is_a?(Integer)
+          next(index.zero? ? step : ".#{step}") if step.match?(/\A[A-Za-z_][A-Za-z0-9_]*[?!]?\z/)
+
+          "[#{step.inspect}]"
+        end.join
       end
 
       def input_words(input)
@@ -373,11 +418,11 @@ module Branchout
       end
 
       # +differing+ is the pin's entry of hash_differences: a Hash whose
-      # siblings differ in a scalar entry is named by those entries.
+      # siblings differ in a leaf is named by those leaves.
       def outcome_words(pin, differing = [])
         return ["raises", *snake_words(pin.error.class_name)] if pin.error
         return ["returns", *snake_words(class_literal(pin.value))] unless literal?(pin.value)
-        return ["returns", *differing.flat_map { |key, item| [Key.new(key.to_s), *value_words(item)] }] unless differing.empty?
+        return outcome_entry_words(differing) unless differing.empty?
 
         ["returns", *shape_words(pin.value)]
       end

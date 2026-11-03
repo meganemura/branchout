@@ -138,6 +138,25 @@ class PropertyTest < Minitest::Test
     end
   end
 
+  # A minitest name and an RSpec description name the same leaves of a
+  # Hash outcome, in the same order.
+  def test_both_formats_name_the_same_leaves_of_a_hash_outcome
+    keys = sampled_from(%w[due tax qty sku total lines])
+    Hegel.test do |tc|
+      values = tc.draw(arrays(hashes(keys, integers(min_value: 0, max_value: 3), min_size: 1, max_size: 4), min_size: 1, max_size: 5))
+      pins = values.each_with_index.map do |value, index|
+        Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [index]), value: value, error: nil, arm_ids: [])
+      end
+      names = Branchout::Emitters::Support.test_names(pins)
+      outcomes = Branchout::Emitters::Support.outcomes(pins).values
+      names.zip(outcomes) do |name, outcome|
+        next unless outcome.match?(/\Areturns [a-z]+: /)
+
+        assert_equal outcome.scan(/([a-z]+): /).flatten, name.split("_returns").last.scan(/__([a-z]+)_/).flatten, "#{name} / #{outcome}"
+      end
+    end
+  end
+
   # An emitted spec parses, and no two examples of one group share a
   # description, so rspec --format documentation tells every input apart.
   def test_an_emitted_spec_parses_and_tells_its_examples_apart

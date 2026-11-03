@@ -288,7 +288,7 @@ class EmitterTest < Minitest::Test
       /\Atest_blank_1_raises_argument_error\z/,
       /\Atest_empty_returns_ok\z/,
       /\Atest_50_returns__discount_50\z/,
-      /\Atest_51_returns__sum_0__discount_1\z/,
+      /\Atest_51_returns__discount_1\z/,
       /\Atest_1_returns_raised_argumenterror\z/,
       /\Atest_2_returns_array_of_2\z/,
       /\Atest_3_returns_empty_hash\z/
@@ -364,6 +364,35 @@ class EmitterTest < Minitest::Test
                  Branchout::Emitters::Support.test_names(pins)
   end
 
+  # Both formats name a Hash outcome by the same leaves: the fewest that
+  # tell every two different Hashes apart, nested ones too. A discount that
+  # two results share needs the due as well, and a document whose
+  # results differ only in its counts is named by the count that differs.
+  def test_both_formats_name_hash_outcomes_by_the_same_leaves
+    support = Branchout::Emitters::Support
+    pin = ->(arg, value) { Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [arg]), value: value, error: nil, arm_ids: []) }
+    snapshot = ->(due, discount, cents) { { lines: [], discount: discount, due_cents: due, discount_cents: cents } }
+    pins = [[0, 0, 0], [0, 100, 1000], [900, 10, 100], [100, 10, 0], [150, 0, 0]].each_with_index.map { |due, index| pin.(index, snapshot.(*due)) }
+    assert_equal %w[test_0_returns__due_cents_0__discount_0 test_1_returns__due_cents_0__discount_100 test_2_returns__due_cents_900__discount_10
+                    test_3_returns__due_cents_100__discount_10 test_4_returns__due_cents_150__discount_0],
+                 support.test_names(pins)
+    assert_equal ["returns due_cents: 0, discount: 0", "returns due_cents: 0, discount: 100", "returns due_cents: 900, discount: 10",
+                  "returns due_cents: 100, discount: 10", "returns due_cents: 150, discount: 0"],
+                 support.outcomes(pins).values
+
+    doc = ->(discarded) { { "tests" => [{ "id" => "t1" }], "counts" => { "generated" => 1, "discarded" => discarded, "reported" => 1 - discarded } } }
+    pins = [pin.(1, doc.(0)), pin.(2, doc.(1))]
+    assert_equal %w[test_1_returns__discarded_0 test_2_returns__discarded_1], support.test_names(pins)
+    assert_equal ["returns counts.discarded: 0", "returns counts.discarded: 1"], support.outcomes(pins).values
+
+    # The line items tell more pairs apart, but the due says something about every cart.
+    cart = ->(skus, due) { { lines: skus.map { |sku| { sku: sku } }, due_cents: due } }
+    pins = [pin.(1, cart.([], 0)), pin.(2, cart.(%w[A], 100)), pin.(3, cart.(%w[B A], 100)), pin.(4, cart.(%w[A B], 200))]
+    assert_equal ["returns due_cents: 0", "returns due_cents: 100, lines[0].sku: \"A\"",
+                  "returns due_cents: 100, lines[0].sku: \"B\"", "returns due_cents: 200, lines[0].sku: \"A\""],
+                 support.outcomes(pins).values
+  end
+
   # A scalar deep in a Hash argument reaches the name: 7 % 0, -7 % 3, and
   # 7 % 3 as quint IR differ only in two nested ints.
   def test_a_scalar_inside_a_nested_hash_names_its_sibling
@@ -407,7 +436,7 @@ class EmitterTest < Minitest::Test
     pins = [[1, value], [2, { total: 2, tax: 0, "id" => "r" }]].map do |arg, result|
       Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [arg]), value: result, error: nil, arm_ids: [])
     end
-    assert_equal ["returns total: 6, tax: 1", "returns total: 2, tax: 0"], support.outcomes(pins).values
+    assert_equal ["returns total: 6", "returns total: 2"], support.outcomes(pins).values
     assert_equal ["returns tax: 1", "returns tax: 0"], support.outcomes(pins, %w[tax]).values
     assert_equal %w[test_1_returns__tax_1 test_2_returns__tax_0], support.test_names(pins, %w[tax])
   end

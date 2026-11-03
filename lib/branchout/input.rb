@@ -65,6 +65,7 @@ module Branchout
       when "string" then ""
       when "array" then []
       when "hash" then {}
+      when "bool" then false
       else
         raise Error, "unknown type #{type}"
       end

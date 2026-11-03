@@ -108,7 +108,14 @@ ruby bin/branchout baselines examples/magic_value.rb MagicValue.classify \
 }
 ```
 
-エントリは配列だけでもよい。キーワードは `kwargs` に、コンストラクタ引数は `new` に書く。型推論が違うときは、`"types"` に位置引数 1 つにつき `int`、`float`、`string`、`array`、`hash` のいずれかを置く。`meta` のような他のトップレベルキーは無視する。エントリは末尾へ足す。消したり並べ替えたりしない。
+エントリは配列だけでもよい。
+キーワードは `kwargs` に、コンストラクタ引数は `new` に書く。
+型推論が違うときは、`"types"` に位置引数 1 つにつき `int`、`float`、`string`、`array`、`hash`、`bool` のいずれかを置く。
+既定値が `[]`、`{}`、`true`、`false` の引数はその型になる。
+`bool` の引数には、変異とランダムサンプリングが `false` と `true` の両方を試す。
+`meta` のような他のトップレベルキーは無視する。
+エントリは末尾へ足す。
+消したり並べ替えたりしない。
 
 ```sh
 ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \

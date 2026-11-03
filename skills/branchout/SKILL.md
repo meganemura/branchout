@@ -48,8 +48,8 @@ Start from one seed. [inputs.example.json](inputs.example.json) shows every acce
 
 - An entry is `{"args": [...]}` or a bare array. Keywords go in `kwargs`: `{"args": [0], "kwargs": {"flag": true}}`.
 - For `Const#method`, constructor arguments go in `new`, in the same shape as an entry: `{"args": [5], "new": [10]}` calls `Const.new(10).method(5)`. Inputs differ by `new` too, so a method with no parameters is explored by varying `new`. `mutate` and `random` cannot fill `new`, so keep `--strategy inputs` for such a class.
-- Seeds: `[0]` int, `[0.0]` float, `[""]` string, `[[]]` array, `[{}]` hash.
-- `"types"` values are `int`, `float`, `string`, `array`, or `hash`. The array length must match the positional parameters. Extra top-level keys such as `meta` are ignored.
+- Seeds: `[0]` int, `[0.0]` float, `[""]` string, `[[]]` array, `[{}]` hash, `[false]` bool.
+- `"types"` values are `int`, `float`, `string`, `array`, `hash`, or `bool`. A default of `[]`, `{}`, `true`, or `false` already gives the type. The array length must match the positional parameters. Extra top-level keys such as `meta` are ignored.
 - Values may be null, booleans, numbers, strings, arrays, and objects. `-0.0` is stored as `0.0`.
 - Append. Do not delete or reorder entries. Leave a failed attempt in the file so you do not retry it blindly.
 

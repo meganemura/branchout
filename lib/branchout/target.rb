@@ -202,6 +202,7 @@ module Branchout
       when String then "string"
       when Array then "array"
       when Hash then "hash"
+      when true, false then "bool"
       end
     end
 
@@ -365,11 +366,17 @@ module Branchout
       node.compact_child_nodes.any? { |child| contains?(child, type) }
     end
 
+    # A container default stands in as an empty one of its kind: the type is
+    # what inference needs, and every mutated input passes the slot anyway.
     def literal_value(node)
       case node&.type
       when :integer_node then node.value
       when :float_node then node.value
       when :string_node then node.unescaped
+      when :true_node then true
+      when :false_node then false
+      when :array_node then []
+      when :hash_node then {}
       end
     end
 

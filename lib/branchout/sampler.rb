@@ -51,6 +51,8 @@ module Branchout
           out[keys[index]] = @rng.rand_inclusive(INT_MIN, INT_MAX)
         end
         out
+      when "bool"
+        @rng.rand_inclusive(0, 1) == 1
       else
         Input.zero(type)
       end

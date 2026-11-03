@@ -102,7 +102,7 @@ class MutatorTest < Minitest::Test
     "{}" => "is missing \"inputs\"",
     "{\"inputs\": 1}" => "inputs must be an array",
     "{\"inputs\": [], \"types\": \"int\"}" => "types must be an array",
-    "{\"inputs\": [], \"types\": [\"bool\"]}" => "has an unknown type (int, float, string, array, hash)",
+    "{\"inputs\": [], \"types\": [\"char\"]}" => "has an unknown type (int, float, string, array, hash, bool)",
     "{\"inputs\": [{\"args\": [], \"note\": 1}]}" => "inputs[0] has unknown keys: note",
     "{\"inputs\": [{\"kwargs\": {}}]}" => "inputs[0] is missing args",
     "{\"inputs\": [1]}" => "inputs[0] must be an array or an object",
@@ -130,6 +130,17 @@ class MutatorTest < Minitest::Test
       inputs, types = Branchout::InputFile.load(path)
       assert_nil types
       assert_equal [[nil], {}], [inputs.first.args, inputs.first.kwargs]
+    end
+  end
+
+  def test_a_false_default_is_a_flag_both_strategies_flip
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "t.rb")
+      File.write(path, "module T\n  def self.f(flag = false) = flag ? :on : :off\nend\n")
+      target = Branchout::Target.parse(path, "T.f")
+      assert_equal [[false], [true]], Branchout::Mutator.new(target, cap: 8).inputs.map(&:args)
+      samples = Branchout::Sampler.new(target, seed: 1, count: 16).inputs.map(&:args)
+      assert_equal [[false], [true]], samples.uniq.sort_by(&:inspect)
     end
   end
 end

@@ -6,7 +6,7 @@ module Branchout
   # product of the first two numeric slots comes after that, so a magic
   # constant is not dropped just because it sorts late.
   class Mutator
-    TYPES = %w[int float string array hash].freeze
+    TYPES = %w[int float string array hash bool].freeze
 
     def initialize(target, cap:)
       @target = target
@@ -96,6 +96,8 @@ module Branchout
         [[], [0], [1], [0, 1]]
       when "hash"
         [{}, {"a" => 0}, {"a" => 1}]
+      when "bool"
+        [false, true]
       else
         [Input.zero(param.inferred_type || "int")]
       end

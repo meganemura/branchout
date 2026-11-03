@@ -1,26 +1,26 @@
 # branchout
 
-カバレッジに導かれる、エージェント駆動の入力探索。concolic execution に着想を得ているが、ツールの中では記号制約を集めず、解かない。
+Coverage-guided, agent-driven input exploration. It is inspired by concolic execution, and it does not collect or solve symbolic constraints.
 
-concolic execution は具体実行と同時に経路条件を記録し、まだ通っていない枝をソルバに解かせる。branchout がやるのはその前半の観測だけである。対象メソッドを具体入力で実行し、Coverage の分岐腕のうち未カバーのものを短いフロンティアとして出す。次の入力を提案するのは、その出力を読む人間かコーディングエージェントで、ツールの外にいる。SMT も LLM も呼ばない。
+Concolic execution runs a program on a concrete input, records the path condition, and asks a solver for an input that takes a branch not yet seen. branchout does only the observation half. It runs one Ruby method on concrete inputs and prints the uncovered branch arms as a short frontier. A person or a coding agent, outside the tool, proposes the next inputs. The tool calls neither an SMT solver nor an LLM.
 
-実行に gem は要らない。Coverage、Prism、json、minitest は処理系に付いているものを使う。出した RSpec を走らせるときだけ `rspec` が要る。開発用の Gemfile では minitest と rspec を dev dependency にしている。Ruby 3.3 以降のその API を想定し、Ruby 3.4.12 と Ruby 4.0.9 で `ruby test/run_all.rb` と `bundle exec rspec spec/generated` が通ること、デモの件数とカバー数が両者で一致することを確認した。3.3 そのものでは実行していない。
+Running branchout needs no gems. It uses `Coverage`, Prism, json, and minitest from the Ruby install. The emitted RSpec files need the `rspec` gem to run. The development Gemfile lists minitest and rspec as development dependencies. The code targets the Ruby 3.3+ standard library. `ruby test/run_all.rb` and `bundle exec rspec spec/generated` both pass on Ruby 3.4.12 and Ruby 4.0.9, with the same demo counts. Ruby 3.3 itself was not executed here.
 
-## 設計
+## Design
 
-1. 対象ファイルを `Coverage.setup(lines: true, branches: true)` のあとで `require` する。ロード時のカウントは捨て、入力ごとに `resume` / 実行 / `suspend` / `Coverage.result(stop: false, clear: true)` する。対象メソッドと、同じファイル内で裸呼び出しまたは `self.` から到達するメソッドの行だけを見る。
-2. 腕の id は `if@行:列/then@行:列` のように、Coverage の分岐キーの位置から作る。列は 0 始まり。
-3. 条件の文字列は Prism の述語、または `when` の行。位置が一致しないときはその行のソースに戻す。
-4. 1 回の実行の経路は、カウントが正の腕のソート済み集合。ループは `*回数` になる。通った順は Coverage が返さない。
-5. フロンティアはカウント 0 の腕。親の決定をどれかの入力が実行していれば `parent: reached` と、そこに到達した最も単純な入力（通った腕が少ない、数の絶対値が小さい、canonical JSON が小さい）を出す。
-6. リテラル変異は、そのスライスに出てくる整数・浮動小数・文字列を集め、各引数スロットへ入れる。整数は 0, 1, -1 とリテラル±1 も入れる。数値 2 引数だけ直積を足し、`--mutate-cap` で切る。文字列リテラル同士は連結しない。
-7. ランダムは純 Ruby の Park-Miller。整数は -3..12、文字列は長さ 0..3、文字は `abc01.-`。種は `--seed`。
-8. 例外は捕捉して所見にする。ゼロ除算のような、腕の中に隠れている故障はカバー数とは別に残る。
-9. 発見した入力（inputs に書いたもの、腕の証人、例外を起こした入力）から特徴づけテストを出す。エミッタは `lib/branchout/emitters/` に分かれており、minitest と RSpec を選べる。コアはどちらも require しない。
+1. The target file is `require`d after `Coverage.setup(lines: true, branches: true)`. Load-time counts are discarded. Each input is `resume`, the call, `suspend`, then `Coverage.result(stop: false, clear: true)`. Only the entry method, and same-file callees reached by a bare call or `self.`, are kept.
+2. An arm id looks like `if@line:column/then@line:column`, taken from the Coverage branch key. Columns are 0-based.
+3. Condition text is the Prism predicate, or the `when` line. If the locations do not match, the source line is used.
+4. A path is the sorted set of arms whose count is positive. A loop shows up as `*count`. Coverage does not record order.
+5. The frontier is every arm with count 0. If some input executed that decision, the arm is `parent: reached`, with the simplest input that reached it (fewest taken arms, then smallest absolute numeric weight, then canonical JSON).
+6. Literal mutation collects integers, floats, and strings from that slice and tries each one in each argument slot. Integers also include `0`, `1`, `-1`, and literal±1. Only the first two numeric arguments get a cartesian product, cut by `--mutate-cap`. String literals are not concatenated.
+7. Random sampling uses a pure-Ruby Park-Miller generator. Integers are -3..12. Strings have length 0..3 over `abc01.-`. The seed is `--seed`.
+8. Exceptions are caught and reported. A fault hidden inside an arm, such as division by zero, is separate from arm coverage.
+9. Discovered inputs (entries from the inputs file, arm witnesses, and inputs that raised) are emitted as characterization tests. Emitters live in `lib/branchout/emitters/`. minitest and RSpec are available. The core does not require either gem.
 
-出力に時刻は入れない。同じ入力、同じフラグ、同じ CRuby なら標準出力はバイト一致する。
+The report has no timestamps. The same inputs, flags, and CRuby produce the same stdout bytes.
 
-## 実行
+## Run
 
 ```sh
 ruby bin/branchout explore examples/magic_value.rb MagicValue.classify \
@@ -42,11 +42,11 @@ bundle exec rspec spec/generated
 ruby test/run_all.rb
 ```
 
-`ENTRY` は `Const.method` か `Const#method`。後者は `new` の必須引数が 0 であること。
+`ENTRY` is `Const.method` or `Const#method`. The latter needs `new` with no required arguments.
 
-主なフラグは `--inputs`、`--seed`、`--random`、`--mutate-cap`、`--strategy inputs,mutate,random`、`--timeout`、`--json`、`--json-out`、`--md-out`、`--emit-tests`、`--format minitest|rspec`。`--format` を省くと、出力パスが `_spec.rb` で終わるときだけ RSpec、それ以外は minitest。
+Flags: `--inputs`, `--seed`, `--random`, `--mutate-cap`, `--strategy inputs,mutate,random`, `--timeout`, `--json`, `--json-out`, `--md-out`, `--emit-tests`, `--format minitest|rspec`. Without `--format`, a path ending in `_spec.rb` selects RSpec and anything else selects minitest.
 
-inputs の形:
+Input file:
 
 ```json
 {
@@ -58,15 +58,15 @@ inputs の形:
 }
 ```
 
-`types` を省くと、メソッド本体の使われ方から int / float / string / array / hash を推定する。
+If `types` is omitted, each parameter is inferred as int, float, string, array, or hash from how the method body uses it.
 
-## エージェントのループ
+## Agent loop
 
-手順の本体は [AGENTS.md](AGENTS.md)。探索中は `--strategy inputs --random 0 --seed 1` に固定する。エージェントは `parent: reached` の腕ごとに、`nearest` を 1 箇所だけ変えた入力を inputs.json の末尾へ足して、同じコマンドを再実行する。ツールはファイルを書き換えない。
+The procedure is in [AGENTS.md](AGENTS.md). During search, keep `--strategy inputs --random 0 --seed 1`. For each `parent: reached` arm, the agent appends one input derived from `nearest` and reruns the same command. The tool does not edit the file.
 
-デモではその手順をこのまま実行した。モデル API は使っていない。ツールに LLM バックエンドはない。
+The demos below were produced by following that procedure. No model API was called. The tool has no LLM backend.
 
-魔法数のラウンド 0（`examples/inputs/magic_value.seed.json`）:
+Round 0 for the magic value (`examples/inputs/magic_value.seed.json`):
 
 ```
 branchout explore
@@ -105,77 +105,79 @@ EXCEPTIONS
 (none)
 ```
 
-`sense: cond-true` なので `[114514]` を足す。ラウンド 1 で `arms_covered: 2`、`FRONTIER` は `(none)`。
+`sense: cond-true` means the next input is `[114514]`. Round 1 reports `arms_covered: 2` and `FRONTIER` `(none)`.
 
-他のデモで足した入力と、残った腕:
+Inputs added in the other demos:
 
-| デモ | ラウンド | 最終入力 | 結果 |
+| Demo | Rounds | Final inputs | Result |
 | --- | --- | --- | --- |
-| `MagicValue.classify` | 1 | `[0]`、`[114514]` | 2/2 |
-| `Arithmetic.classify` | 3 | `[0,0,0]`、`[138,0,0]`、`[114514,0,0]`、`[138,143,0]`、`[138,143,7]` | 7/8。`x == 114514 && x == 0` の then は試行後も未カバー |
-| `VersionParser.parse` | 3 | `""`、`"0"`、`"-"`、`"0.0.0"`、`"0-rc1"`、`"0-beta1"` | 12/12 |
-| `HiddenBug.scale` | 2 | `[0,0]`、`[11,11]`、`[100,11]`、`[24,12]` | 4/4。`[24,12]` で `ZeroDivisionError` |
+| `MagicValue.classify` | 1 | `[0]`, `[114514]` | 2/2 |
+| `Arithmetic.classify` | 3 | `[0,0,0]`, `[138,0,0]`, `[114514,0,0]`, `[138,143,0]`, `[138,143,7]` | 7/8. The `then` of `x == 114514 && x == 0` stays uncovered |
+| `VersionParser.parse` | 3 | `""`, `"0"`, `"-"`, `"0.0.0"`, `"0-rc1"`, `"0-beta1"` | 12/12 |
+| `HiddenBug.scale` | 2 | `[0,0]`, `[11,11]`, `[100,11]`, `[24,12]` | 4/4. `[24,12]` raises `ZeroDivisionError` |
 
-算術の各ラウンドは、合同式 `(x * 3 + 7) % 1000 == 421`（x = 138）、次に `y == x + 5`（y = 143）、次に `z == 7`。バージョンパーサは、空でない文字列、ハイフンと 3 成分の数、最後に `rc` と `beta`。隠れたバグは、両方を 10 より大きくしてから、`a - b * 2 >= 50` と `a == b * 2`。
+Arithmetic goes one decision at a time: `(x * 3 + 7) % 1000 == 421` (`x = 138`), then `y == x + 5` (`y = 143`), then `z == 7`. The version parser goes from a non-empty string, to a hyphen and a three-part number, then to `rc` and `beta`. The hidden bug first makes both arguments greater than 10, then tries `a - b * 2 >= 50` and `a == b * 2`.
 
-各ラウンドの標準出力は `reports/transcripts/` にある。
+Stdout from each round is in `reports/transcripts/`.
 
-## ベースライン
+## Baselines
 
-`baselines` を `--seed 1 --random 40 --mutate-cap 256` で、最終 inputs を agent 列に使って測った。random と mutate はこの inputs を実行しない。executions が 40 より小さいのは、重複入力を捨てているため。
+`baselines` was run with `--seed 1 --random 40 --mutate-cap 256`. The agent column is the final inputs file. The random and mutate columns do not run those inputs. An execution count below 40 means duplicate samples were dropped.
 
-| 対象 | random | mutate | agent |
+| Target | random | mutate | agent |
 | --- | --- | --- | --- |
-| magic_value（腕 2） | 15 実行、1 カバー、例外 0 | 6 実行、2 カバー、例外 0 | 2 実行、2 カバー、例外 0 |
-| arithmetic（腕 8） | 40 実行、2 カバー、例外 0 | 256 実行、2 カバー、例外 0 | 5 実行、7 カバー、例外 0 |
-| version_parser（腕 12） | 20 実行、8 カバー、例外 0 | 12 実行、8 カバー、例外 0 | 6 実行、12 カバー、例外 0 |
-| hidden_bug（腕 4） | 37 実行、1 カバー、例外 0 | 196 実行、4 カバー、例外 0 | 4 実行、4 カバー、例外 1 |
+| magic_value (2 arms) | 15 runs, 1 covered, 0 exceptions | 6 runs, 2 covered, 0 exceptions | 2 runs, 2 covered, 0 exceptions |
+| arithmetic (8 arms) | 40 runs, 2 covered, 0 exceptions | 256 runs, 2 covered, 0 exceptions | 5 runs, 7 covered, 0 exceptions |
+| version_parser (12 arms) | 20 runs, 8 covered, 0 exceptions | 12 runs, 8 covered, 0 exceptions | 6 runs, 12 covered, 0 exceptions |
+| hidden_bug (4 arms) | 37 runs, 1 covered, 0 exceptions | 196 runs, 4 covered, 0 exceptions | 4 runs, 4 covered, 1 exception |
 
-magic の定数 `114514` はソースにそのままあるので変異が両方の腕を覆う。ランダムの範囲には入らない。
+`114514` is a source literal, so mutation covers both magic-value arms. It is outside the random domain.
 
-arithmetic のランダムと変異が覆ったのは、合同式が偽のときの 2 腕だけ。`138` はリテラルでも ±1 でもない。
+Random and mutation on arithmetic cover only the two arms taken when the congruence is false. `138` is not a literal or a literal±1.
 
-version_parser のランダムと変異は、空、非リリース、ハイフンありでタグが `rc` でも `beta` でもない経路までで止まった。足りない 4 腕は `tag.start_with?("rc")` の then、`tag.start_with?("beta")` の then、`release?(text)` の then、`parts.length == 3` が真のとき。
+On the version parser they stop at empty, non-release, and a hyphen whose tag is neither `rc` nor `beta`. The four missing arms are the `then` of `tag.start_with?("rc")`, the `then` of `tag.start_with?("beta")`, the `then` of `release?(text)`, and `parts.length == 3` being true.
 
-hidden_bug の変異は直積で 4 腕すべてを通した。`a == 2 * b` かつ両方とも 10 より大きい組はプールに無く、例外は 0。エージェントの 4 入力目だけが `divided by 0` を起こす。カバーが満杯でも故障は別、という結果。
+Mutation of the hidden bug covers all four arms by cartesian product. No pool pair has `a == 2 * b` with both values greater than 10, so it records no exception. Only the agent's fourth input raises `divided by 0`. Full arm coverage is not the same as finding the fault.
 
-生の表は `reports/*_baselines.txt`。フロンティアは `reports/*.txt` と `reports/*.json`、`reports/*.md`。
+Raw tables are `reports/*_baselines.txt`. Frontiers are `reports/*.txt`, `reports/*.json`, and `reports/*.md`.
 
-## 特徴づけテスト
+## Characterization tests
 
-`test/generated/` は minitest、`spec/generated/` は RSpec。どちらも最終 inputs から出し、戻り値、または例外クラスとメッセージを固定する。
+`test/generated/` is minitest. `spec/generated/` is RSpec. Both pin the return value, or the exception class and message, for the final inputs.
 
 ```sh
 ruby test/generated/hidden_bug_test.rb
 bundle exec rspec spec/generated/hidden_bug_spec.rb
 ```
 
-RSpec 側は `expect(HiddenBug.scale(0, 0)).to eq(:out_of_range)` と `expect { HiddenBug.scale(24, 12) }.to raise_error(ZeroDivisionError, "divided by 0")` の形になる。
+The RSpec form is `expect(HiddenBug.scale(0, 0)).to eq(:out_of_range)` and `expect { HiddenBug.scale(24, 12) }.to raise_error(ZeroDivisionError, "divided by 0")`.
 
-`HiddenBug.scale(24, 12)` は `ZeroDivisionError` と `"divided by 0"`。`HiddenBug.scale(11, 11)` は `-91`（`1000 / -11`）。
+`HiddenBug.scale(24, 12)` raises `ZeroDivisionError` with `"divided by 0"`. `HiddenBug.scale(11, 11)` returns `-91` (`1000 / -11`).
 
-## 決定性
+## Determinism
 
-id、フロンティア、例外、ベースラインの行はソートされる。JSON のキー順は出力側で固定し、文字列は `\uXXXX` に揃える。入力の `-0.0` は `0.0` にする。コンパクト出力に時刻や絶対パスは出さない。作業ディレクトリからの相対パスを使う。
+Ids, frontier arms, exceptions, and baseline rows are sorted. JSON key order is fixed by the writer, and strings are escaped as `\uXXXX`. `-0.0` in an input becomes `0.0`. Compact output has no timestamps and no absolute paths. Paths are relative to the working directory.
 
-## 限界
+## Limitations
 
-- 対象は本当に実行される。標準出力と標準エラーは捨てるが、ファイル、グローバル、ネットワークはそのまま起きる。サンドボックスではない。
-- 時刻、乱数、I/O に依存するメソッドでは、同じ入力でもレポートが揃わない。
-- 経路は腕の集合であり、順序ではない。経路爆発は「未カバーの腕」に潰して避けている代わりに、同じ腕を別の順で通る差は見えない。`*回数` はループの回数だけを残す。
-- Coverage の分岐は `if` / `unless` / `case` / `while` / `until` / `&.` とパターンの `in`。`&&` と `||` は腕にならない。`while` は本体の腕だけで、入らなかったことは行カウントで補う。修飾子の `unless` は then と else が同じ位置になることがあり、id の腕名で区別する。
-- 同じファイルの裸呼び出し以外（`send`、他ファイルの callee）は追わない。
-- `Timeout.timeout` は全ブロックを止められない。タイムアウトのバックトレースに対象行が無いときはメソッド定義行を loc にする。
-- 充足不能な条件はフロンティアに残る。arithmetic の `x == 114514 && x == 0` がそれ。
-- ランダムと変異の範囲は上の通り狭い。広くすると偶然当たることが増え、表の意味がぼやける。
-- プロセス全体で Coverage は 1 系統。テストは CLI を別プロセスで起動している。
+- The target really runs. Stdout and stderr are discarded. Files, globals, and the network are not. This is not a sandbox.
+- A method that depends on time, randomness, or I/O will not produce a stable report.
+- A path is a set of arms, not an order. Collapsing to uncovered arms avoids path explosion, and it also hides two orders that take the same arms. `*count` is only the loop count.
+- Coverage branches are `if`, `unless`, `case`, `while`, `until`, `&.`, and pattern `in`. `&&` and `||` are not arms. `while` has only a body arm; a condition that ran but did not enter the body is recovered from the line count. A modifier `unless` can put `then` and `else` at the same location; the arm name in the id distinguishes them.
+- Calls other than a bare call or `self.` in the same file are not followed. `send` and other files are out of scope.
+- `Timeout.timeout` does not stop every kind of block. If the timeout backtrace has no target line, `loc` is the method definition line.
+- An unsatisfiable condition stays on the frontier. Arithmetic's `x == 114514 && x == 0` is one.
+- The random and mutation domains above are intentionally narrow. A wider domain would hit solutions by chance and blur the table.
+- Coverage is process-global. The tests start the CLI in a subprocess.
 
-## 次の一歩
+## Next steps
 
-発見した具体値は、プロパティテストの種になる。gem `hegeltest`（Hegel の Ruby バインディング）は `Hegel.test` で値を引き、失敗を `reproduce_failure` と example database（`database_key`）で再生する。branchout の inputs.json を、そのデータベースの初期失敗として入れるか、プロパティの先頭で同じ引数を一度ずつ評価するアダプタに渡す。Hypothesis 系の crosshair がソルバで例を寄せるのと同じ位置を、ここではフロンティアとエージェントの提案が担う。
+Discovered values can seed property tests. The `hegeltest` gem, a Ruby binding for the Hegel engine, draws values with `Hegel.test` and replays failures through `reproduce_failure` and the example database (`database_key`). Feed branchout's inputs.json in as initial failures, or evaluate those arguments once at the start of the property. That is the role Hypothesis-style Crosshair fills with a solver. Here the frontier and the agent's proposals fill it.
 
-Just-in-Time catching test にするなら、同じ入力を base と head で実行し、戻り値か例外が割れたものだけを残す。shadow symbolic execution が変更の影響する経路へ入力を寄せる代わりに、未カバー腕と、そこへ到達した nearest を種にする。
+For just-in-time catching tests, run the same inputs on base and head and keep only the ones whose return value or exception differs. Uncovered arms, and the nearest input that reached them, are the seeds. That stands in for shadow symbolic execution steering inputs toward the changed path.
 
-対象を絞るには SimpleCov のテスト単位カバレッジを使う。`SimpleCov.start { track_tests }` のあと、`simplecov affected --base main` が挙げるテストと、そのテストが触ったメソッドに `explore` を限る。変更に無関係なメソッドの腕をエージェントに読ませないため。
+Narrow the target with SimpleCov's per-test coverage. After `SimpleCov.start { track_tests }`, `simplecov affected --base main` lists tests that touch the change. Limit `explore` to methods those tests hit, so the agent is not asked to read unrelated arms.
 
-参照した流れは、ConcoLLMic（LLM がソルバを手伝う concolic）、AutoBug、リテラルを比較オペランドとして使うコンコリックの解説（[zenn.dev/termoshtt/articles/concolic-execution](https://zenn.dev/termoshtt/articles/concolic-execution)）の「ソルバを外に出す」部分。ソルバの位置に、このリポジトリではツールの外のエージェントを置いている。
+The surrounding work is ConcoLLMic (an LLM assisting a concolic solver), AutoBug, and the literal-as-comparison-operand writeup at [zenn.dev/termoshtt/articles/concolic-execution](https://zenn.dev/termoshtt/articles/concolic-execution). Those put a solver next to concrete execution. This repository puts the agent outside the tool, in the solver's place.
+
+Japanese documentation: [README.ja.md](README.ja.md).

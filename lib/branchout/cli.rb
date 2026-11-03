@@ -139,6 +139,10 @@ module Branchout
         )
         stdout = opts[:json] ? Report.json(result) : Report.text(result)
         $stdout.write(stdout)
+        if result.repeated_inputs.positive?
+          $stderr.puts "branchout: #{result.repeated_inputs} of #{user_inputs.length} inputs repeat an earlier input, " \
+                       "so they did not run again."
+        end
         if result.covered.empty? && result.frontier.empty?
           $stderr.puts "branchout: #{entry} and the methods it calls in #{result.target} have no branches. " \
                "Only a bare call, a self. call, and a call on new are followed; target the method that branches. " \

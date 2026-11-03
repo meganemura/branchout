@@ -356,6 +356,21 @@ class CLITest < Minitest::Test
     end
   end
 
+  # Two inputs that are the same value run once. The person who wrote both
+  # learns it, because inputs_ran alone does not say why it is lower.
+  def test_a_repeated_input_runs_once_and_says_so
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [[0], [114514], { "args" => [0] }, [0]] })
+      stdout, stderr, status = run_cli(
+        "explore", "test/fixtures/magic.rb", "FixtureMagic.classify",
+        "--strategy", "inputs", "--random", "0", "--inputs", path
+      )
+      assert status.success?, stderr
+      assert_includes stdout, "inputs_ran: 2"
+      assert_equal "branchout: 2 of 4 inputs repeat an earlier input, so they did not run again.\n", stderr
+    end
+  end
+
   # A library's entry file often requires its siblings by load path, as
   # lib/name.rb does with require "name/part".
   def test_a_required_file_can_require_from_its_own_directory

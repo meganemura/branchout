@@ -27,17 +27,22 @@ module Branchout
       end
 
       def render_call(target, input)
+        receiver = if target.singleton
+          target.const_name
+        elsif input.receiver
+          "#{target.const_name}.new(#{argument_list(input.receiver)})"
+        else
+          "#{target.const_name}.new"
+        end
+        "#{receiver}.#{target.method_name}(#{argument_list(input)})"
+      end
+
+      def argument_list(input)
         args = input.args.map { |value| ruby_literal(value, mutable: true) }
         kwargs = input.kwargs.keys.sort.map { |key|
           "#{keyword_literal(key)}: #{ruby_literal(input.kwargs[key], mutable: true)}"
         }
-        list = (args + kwargs).join(", ")
-        receiver = if target.singleton
-          "#{target.const_name}.#{target.method_name}"
-        else
-          "#{target.const_name}.new.#{target.method_name}"
-        end
-        "#{receiver}(#{list})"
+        (args + kwargs).join(", ")
       end
 
       # An emitted test has frozen_string_literal, so a +mutable+ string is

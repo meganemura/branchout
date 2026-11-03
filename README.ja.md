@@ -59,7 +59,11 @@ EXCEPTIONS
 
 `cond: x == 114514` の `sense: cond-true` が、`[0]` では通らなかった腕である。`[114514]` を足して同じコマンドを再実行する。`examples/inputs/magic_value.json` がそのファイルで、`arms_covered: 2`、`FRONTIER` は `(none)` になる。
 
-`ENTRY` は `Const.method` か `Const#method`。`Const#method` は `new` の必須引数が 0 であること。`--entry ENTRY` は位置引数の代わりになる。
+`ENTRY` は `Const.method` か `Const#method`。
+`Const#method` では、入力ごとに `Const.new` で新しいレシーバーを作る。
+`initialize` が引数を取るときは、各入力の `new` に入力と同じ形で書く。
+`{"args": [5], "new": [10]}` は `Const.new(10).method(5)` を呼ぶ。
+`--entry ENTRY` は位置引数の代わりになる。
 
 探索中は `--strategy inputs --random 0` とし、`--seed` は固定する。新しく覆われた腕は、足した入力だけから来る。探索手順は [skills/branchout/SKILL.md](skills/branchout/SKILL.md) にある。
 
@@ -102,7 +106,7 @@ ruby bin/branchout baselines examples/magic_value.rb MagicValue.classify \
 }
 ```
 
-エントリは配列だけでもよい。キーワードは `kwargs` に書く。型推論が違うときは、`"types"` に位置引数 1 つにつき `int`、`float`、`string`、`array`、`hash` のいずれかを置く。`meta` のような他のトップレベルキーは無視する。エントリは末尾へ足す。消したり並べ替えたりしない。
+エントリは配列だけでもよい。キーワードは `kwargs` に、コンストラクタ引数は `new` に書く。型推論が違うときは、`"types"` に位置引数 1 つにつき `int`、`float`、`string`、`array`、`hash` のいずれかを置く。`meta` のような他のトップレベルキーは無視する。エントリは末尾へ足す。消したり並べ替えたりしない。
 
 ```sh
 ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \

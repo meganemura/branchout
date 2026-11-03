@@ -57,7 +57,7 @@ EXCEPTIONS
 
 `sense: cond-true` on `x == 114514` is the arm `[0]` did not take. Append `[114514]` and rerun the same command. `examples/inputs/magic_value.json` is that file. It reports `arms_covered: 2` and `FRONTIER` `(none)`.
 
-`ENTRY` is `Const.method` or `Const#method`. `Const#method` needs `new` with no required arguments. `--entry ENTRY` may replace the positional entry.
+`ENTRY` is `Const.method` or `Const#method`. For `Const#method`, each input gets its own receiver from `Const.new`. If `initialize` takes arguments, put them in `new` on each input, in the same shape as an input: `{"args": [5], "new": [10]}` calls `Const.new(10).method(5)`. `--entry ENTRY` may replace the positional entry.
 
 While searching, pass `--strategy inputs --random 0` and keep `--seed` fixed, so a new covered arm comes from an input you added. The search procedure is in [skills/branchout/SKILL.md](skills/branchout/SKILL.md).
 
@@ -100,7 +100,7 @@ An inputs file starts as one seed:
 }
 ```
 
-An entry may be a bare array. Keywords go in `kwargs`. If type inference is wrong, set `"types"` to one of `int`, `float`, `string`, `array`, or `hash` per positional parameter. Other top-level keys, such as `meta`, are ignored. Append entries. Do not delete or reorder them.
+An entry may be a bare array. Keywords go in `kwargs`, and constructor arguments go in `new`. If type inference is wrong, set `"types"` to one of `int`, `float`, `string`, `array`, or `hash` per positional parameter. Other top-level keys, such as `meta`, are ignored. Append entries. Do not delete or reorder them.
 
 ```sh
 ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \

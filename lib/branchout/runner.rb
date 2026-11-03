@@ -32,6 +32,7 @@ module Branchout
     end
 
     def execute(input)
+      check_receiver(input)
       value = nil
       error = nil
       measure do
@@ -58,7 +59,7 @@ module Branchout
         raise Error, "failed to load #{@target.display_path}: #{e.message}"
       end
       Coverage.result(stop: false, clear: true)
-      @method = resolve
+      resolve
       Coverage.result(stop: false, clear: true)
       @template = extract(Coverage.result(stop: false, clear: false))
     end
@@ -68,25 +69,23 @@ module Branchout
         mod.const_get(name)
       end
       if @target.singleton
-        const.method(@target.method_name)
+        @method = const.method(@target.method_name)
       else
-        instance_entry(const)
+        @const = const
+        @method = const.instance_method(@target.method_name)
+        @required_new_arguments = const.instance_method(:initialize).parameters.count { |kind, _name| kind == :req }
       end
     rescue NameError => e
       raise Error, "cannot resolve #{@target.entry}: #{e.message}"
     end
 
-    # Each call gets a new receiver, as an emitted test does, so one input
-    # cannot change the state the next input sees.
-    def instance_entry(const)
-      init = const.instance_method(:initialize)
-      required = init.parameters.count { |kind, _name| kind == :req }
-      if required.positive?
-        raise Error, "#{@target.const_name}#initialize requires #{required} arguments"
+    def check_receiver(input)
+      if @target.singleton
+        raise Error, "#{@target.entry} is not an instance method, so its inputs take no \"new\"" if input.receiver
+      elsif input.receiver.nil? && @required_new_arguments.positive?
+        raise Error, "#{@target.const_name}#initialize requires #{@required_new_arguments} arguments; " \
+                     "give them in \"new\" on each input and pass --strategy inputs"
       end
-
-      method = const.instance_method(@target.method_name)
-      ->(*args, **kwargs) { method.bind_call(const.new, *args, **kwargs) }
     end
 
     def invoke(input)
@@ -94,15 +93,15 @@ module Branchout
       previous_err = $stderr
       $stdout = StringIO.new
       $stderr = StringIO.new
-      # Each call gets its own mutable copy, as a literal in an emitted test
-      # does, so the target cannot raise FrozenError or rewrite the input.
-      args = Marshal.load(Marshal.dump(input.args))
-      kwargs = Marshal.load(Marshal.dump(input.kwargs)).transform_keys(&:to_sym)
+      args, kwargs = fresh_arguments(input)
       run = proc do
-        if kwargs.empty?
-          @method.call(*args)
-        else
+        if @target.singleton
           @method.call(*args, **kwargs)
+        else
+          # Each call gets a new receiver, as an emitted test does, so one
+          # input cannot change the state the next input sees.
+          new_args, new_kwargs = input.receiver ? fresh_arguments(input.receiver) : [[], {}]
+          @method.bind_call(@const.new(*new_args, **new_kwargs), *args, **kwargs)
         end
       end
       if @timeout
@@ -113,6 +112,12 @@ module Branchout
     ensure
       $stdout = previous_out if defined?(previous_out) && previous_out
       $stderr = previous_err if defined?(previous_err) && previous_err
+    end
+
+    # Each call gets its own mutable copy, as a literal in an emitted test
+    # does, so the target cannot raise FrozenError or rewrite the input.
+    def fresh_arguments(input)
+      [Marshal.load(Marshal.dump(input.args)), Marshal.load(Marshal.dump(input.kwargs)).transform_keys(&:to_sym)]
     end
 
     def measure

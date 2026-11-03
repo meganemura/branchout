@@ -28,7 +28,7 @@ branchout explore TARGET.rb Const.method \
   --seed 1
 ```
 
-`ENTRY` is `Const.method` for a class or module method, or `Const#method` for an instance method. The instance form needs `new` with no required arguments. `--entry ENTRY` may replace the positional entry.
+`ENTRY` is `Const.method` for a class or module method, or `Const#method` for an instance method. The instance form builds a new receiver for each input with `Const.new`. When `initialize` takes arguments, put them in `new` on every input. `--entry ENTRY` may replace the positional entry.
 
 `--strategy` is a comma list of `inputs`, `mutate`, and `random` (default: all three). `--random` defaults to 16 and `--seed` to 0. During the search, pass `--strategy inputs --random 0` and keep `--seed` fixed. The same inputs, flags, and CRuby produce the same stdout.
 
@@ -47,6 +47,7 @@ Start from one seed. [inputs.example.json](inputs.example.json) shows every acce
 ```
 
 - An entry is `{"args": [...]}` or a bare array. Keywords go in `kwargs`: `{"args": [0], "kwargs": {"flag": true}}`.
+- For `Const#method`, constructor arguments go in `new`, in the same shape as an entry: `{"args": [5], "new": [10]}` calls `Const.new(10).method(5)`. Inputs differ by `new` too, so a method with no parameters is explored by varying `new`. `mutate` and `random` cannot fill `new`, so keep `--strategy inputs` for such a class.
 - Seeds: `[0]` int, `[0.0]` float, `[""]` string, `[[]]` array, `[{}]` hash.
 - `"types"` values are `int`, `float`, `string`, `array`, or `hash`. The array length must match the positional parameters. Extra top-level keys such as `meta` are ignored.
 - Values may be null, booleans, numbers, strings, arrays, and objects. `-0.0` is stored as `0.0`.
@@ -62,11 +63,11 @@ Stdout is the contract. Sections are `COVERED`, `FRONTIER`, and `EXCEPTIONS`. Id
 - `loc` is `file:line:column`. Open that line. `cond` is the predicate, or the `when` / `in` line. Longer text is cut at 160 characters.
 - `sense` selects the arm: `cond-true` (`if` then, `unless` else), `cond-false` (`if` else, `unless` then), `arm-matched` (that `when` or `in`), `arm-else` (case else), `body-entered` (`while` or `until` body), `receiver-present` / `receiver-nil` (`&.`). Anything else is `taken`.
 - `parent: reached` means some input executed the decision. Flip these first. `parent: not-reached` means the parent has not run and `nearest` is `null`. Reach the parent first.
-- `nearest` reached the decision with the fewest taken arms, then the smallest weight (absolute numeric size, plus string and container length), then the smallest canonical JSON. With no keywords it prints as the args array (`[0,1]`), which pastes into `args`. With keywords it prints as `{"args":[...],"kwargs":{...}}`.
+- `nearest` reached the decision with the fewest taken arms, then the smallest weight (absolute numeric size, plus string and container length), then the smallest canonical JSON. With no keywords and no `new` it prints as the args array (`[0,1]`), which pastes into `args`. With keywords or `new` it prints as `{"args":[...],"kwargs":{...}}`, plus `"new"` when set, which pastes back as an entry.
 - `path` is the sorted set of arms `nearest` took. Order is not recorded. An empty set prints `(none)`; a missing path prints `null`.
 - `COVERED` uses `input` for the witness of that arm. `EXCEPTIONS` lists `class`, `loc`, `input`, and `message`. An empty frontier can still have exceptions, and a covered method can still raise.
 
-`--json` is the same report (`version`, counts, `covered`, `frontier`, `exceptions`). Each frontier object has `id`, `loc`, `cond`, `sense`, `parent`, `nearest` (`{"args","kwargs"}` or null), and `path`.
+`--json` is the same report (`version`, counts, `covered`, `frontier`, `exceptions`). Each frontier object has `id`, `loc`, `cond`, `sense`, `parent`, `nearest` (`{"args","kwargs"}`, plus `"new"` when set, or null), and `path`.
 
 ## Rounds
 

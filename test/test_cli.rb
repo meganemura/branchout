@@ -168,6 +168,51 @@ class CLITest < Minitest::Test
     end
   end
 
+  def test_new_gives_the_constructor_arguments
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [
+        { "args" => [5], "new" => [10] },
+        { "args" => [12], "new" => { "args" => [10], "kwargs" => { "limit" => 5 } } }
+      ] })
+      test = File.join(dir, "account_test.rb")
+      stdout, stderr, status = run_cli(
+        "explore", "test/fixtures/account.rb", "FixtureAccount#withdraw",
+        "--strategy", "inputs", "--random", "0", "--inputs", path, "--emit-tests", test
+      )
+      assert status.success?, stderr
+      assert_includes stdout, "arms_covered: 1"
+      assert_includes stdout, 'nearest: {"args":[5],"kwargs":{},"new":{"args":[10],"kwargs":{}}}'
+      assert_includes File.read(test), "assert_equal 5, FixtureAccount.new(10).withdraw(5)"
+      assert_includes File.read(test), "assert_equal -2, FixtureAccount.new(10, limit: 5).withdraw(12)"
+      _out, err, status = Open3.capture3(RbConfig.ruby, test)
+      assert status.success?, err
+    end
+  end
+
+  def test_required_constructor_arguments_need_new
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [[5]] })
+      _stdout, stderr, status = run_cli(
+        "explore", "test/fixtures/account.rb", "FixtureAccount#withdraw",
+        "--strategy", "inputs", "--random", "0", "--inputs", path
+      )
+      refute status.success?
+      assert_includes stderr, "FixtureAccount#initialize requires 1 arguments; give them in \"new\""
+    end
+  end
+
+  def test_new_is_refused_for_a_class_method
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [{ "args" => [1], "new" => [] }] })
+      _stdout, stderr, status = run_cli(
+        "explore", "test/fixtures/magic.rb", "FixtureMagic.classify",
+        "--strategy", "inputs", "--random", "0", "--inputs", path
+      )
+      refute status.success?
+      assert_includes stderr, "FixtureMagic.classify is not an instance method"
+    end
+  end
+
   def test_division_is_recorded
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [{ "args" => [24, 12] }] })

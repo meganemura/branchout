@@ -2,9 +2,11 @@
 
 module Branchout
   class Input
-    attr_reader :args, :kwargs
+    # +receiver+ is the Input whose arguments go to new for a Const#method
+    # entry, or nil to call new with none.
+    attr_reader :args, :kwargs, :receiver
 
-    def initialize(args:, kwargs: {})
+    def initialize(args:, kwargs: {}, receiver: nil)
       @args = deep_freeze(normalize(args))
       unless @args.is_a?(Array)
         raise Error, "input args must be an array"
@@ -18,27 +20,31 @@ module Branchout
       @kwargs = deep_freeze(raw_kwargs.each_with_object({}) { |(key, value), out|
         out[key.to_s] = normalize(value)
       })
+      @receiver = receiver
       freeze
     end
 
     def to_h
-      {"args" => args, "kwargs" => kwargs}
+      hash = {"args" => args, "kwargs" => kwargs}
+      hash["new"] = receiver.to_h if receiver
+      hash
     end
 
     def canonical
       Canon.json(to_h)
     end
 
-    # Short form used in the text report. Keyword-less inputs print as the
-    # args array so an agent can paste them back into inputs.json.
+    # Short form used in the text report. An input with only args prints as
+    # the args array so an agent can paste it back into inputs.json.
     def text
-      kwargs.empty? ? Canon.json(args) : Canon.json(to_h)
+      kwargs.empty? && receiver.nil? ? Canon.json(args) : Canon.json(to_h)
     end
 
     # Smaller is a simpler witness: absolute numeric size, then string length.
     def weight
       args.sum { |value| self.class.weight_of(value) } +
-        kwargs.values.sum { |value| self.class.weight_of(value) }
+        kwargs.values.sum { |value| self.class.weight_of(value) } +
+        (receiver ? receiver.weight : 0)
     end
 
     def self.weight_of(value)

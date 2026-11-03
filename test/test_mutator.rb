@@ -2,6 +2,7 @@
 
 require "minitest/autorun"
 require "json"
+require "tmpdir"
 require "branchout"
 
 class MutatorTest < Minitest::Test
@@ -48,5 +49,19 @@ class MutatorTest < Minitest::Test
     assert_equal [[0, 1], [2, 3]], inputs.map(&:args)
   ensure
     File.delete(path) if path && File.file?(path)
+  end
+
+  def test_input_file_reads_new_and_refuses_a_nested_one
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "inputs.json")
+      File.write(path, JSON.generate({ "inputs" => [{ "args" => [1], "new" => [2] }, [3]] }))
+      inputs, _types = Branchout::InputFile.load(path)
+      assert_equal [[2], nil], inputs.map { |input| input.receiver&.args }
+      assert_equal '{"args":[1],"kwargs":{},"new":{"args":[2],"kwargs":{}}}', inputs.first.canonical
+
+      File.write(path, JSON.generate({ "inputs" => [{ "args" => [], "new" => { "args" => [], "new" => [] } }] }))
+      error = assert_raises(Branchout::Error) { Branchout::InputFile.load(path) }
+      assert_match(/new cannot have its own new/, error.message)
+    end
   end
 end

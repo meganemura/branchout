@@ -37,11 +37,14 @@ module Branchout
       when Array
         Input.new(args: entry)
       when Hash
-        unknown = entry.keys - %w[args kwargs]
+        unknown = entry.keys - %w[args kwargs new]
         raise Error, "#{label} has unknown keys: #{unknown.join(", ")}" unless unknown.empty?
         raise Error, "#{label} is missing args" unless entry.key?("args")
 
-        Input.new(args: entry["args"], kwargs: entry["kwargs"] || {})
+        receiver = parse_entry(entry["new"], "#{label} new") if entry.key?("new")
+        raise Error, "#{label} new cannot have its own new" if receiver&.receiver
+
+        Input.new(args: entry["args"], kwargs: entry["kwargs"] || {}, receiver: receiver)
       else
         raise Error, "#{label} must be an array or an object"
       end

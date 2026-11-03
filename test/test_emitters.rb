@@ -285,8 +285,8 @@ class EmitterTest < Minitest::Test
     expected = [
       /\Atest_blank_1_raises_argument_error\z/,
       /\Atest_empty_returns_ok\z/,
-      /\Atest_50_returns_hash__discount\z/,
-      /\Atest_51_returns_hash__line_items__sum\z/,
+      /\Atest_50_returns__discount_50\z/,
+      /\Atest_51_returns__sum_0__discount_1\z/,
       /\Atest_1_returns_raised_argumenterror\z/,
       /\Atest_2_returns_array_of_2\z/,
       /\Atest_3_returns_empty_hash\z/
@@ -351,6 +351,17 @@ class EmitterTest < Minitest::Test
     names.each { |name| assert_match(/\Atest_add_returns_ok_\h{6}\z/, name) }
   end
 
+  # Hash outcomes with the same keys are named by the scalar entries that
+  # differ between them, so the name says how the results differ.
+  def test_hash_outcomes_are_named_by_the_entries_that_differ
+    snapshot = ->(due, discount) { { lines: [{ sku: "A" }], discount: 10, due_cents: due, discount_cents: discount } }
+    pins = [[1, snapshot.(0, 1000)], [2, snapshot.(900, 100)], [3, :none]].map do |arg, value|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [arg]), value: value, error: nil, arm_ids: [])
+    end
+    assert_equal %w[test_1_returns__due_cents_0 test_2_returns__due_cents_900 test_3_returns_none],
+                 Branchout::Emitters::Support.test_names(pins)
+  end
+
   # Strings that share their start are named by the words from where they
   # part.
   def test_sibling_strings_are_named_from_where_they_differ
@@ -399,6 +410,9 @@ class EmitterTest < Minitest::Test
     assert_equal "abc", support.clip(["abcd"], 3)
     assert_equal "ab_c", support.clip(%w[ab c], 4)
     assert_equal "ab", support.clip(%w[ab cd], 4)
+    key = Branchout::Emitters::Support::Key
+    assert_equal "returns__due_cents_0", support.clip(["returns", key.new("due_cents"), "0", key.new("discount_cents"), "1000"], 30)
+    assert_equal "hash__lines__discount", support.clip(["hash", key.new("lines"), key.new("discount"), key.new("due_cents")], 25)
   end
 
   def test_an_emitted_file_creates_its_directory

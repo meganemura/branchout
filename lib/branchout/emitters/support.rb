@@ -191,7 +191,8 @@ module Branchout
       # collides gets six hex digits of its input's digest, and a digest
       # collision a counter.
       def test_names(pins)
-        outcomes = pins.map { |pin| outcome_words(pin) }
+        differences = hash_differences(pins.map { |pin| pin.error ? nil : pin.value })
+        outcomes = pins.zip(differences).map { |pin, differing| outcome_words(pin, differing) }
         names = pins.each_with_index.map { |pin, index| name_of(input_words(pin.input), outcomes[index]) }
         names.each_index.group_by { |index| names[index] }.each_value do |siblings|
           next if siblings.one?
@@ -310,9 +311,12 @@ module Branchout
       def hash_differences(values)
         hashes = values.grep(Hash)
         missing = Object.new
-        keys = hashes.flat_map(&:keys).uniq.select do |key|
-          hashes.map { |hash| hash.fetch(key, missing) }.uniq.length > 1
+        spread = hashes.flat_map(&:keys).uniq.to_h do |key|
+          [key, hashes.map { |hash| hash.fetch(key, missing) }.uniq.length]
         end
+        # The key that tells the most siblings apart comes first.
+        keys = spread.keys.select { |key| spread[key] > 1 }.each_with_index
+                     .sort_by { |key, index| [-spread[key], index] }.map(&:first)
         values.map do |value|
           next [] unless value.is_a?(Hash)
 
@@ -332,9 +336,12 @@ module Branchout
         words
       end
 
-      def outcome_words(pin)
+      # +differing+ is the pin's entry of hash_differences: a Hash whose
+      # siblings differ in a scalar entry is named by those entries.
+      def outcome_words(pin, differing = [])
         return ["raises", *snake_words(pin.error.class_name)] if pin.error
         return ["returns", *snake_words(class_literal(pin.value))] unless literal?(pin.value)
+        return ["returns", *differing.flat_map { |key, item| [Key.new(key.to_s), *value_words(item)] }] unless differing.empty?
 
         ["returns", *shape_words(pin.value)]
       end
@@ -388,6 +395,8 @@ module Branchout
 
       # Joins words into identifier characters, at most +limit+ long, cut
       # between words. Only a first word longer than +limit+ is cut inside.
+      # A key whose value the cut drops goes too, so a name never ends in a
+      # key that says nothing.
       def clip(words, limit)
         units = words.flat_map do |word|
           next tokens(word).map { |token| ["_", token] } unless word.is_a?(Key)
@@ -400,11 +409,16 @@ module Branchout
         text = units.first[1]
         return text[0, limit] if text.length > limit
 
+        taken = 1
         units.drop(1).each do |joiner, unit|
           break if text.length + joiner.length + unit.length > limit
 
           text += joiner + unit
+          taken += 1
         end
+        last, cut = units[taken - 1], units[taken]
+        return text.delete_suffix("__#{last[1]}") if taken > 1 && last[0] == "__" && cut && cut[0] == "_"
+
         text
       end
 

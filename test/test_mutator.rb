@@ -155,6 +155,16 @@ class MutatorTest < Minitest::Test
     end
   end
 
+  def test_a_bare_array_file_is_a_list_of_inputs_with_no_types
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "inputs.json")
+      File.write(path, JSON.generate([[1], { "args" => [2] }]))
+      inputs, types = Branchout::InputFile.load(path)
+      assert_nil types
+      assert_equal [[1], [2]], inputs.map(&:args)
+    end
+  end
+
   def test_a_false_default_is_a_flag_both_strategies_flip
     Dir.mktmpdir do |dir|
       path = File.join(dir, "t.rb")
@@ -187,6 +197,30 @@ class MutatorTest < Minitest::Test
       )
       assert status.success?, stderr
       assert_includes stdout, "arms_covered: 2\narms_total: 2"
+    end
+  end
+
+  # The pools the README promises: neighbors of each literal, the fixed
+  # small values, and the product of two leading numeric slots.
+  def test_pools_hold_the_documented_values
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "t.rb")
+      File.write(path, "module T\n  def self.f(x, y = 2.5, s = \"ab\") = x == 4 || s == \"cd\"\n" \
+                       "  def self.g(s, x) = s == \"cd\" || x == 4\nend\n")
+      target = Branchout::Target.parse(path, "T.f")
+      mutator = Branchout::Mutator.new(target, cap: 1000)
+      x, y, s = target.positional
+      assert_equal [-1, 0, 1, 3, 4, 5], mutator.pool_for(x)
+      assert_equal [-2.0, -1.0, 0.0, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0], mutator.pool_for(y)
+      assert_equal ["", "a", "ab", "ab1", "c", "cd", "cd1"], mutator.pool_for(s)
+      inputs = mutator.inputs.map(&:args)
+      assert_includes inputs, [0, 2.5, "ab"]
+      assert_includes inputs, [4, 3.5, "ab"]
+      assert_equal 22 + (6 * 11) - (6 + 11 - 1), inputs.length
+      assert_empty Branchout::Mutator.new(target, cap: 0).inputs
+
+      other = Branchout::Target.parse(path, "T.g")
+      assert_equal 1 + 4 + 5, Branchout::Mutator.new(other, cap: 1000).inputs.length
     end
   end
 end

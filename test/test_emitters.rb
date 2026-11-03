@@ -241,4 +241,27 @@ class EmitterTest < Minitest::Test
   def run_cli(*args)
     Open3.capture3(RbConfig.ruby, BIN, *args.map(&:to_s), chdir: ROOT)
   end
+
+  def test_literal_values_class_pins_and_cover_comments
+    support = Branchout::Emitters::Support
+    [nil, true, false, 1, "s", :s, [nil], { "a" => false }].each { |value| assert support.literal?(value), value.inspect }
+    refute support.literal?({ Object.new => 1 })
+    refute support.literal?({ "a" => Object.new })
+    assert_equal "Struct", support.class_literal(Struct.new(:a).new(1))
+    pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: []), value: 1, error: nil, arm_ids: [])
+    assert_empty support.cover_comment(pin, "  ")
+  end
+
+  def test_an_empty_run_emits_a_skip_and_requires_load_first
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path)
+                   .new(true, "Foo", :bar, "Foo.bar", "lib/foo.rb", File.join(ROOT, "lib/foo.rb"))
+    result = Branchout::Engine::Result.new(pins: [], requires: [File.join(ROOT, "lib/all.rb")])
+    destination = File.join(ROOT, "test/foo_test.rb")
+    minitest = Branchout::Emitters.render("minitest", result, target, destination)
+    assert_includes minitest, "require_relative \"../lib/all.rb\"\nrequire_relative \"../lib/foo.rb\"\n"
+    assert_includes minitest, "  def test_no_inputs_discovered\n    skip \"branchout did not discover an input\"\n  end\n"
+    rspec = Branchout::Emitters.render("rspec", result, target, destination)
+    assert_includes rspec, "require_relative \"../lib/all.rb\"\nrequire_relative \"../lib/foo.rb\"\n"
+    assert_includes rspec, "  it \"discovers no inputs\" do\n    skip \"branchout did not discover an input\"\n  end\n"
+  end
 end

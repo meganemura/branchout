@@ -275,6 +275,12 @@ class EmitterTest < Minitest::Test
       /\Atest_3_returns_empty_hash_\h{6}\z/
     ]
     expected.zip(names).each { |pattern, name| assert_match pattern, name }
+
+    point = Struct.new(:x)
+    long_word = "a" * 50
+    names = Branchout::Emitters::Support.test_names([pin.([long_word], Set[1]), pin.([4], point.new(4))])
+    assert_match(/\Atest_#{"a" * 40}_returns_set_\h{6}\z/, names[0])
+    assert_match(/\Atest_4_returns_struct_\h{6}\z/, names[1])
   end
 
   def test_explicit_format_overrides_extension

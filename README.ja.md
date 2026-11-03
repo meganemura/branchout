@@ -2,104 +2,23 @@
 
 English: [README.md](README.md).
 
-カバレッジに導かれる、エージェント駆動の入力探索。concolic execution に着想を得ているが、ツールの中では記号制約を集めず、解かない。
+branchout は、1 つの Ruby メソッドを具体入力で実行し、その入力が通らなかった分岐の腕を表示する。
 
-concolic execution は具体実行と同時に経路条件を記録し、まだ通っていない枝をソルバに解かせる。branchout がやるのはその前半の観測だけである。対象メソッドを具体入力で実行し、Coverage の分岐腕のうち未カバーのものを短いフロンティアとして出す。次の入力を提案するのは、その出力を読む人間かコーディングエージェントで、ツールの外にいる。SMT も LLM も呼ばない。
+テストを足しているエージェントは、腕が未達であることまではカバレッジで分かる。どの比較で外れたか、どの入力が決定のいちばん近くまで届いたかは分からない。branchout はそのフロンティアを、条件と、腕を選ぶ向きと、決定に届いた最も近い入力とともに出す。エージェントは入力を足して同じコマンドを再実行する。branchout は入力ファイルを書き換えない。探索が終わると、発見した戻り値または例外を固定する minitest か RSpec を書く。
 
-実行に gem は要らない。Coverage、Prism、json、minitest は処理系に付いているものを使う。出した RSpec を走らせるときだけ `rspec` が要る。開発用の Gemfile では minitest と rspec を dev dependency にしている。Ruby 3.3 以降のその API を想定し、Ruby 3.4.12 と Ruby 4.0.9 で `ruby test/run_all.rb` と `bundle exec rspec spec/generated` が通ること、デモの件数とカバー数が両者で一致することを確認した。3.3 そのものでは実行していない。
+方法はコンコリックテスト（[DART](https://doi.org/10.1145/1065010.1065036)、[CUTE](https://doi.org/10.1145/1094811.1094816)）と、[ConcoLLMic](https://concollmic.github.io/) のような LLM が導くコンコリックに沿う。branchout はコンコリックテストに着想を得ているが、記号制約は解かない。次の入力は、エージェントが分岐フロンティアから提案する。
 
-## 設計
+## 使い方
 
-1. 対象ファイルを `Coverage.setup(lines: true, branches: true)` のあとで `require` する。ロード時のカウントは捨て、入力ごとに `resume` / 実行 / `suspend` / `Coverage.result(stop: false, clear: true)` する。対象メソッドと、同じファイル内で裸呼び出しまたは `self.` から到達するメソッドの行だけを見る。
-2. 腕の id は `if@行:列/then@行:列` のように、Coverage の分岐キーの位置から作る。列は 0 始まり。
-3. 条件の文字列は Prism の述語、または `when` の行。位置が一致しないときはその行のソースに戻す。
-4. 1 回の実行の経路は、カウントが正の腕のソート済み集合。ループは `*回数` になる。通った順は Coverage が返さない。
-5. フロンティアはカウント 0 の腕。親の決定をどれかの入力が実行していれば `parent: reached` と、そこに到達した最も単純な入力（通った腕が少ない、数の絶対値が小さい、canonical JSON が小さい）を出す。
-6. リテラル変異は、そのスライスに出てくる整数・浮動小数・文字列を集め、各引数スロットへ入れる。整数は 0, 1, -1 とリテラル±1 も入れる。数値 2 引数だけ直積を足し、`--mutate-cap` で切る。文字列リテラル同士は連結しない。
-7. ランダムは純 Ruby の Park-Miller。整数は -3..12、文字列は長さ 0..3、文字は `abc01.-`。種は `--seed`。
-8. 例外は捕捉して所見にする。ゼロ除算のような、腕の中に隠れている故障はカバー数とは別に残る。
-9. 発見した入力（inputs に書いたもの、腕の証人、例外を起こした入力）から特徴づけテストを出す。エミッタは `lib/branchout/emitters/` に分かれており、minitest と RSpec を選べる。コアはどちらも require しない。
-
-出力に時刻は入れない。同じ入力、同じフラグ、同じ CRuby なら標準出力はバイト一致する。
-
-## 実行
+リポジトリのルートで実行する。種ファイルの入力は `[0]` の 1 件である。
 
 ```sh
 ruby bin/branchout explore examples/magic_value.rb MagicValue.classify \
-  --inputs examples/inputs/magic_value.json \
-  --strategy inputs --random 0 --seed 1
-
-ruby bin/branchout baselines examples/magic_value.rb MagicValue.classify \
-  --inputs examples/inputs/magic_value.json \
-  --seed 1 --random 40
-
-ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \
-  --inputs examples/inputs/hidden_bug.json \
-  --strategy inputs --random 0 --seed 1 \
-  --emit-tests spec/generated/hidden_bug_spec.rb
-
-bundle install
-bundle exec rspec spec/generated
-
-ruby test/run_all.rb
+  --inputs examples/inputs/magic_value.seed.json \
+  --strategy inputs \
+  --random 0 \
+  --seed 1
 ```
-
-`ENTRY` は `Const.method` か `Const#method`。後者は `new` の必須引数が 0 であること。
-
-主なフラグは `--inputs`、`--seed`、`--random`、`--mutate-cap`、`--strategy inputs,mutate,random`、`--timeout`、`--json`、`--json-out`、`--md-out`、`--emit-tests`、`--format minitest|rspec`。`--format` を省くと、出力パスが `_spec.rb` で終わるときだけ RSpec、それ以外は minitest。
-
-inputs の形:
-
-```json
-{
-  "types": ["int"],
-  "inputs": [
-    {"args": [0]},
-    [114514]
-  ]
-}
-```
-
-`types` を省くと、メソッド本体の使われ方から int / float / string / array / hash を推定する。
-
-## コーディングエージェントと使う
-
-[`skills` CLI](https://github.com/vercel-labs/skills)（Node.js 22.20 以降）で [branchout スキル](skills/branchout/SKILL.md)（英語）を入れる。このリポジトリは private なので、GitHub へのアクセスが要る。
-
-```sh
-npx skills add meganemura/branchout
-```
-
-```sh
-npx skills add meganemura/branchout --skill branchout
-```
-
-```sh
-npx skills add meganemura/branchout -g
-```
-
-```sh
-npx skills add meganemura/branchout -a cursor
-```
-
-`--skill` はこのスキルだけ、`-g` は全プロジェクト向け、`-a` は対象エージェントを指定する。
-
-コピーまたはシンボリックリンクでも入れられる。
-
-```sh
-mkdir -p .agents/skills
-ln -s /path/to/branchout/skills/branchout .agents/skills/branchout
-```
-
-`.claude/skills/` と `.cursor/skills/` でも同じ。
-
-## エージェントのループ
-
-手順の本体は [skills/branchout/SKILL.md](skills/branchout/SKILL.md)。探索中は `--strategy inputs --random 0 --seed 1` に固定する。エージェントは `parent: reached` の腕ごとに、`nearest` を 1 箇所だけ変えた入力を inputs.json の末尾へ足して、同じコマンドを再実行する。ツールはファイルを書き換えない。
-
-デモではその手順をこのまま実行した。モデル API は使っていない。ツールに LLM バックエンドはない。
-
-魔法数のラウンド 0（`examples/inputs/magic_value.seed.json`）:
 
 ```
 branchout explore
@@ -138,77 +57,132 @@ EXCEPTIONS
 (none)
 ```
 
-`sense: cond-true` なので `[114514]` を足す。ラウンド 1 で `arms_covered: 2`、`FRONTIER` は `(none)`。
+`cond: x == 114514` の `sense: cond-true` が、`[0]` では通らなかった腕である。`[114514]` を足して同じコマンドを再実行する。`examples/inputs/magic_value.json` がそのファイルで、`arms_covered: 2`、`FRONTIER` は `(none)` になる。
 
-他のデモで足した入力と、残った腕:
+`ENTRY` は `Const.method` か `Const#method`。`Const#method` は `new` の必須引数が 0 であること。`--entry ENTRY` は位置引数の代わりになる。
 
-| デモ | ラウンド | 最終入力 | 結果 |
-| --- | --- | --- | --- |
-| `MagicValue.classify` | 1 | `[0]`、`[114514]` | 2/2 |
-| `Arithmetic.classify` | 3 | `[0,0,0]`、`[138,0,0]`、`[114514,0,0]`、`[138,143,0]`、`[138,143,7]` | 7/8。`x == 114514 && x == 0` の then は試行後も未カバー |
-| `VersionParser.parse` | 3 | `""`、`"0"`、`"-"`、`"0.0.0"`、`"0-rc1"`、`"0-beta1"` | 12/12 |
-| `HiddenBug.scale` | 2 | `[0,0]`、`[11,11]`、`[100,11]`、`[24,12]` | 4/4。`[24,12]` で `ZeroDivisionError` |
+探索中は `--strategy inputs --random 0` とし、`--seed` は固定する。新しく覆われた腕は、足した入力だけから来る。探索手順は [skills/branchout/SKILL.md](skills/branchout/SKILL.md) にある。
 
-算術の各ラウンドは、合同式 `(x * 3 + 7) % 1000 == 421`（x = 138）、次に `y == x + 5`（y = 143）、次に `z == 7`。バージョンパーサは、空でない文字列、ハイフンと 3 成分の数、最後に `rc` と `beta`。隠れたバグは、両方を 10 より大きくしてから、`a - b * 2 >= 50` と `a == b * 2`。
+| フラグ | 既定 | 意味 |
+| --- | --- | --- |
+| `--inputs PATH` | なし | 入力の JSON ファイル |
+| `--seed N` | `0` | 乱数の種 |
+| `--random N` | `16` | ランダム標本の個数 |
+| `--mutate-cap N` | `256` | リテラル変異の予算 |
+| `--strategy LIST` | `inputs,mutate,random` | 戦略をカンマ区切りで、下の表の順に実行する |
+| `--timeout SEC` | `1` | 入力 1 件の制限時間。0 より大きいこと |
+| `--json` | オフ | テキストの代わりに JSON を標準出力へ出す |
+| `--json-out PATH` | | JSON レポートを書く |
+| `--md-out PATH` | | テキストレポートを Markdown で書く |
+| `--emit-tests PATH` | | 特徴づけテストを書く。`explore` のみ |
+| `--format NAME` | `minitest` | `minitest` か `rspec`。`--emit-tests` が要る。省くと、パスが `_spec.rb` で終わるときだけ RSpec |
+| `--entry ENTRY` | 位置引数 | `Const.method` か `Const#method` |
 
-各ラウンドの標準出力は `reports/transcripts/` にある。
-
-## ベースライン
-
-`baselines` を `--seed 1 --random 40 --mutate-cap 256` で、最終 inputs を agent 列に使って測った。random と mutate はこの inputs を実行しない。executions が 40 より小さいのは、重複入力を捨てているため。
-
-| 対象 | random | mutate | agent |
-| --- | --- | --- | --- |
-| magic_value（腕 2） | 15 実行、1 カバー、例外 0 | 6 実行、2 カバー、例外 0 | 2 実行、2 カバー、例外 0 |
-| arithmetic（腕 8） | 40 実行、2 カバー、例外 0 | 256 実行、2 カバー、例外 0 | 5 実行、7 カバー、例外 0 |
-| version_parser（腕 12） | 20 実行、8 カバー、例外 0 | 12 実行、8 カバー、例外 0 | 6 実行、12 カバー、例外 0 |
-| hidden_bug（腕 4） | 37 実行、1 カバー、例外 0 | 196 実行、4 カバー、例外 0 | 4 実行、4 カバー、例外 1 |
-
-magic の定数 `114514` はソースにそのままあるので変異が両方の腕を覆う。ランダムの範囲には入らない。
-
-arithmetic のランダムと変異が覆ったのは、合同式が偽のときの 2 腕だけ。`138` はリテラルでも ±1 でもない。
-
-version_parser のランダムと変異は、空、非リリース、ハイフンありでタグが `rc` でも `beta` でもない経路までで止まった。足りない 4 腕は `tag.start_with?("rc")` の then、`tag.start_with?("beta")` の then、`release?(text)` の then、`parts.length == 3` が真のとき。
-
-hidden_bug の変異は直積で 4 腕すべてを通した。`a == 2 * b` かつ両方とも 10 より大きい組はプールに無く、例外は 0。エージェントの 4 入力目だけが `divided by 0` を起こす。カバーが満杯でも故障は別、という結果。
-
-生の表は `reports/*_baselines.txt`。フロンティアは `reports/*.txt` と `reports/*.json`、`reports/*.md`。
-
-## 特徴づけテスト
-
-`test/generated/` は minitest、`spec/generated/` は RSpec。どちらも最終 inputs から出し、戻り値、または例外クラスとメッセージを固定する。
+| 戦略 | 実行するもの |
+| --- | --- |
+| `inputs` | 入力ファイルの各エントリ。canonical JSON が同じものは捨てる |
+| `mutate` | ソースのリテラルを各引数スロットへ入れる。整数には `0`、`1`、`-1`、リテラル±1 も含む。浮動小数には `0.0`、`1.0`、`-1.0`、±1 も含む。文字列には `""`、`"a"`、末尾 1 文字を落としたリテラル、リテラルに `"1"` を足したものも含む。先頭 2 つの位置引数が数値のときは、そのスロットの直積も作り、`--mutate-cap` で切る。文字列リテラルは連結しない |
+| `random` | 種つきの Park-Miller。整数は -3..12。文字列は長さ 0..3、文字は `abc01.-` |
 
 ```sh
-ruby test/generated/hidden_bug_test.rb
-bundle exec rspec spec/generated/hidden_bug_spec.rb
+ruby bin/branchout baselines examples/magic_value.rb MagicValue.classify \
+  --inputs examples/inputs/magic_value.json \
+  --seed 1 --random 40
 ```
 
-RSpec 側は `expect(HiddenBug.scale(0, 0)).to eq(:out_of_range)` と `expect { HiddenBug.scale(24, 12) }.to raise_error(ZeroDivisionError, "divided by 0")` の形になる。
+`baselines` は `random`、`mutate`、`agent`（入力ファイルだけ）を別々の行で実行する。random と mutate の行は入力ファイルを実行しない。この対象では、`random` が 15 件を実行して 2 腕のうち 1 腕、`mutate` が 6 件で両腕、`agent` が 2 件で両腕を覆う。
 
-`HiddenBug.scale(24, 12)` は `ZeroDivisionError` と `"divided by 0"`。`HiddenBug.scale(11, 11)` は `-91`（`1000 / -11`）。
+入力ファイルは種 1 件から始める。
 
-## 決定性
+```json
+{
+  "inputs": [
+    {"args": [0]}
+  ]
+}
+```
 
-id、フロンティア、例外、ベースラインの行はソートされる。JSON のキー順は出力側で固定し、文字列は `\uXXXX` に揃える。入力の `-0.0` は `0.0` にする。コンパクト出力に時刻や絶対パスは出さない。作業ディレクトリからの相対パスを使う。
+エントリは配列だけでもよい。キーワードは `kwargs` に書く。型推論が違うときは、`"types"` に位置引数 1 つにつき `int`、`float`、`string`、`array`、`hash` のいずれかを置く。`meta` のような他のトップレベルキーは無視する。エントリは末尾へ足す。消したり並べ替えたりしない。
+
+```sh
+ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \
+  --inputs examples/inputs/hidden_bug.json \
+  --strategy inputs --random 0 --seed 1 \
+  --emit-tests spec/generated/hidden_bug_spec.rb \
+  --format rspec
+```
+
+この実行は 4 腕のうち 4 腕を覆い、`[24,12]` で `ZeroDivisionError`（`divided by 0`）を記録する。出力ファイルは戻り値、または例外クラスとメッセージを固定する。minitest のパスは `--format minitest` で、`ruby` で実行する。RSpec には `rspec` gem が要る。
+
+## フロンティアの作り方
+
+対象ファイルは `Coverage.setup(lines: true, branches: true)` のあとで読み、ロード時のカウントは捨てる。入力ごとに coverage を resume し、メソッドを呼び、suspend して `Coverage.result` を読む。残すのは入口メソッドと、同じファイル内で裸呼び出しまたは `self.` から届く callee だけである。
+
+腕の id は Coverage の分岐キーから作る `kind@行:列/arm@行:列` である。列は 0 始まり。`cond` は Prism の述語で、`when` または `in` の腕ではその行である。位置が一致しないときはソースの行を使う。
+
+フロンティアはカウントが 0 の腕である。`parent: reached` は、どれかの入力がその決定を実行したことを意味する。`nearest` は、そこに届いた入力のうち、通った腕が最も少なく、次に重み（数の絶対値に、文字列とコンテナの長さを足したもの）が最も小さく、次に canonical JSON が最も小さいものである。`path` は、その入力が通った腕のソート済み集合である。Coverage は順序を記録しない。ループ回数が 1 を超えると `*回数` を付ける。
+
+`sense` は腕を選ぶ向きである。`cond-true`（`if` の then、`unless` の else）、`cond-false`（`if` の else、`unless` の then）、`arm-matched`（その `when` または `in`）、`arm-else`、`body-entered`（`while` または `until` の本体）、`receiver-present`、`receiver-nil`（`&.`）。
+
+例外は腕のカバーとは別に出す。カバー済みの腕でも例外は起きる。同じ入力、同じフラグ、同じ CRuby なら標準出力は同じバイト列になる。レポートに時刻はない。パスは作業ディレクトリからの相対パスである。
+
+## インストール
+
+Ruby 3.3 以降。探索に使うのは標準ライブラリの Coverage、Prism、json である。このチェックアウトでは `ruby bin/branchout` を実行するか、`bin` を `PATH` に置く。出した minitest は `ruby` で実行する。出した RSpec には `rspec` gem が要る。
+
+[branchout スキル](skills/branchout/SKILL.md)（英語）は [`skills` CLI](https://github.com/vercel-labs/skills)（Node.js 22.20 以降）で入れる。このリポジトリは private なので、GitHub へのアクセスが要る。
+
+```sh
+npx skills add meganemura/branchout
+```
+
+```sh
+npx skills add meganemura/branchout --skill branchout
+```
+
+```sh
+npx skills add meganemura/branchout -g
+```
+
+```sh
+npx skills add meganemura/branchout -a cursor
+```
+
+`--skill` はこのスキルだけ、`-g` は全プロジェクト向け、`-a` は対象エージェントを指定する。
+
+コピーまたはシンボリックリンクでも入れられる。
+
+```sh
+mkdir -p .agents/skills
+ln -s /path/to/branchout/skills/branchout .agents/skills/branchout
+```
+
+`.claude/skills/` と `.cursor/skills/` でも同じ。
 
 ## 限界
 
-- 対象は本当に実行される。標準出力と標準エラーは捨てるが、ファイル、グローバル、ネットワークはそのまま起きる。サンドボックスではない。
-- 時刻、乱数、I/O に依存するメソッドでは、同じ入力でもレポートが揃わない。
-- 経路は腕の集合であり、順序ではない。経路爆発は「未カバーの腕」に潰して避けている代わりに、同じ腕を別の順で通る差は見えない。`*回数` はループの回数だけを残す。
-- Coverage の分岐は `if` / `unless` / `case` / `while` / `until` / `&.` とパターンの `in`。`&&` と `||` は腕にならない。`while` は本体の腕だけで、入らなかったことは行カウントで補う。修飾子の `unless` は then と else が同じ位置になることがあり、id の腕名で区別する。
-- 同じファイルの裸呼び出し以外（`send`、他ファイルの callee）は追わない。
-- `Timeout.timeout` は全ブロックを止められない。タイムアウトのバックトレースに対象行が無いときはメソッド定義行を loc にする。
-- 充足不能な条件はフロンティアに残る。arithmetic の `x == 114514 && x == 0` がそれ。
-- ランダムと変異の範囲は上の通り狭い。広くすると偶然当たることが増え、表の意味がぼやける。
-- プロセス全体で Coverage は 1 系統。テストは CLI を別プロセスで起動している。
+- 対象は実際に実行される。対象の標準出力と標準エラーは捨てる。ファイル、グローバル、ネットワークはサンドボックスしない。
+- 時刻、乱数、I/O に依存するメソッドは、同じ入力でもレポートが揃わない。
+- 経路は腕の集合であり、順序ではない。`&&` と `||` は腕にならない。`while` と `until` が記録するのは本体の腕で、条件は実行されたが本体に入らなかったことは行カウントで補う。
+- 修飾子の `unless` は then と else が同じ位置になることがある。id の腕名で区別する。
+- 同じファイルの裸呼び出しと `self.` 以外は追わない。
+- `Timeout.timeout` はすべてのブロックを止められない。タイムアウトのバックトレースに対象行が無いとき、`loc` はメソッド定義行になる。
+- 充足できない条件はフロンティアに残る。`examples/arithmetic.rb` の `x == 114514 && x == 0` がそれである。
+- 上のランダムと変異の範囲は、意図して狭い。
+- Coverage はプロセス全体で 1 系統である。CLI は別プロセスで実行する。
 
-## 次の一歩
+## 開発
 
-発見した具体値は、プロパティテストの種になる。gem `hegeltest`（Hegel の Ruby バインディング）は `Hegel.test` で値を引き、失敗を `reproduce_failure` と example database（`database_key`）で再生する。branchout の inputs.json を、そのデータベースの初期失敗として入れるか、プロパティの先頭で同じ引数を一度ずつ評価するアダプタに渡す。Hypothesis 系の crosshair がソルバで例を寄せるのと同じ位置を、ここではフロンティアとエージェントの提案が担う。
+次のコマンドはソースのチェックアウト用である。
 
-Just-in-Time catching test にするなら、同じ入力を base と head で実行し、戻り値か例外が割れたものだけを残す。shadow symbolic execution が変更の影響する経路へ入力を寄せる代わりに、未カバー腕と、そこへ到達した nearest を種にする。
+```sh
+bundle install
+ruby test/run_all.rb
+bundle exec rspec spec/generated
+```
 
-対象を絞るには SimpleCov のテスト単位カバレッジを使う。`SimpleCov.start { track_tests }` のあと、`simplecov affected --base main` が挙げるテストと、そのテストが触ったメソッドに `explore` を限る。変更に無関係なメソッドの腕をエージェントに読ませないため。
+`test/run_all.rb` は `test/test_*.rb` と `test/generated/*_test.rb` を読み込む。`spec/generated/` は `examples/` から出した RSpec である。Coverage はプロセス全体で 1 系統なので、CLI のテストは `bin/branchout` を子プロセスで起動する。
 
-参照した流れは、ConcoLLMic（LLM がソルバを手伝う concolic）、AutoBug、リテラルを比較オペランドとして使うコンコリックの解説（[zenn.dev/termoshtt/articles/concolic-execution](https://zenn.dev/termoshtt/articles/concolic-execution)）の「ソルバを外に出す」部分。ソルバの位置に、このリポジトリではツールの外のエージェントを置いている。
+## ライセンス
+
+ライセンスはまだ決めていない。

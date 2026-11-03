@@ -391,6 +391,17 @@ class EmitterTest < Minitest::Test
     assert_equal ["returns due_cents: 0", "returns due_cents: 100, lines[0].sku: \"A\"",
                   "returns due_cents: 100, lines[0].sku: \"B\"", "returns due_cents: 200, lines[0].sku: \"A\""],
                  support.outcomes(pins).values
+
+    # A document the method merges into repeats each file; the disposition is what it decided.
+    pins = [%w[a_spec.rb reported], %w[b_spec.rb reported], %w[c_spec.rb flaky]].map do |file, disposition|
+      doc = { "tests" => [{ "file" => file }] }
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [doc]), value: { "tests" => [{ "file" => file, "disposition" => disposition }] },
+                                 error: nil, arm_ids: [])
+    end
+    assert_equal ['returns tests[0].disposition: "reported", tests[0].file: "a_spec.rb"',
+                  'returns tests[0].disposition: "reported", tests[0].file: "b_spec.rb"',
+                  'returns tests[0].disposition: "flaky", tests[0].file: "c_spec.rb"'],
+                 support.outcomes(pins).values
   end
 
   # A scalar deep in a Hash argument reaches the name: 7 % 0, -7 % 3, and

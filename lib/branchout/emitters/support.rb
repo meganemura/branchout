@@ -192,7 +192,7 @@ module Branchout
       # collision a counter.
       def test_names(pins, pin_keys = [])
         pinned = pins.map { |pin| pinned_pin(pin, pin_keys) }
-        differences = hash_differences(pinned.map { |pin| pin.value unless pin.error })
+        differences = hash_differences(pinned.map { |pin| pin.value unless pin.error }, pins.map(&:input))
         # A Hash outcome may take more room, so the leaves RSpec names fit.
         outcomes = pinned.zip(differences).map { |pin, differing| clip(outcome_words(pin, differing), differing.empty? ? 30 : OUTCOME_LIMIT) }
         names = pins.each_with_index.map { |pin, index| name_of(input_words(pin.input), outcomes[index]) }
@@ -281,7 +281,7 @@ module Branchout
       # +short+ names a leaf by its deepest key (discarded: 1).
       def outcomes(pins, pin_keys = [], short: false)
         pinned = pins.map { |pin| pinned_pin(pin, pin_keys) }
-        differences = hash_differences(pinned.map { |pin| pin.value unless pin.error })
+        differences = hash_differences(pinned.map { |pin| pin.value unless pin.error }, pins.map(&:input))
         pins.each_index.to_h { |index| [pins[index], outcome_text(pinned[index], differences[index], short: short)] }
       end
 
@@ -349,25 +349,31 @@ module Branchout
       # For each of +values+, the [path, leaf] entries of a Hash at the
       # paths chosen to tell its siblings apart: the fewest leaves, nested
       # ones too, that tell every two different Hashes of +values+ apart, at
-      # most three. Each pick is a leaf every Hash has, when one tells a
-      # pair apart, then tells the most pairs apart, then has the most
-      # distinct values. A pick that would make a minitest outcome longer
+      # most three. Each pick is a leaf that does not repeat its input,
+      # then a leaf every Hash has, when one tells a pair apart, then tells
+      # the most pairs apart, then has the most distinct values. A pick that would make a minitest outcome longer
       # than OUTCOME_LIMIT is left out, so both formats name the same
       # leaves. A value that is not a Hash has none.
-      def hash_differences(values)
+      def hash_differences(values, inputs = [])
         leaves = values.map { |value| value.is_a?(Hash) && literal?(value) ? hash_leaves(value) : nil }
+        echoes = leaves.each_index.map { |index| inputs[index] ? inputs[index].args.grep(Hash).map { |arg| hash_leaves(arg) }.reduce({}, :merge) : {} }
         distinct = leaves.compact.uniq.sort_by(&:inspect)
         paths = distinct.flat_map(&:keys).uniq
         pairs = distinct.combination(2).to_a
         # A leaf every Hash has says something about each of them, so it
         # comes before one that only some have.
         shared = paths.to_h { |path| [path, distinct.all? { |map| map.key?(path) }] }
+        # A leaf that holds what the input passed at the same path, such as
+        # a document the method merges into, says nothing the input did not.
+        echoed = paths.to_h do |path|
+          [path, leaves.each_index.all? { |index| !leaves[index]&.key?(path) || (echoes[index].key?(path) && echoes[index][path].eql?(leaves[index][path])) }]
+        end
         chosen = []
         entries = ->(map, picks) { picks.filter_map { |path| [path, map[path]] if map.key?(path) } }
         until pairs.empty? || chosen.length == 3
           told = paths.to_h { |path| [path, pairs.count { |a, b| leaves_differ?(a, b, path) }] }
           spread = paths.to_h { |path| [path, distinct.map { |map| map.fetch(path, MISSING) }.uniq.length] }
-          best = paths.each_with_index.max_by { |path, index| [told[path].positive? && shared[path] ? 1 : 0, told[path], spread[path], -index] }&.first
+          best = paths.each_with_index.max_by { |path, index| [told[path].positive? && !echoed[path] ? 1 : 0, told[path].positive? && shared[path] ? 1 : 0, told[path], spread[path], -index] }&.first
           break if best.nil? || told[best].zero?
           break if chosen.any? && distinct.any? { |map| outcome_length(entries.(map, chosen + [best])) > OUTCOME_LIMIT }
 

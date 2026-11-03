@@ -133,7 +133,11 @@ ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \
 この実行は 4 腕のうち 4 腕を覆い、`[24,12]` で `ZeroDivisionError`（`divided by 0`）を記録する。出力ファイルは戻り値、または例外クラスとメッセージを固定する。
 `NameError` と `NoMethodError` は、クラスと見つからなかった名前（`error.name`）で固定する。
 Ruby 3.4 でメッセージの文言が変わったためである。
-`Set` や `Struct` のように Ruby のリテラルで書けない戻り値は、クラスだけを固定する。minitest のパスは `--format minitest` で、`ruby` で実行する。RSpec には `rspec` gem が要る。
+`Set` や `Struct` のように Ruby のリテラルで書けない戻り値は、クラスだけを固定する。
+各テストの名前は入力と結果から作る。
+`test_24_12_raises_zero_division_error_bba48b` や `it "[24,12] raises ZeroDivisionError"` のようになる。
+入力を足しても、ほかのテストの名前は変わらない。
+minitest のパスは `--format minitest` で、`ruby` で実行する。RSpec には `rspec` gem が要る。
 
 ## フロンティアの作り方
 

@@ -8,27 +8,27 @@ require "minitest/autorun"
 require_relative "../../examples/arithmetic.rb"
 
 class ArithmeticClassifyCharacterizationTest < Minitest::Test
-  def test_001
+  def test_0_0_0_returns_miss_69ccef
     # covers: if@18:4/else@21:6, if@8:4/else@18:4
     assert_equal :miss, Arithmetic.classify(0, 0, 0)
   end
 
-  def test_002
+  def test_114514_0_0_returns_miss_f43731
     # covers: if@18:4/else@21:6, if@8:4/else@18:4
     assert_equal :miss, Arithmetic.classify(114514, 0, 0)
   end
 
-  def test_003
+  def test_138_0_0_returns_x_only_ce9472
     # covers: if@8:4/then@9:6, if@9:6/else@16:8
     assert_equal :x_only, Arithmetic.classify(138, 0, 0)
   end
 
-  def test_004
+  def test_138_143_0_returns_need_z_abc70b
     # covers: if@10:8/else@13:10, if@8:4/then@9:6, if@9:6/then@10:8
     assert_equal :need_z, Arithmetic.classify(138, 143, 0)
   end
 
-  def test_005
+  def test_138_143_7_returns_hit_80fd4e
     # covers: if@10:8/then@11:10, if@8:4/then@9:6, if@9:6/then@10:8
     assert_equal :hit, Arithmetic.classify(138, 143, 7)
   end

@@ -7,22 +7,22 @@
 require_relative "../../examples/hidden_bug.rb"
 
 RSpec.describe "HiddenBug.scale" do
-  it "001" do
+  it "[0,0] returns :out_of_range" do
     # covers: if@6:4/else@14:6
     expect(HiddenBug.scale(0, 0)).to eq(:out_of_range)
   end
 
-  it "002" do
+  it "[100,11] returns :large_gap" do
     # covers: if@6:4/then@7:6, if@8:6/else@11:8
     expect(HiddenBug.scale(100, 11)).to eq(:large_gap)
   end
 
-  it "003" do
+  it "[11,11] returns -91" do
     # covers: if@6:4/then@7:6, if@8:6/then@9:8
     expect(HiddenBug.scale(11, 11)).to eq(-91)
   end
 
-  it "004" do
+  it "[24,12] raises ZeroDivisionError" do
     # covers: if@6:4/then@7:6, if@8:6/then@9:8
     expect { HiddenBug.scale(24, 12) }.to raise_error(ZeroDivisionError, "divided by 0")
   end

@@ -7,27 +7,27 @@
 require_relative "../../examples/arithmetic.rb"
 
 RSpec.describe "Arithmetic.classify" do
-  it "001" do
+  it "[0,0,0] returns :miss" do
     # covers: if@18:4/else@21:6, if@8:4/else@18:4
     expect(Arithmetic.classify(0, 0, 0)).to eq(:miss)
   end
 
-  it "002" do
+  it "[114514,0,0] returns :miss" do
     # covers: if@18:4/else@21:6, if@8:4/else@18:4
     expect(Arithmetic.classify(114514, 0, 0)).to eq(:miss)
   end
 
-  it "003" do
+  it "[138,0,0] returns :x_only" do
     # covers: if@8:4/then@9:6, if@9:6/else@16:8
     expect(Arithmetic.classify(138, 0, 0)).to eq(:x_only)
   end
 
-  it "004" do
+  it "[138,143,0] returns :need_z" do
     # covers: if@10:8/else@13:10, if@8:4/then@9:6, if@9:6/then@10:8
     expect(Arithmetic.classify(138, 143, 0)).to eq(:need_z)
   end
 
-  it "005" do
+  it "[138,143,7] returns :hit" do
     # covers: if@10:8/then@11:10, if@8:4/then@9:6, if@9:6/then@10:8
     expect(Arithmetic.classify(138, 143, 7)).to eq(:hit)
   end

@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "digest"
 require "fileutils"
 require "pathname"
 
@@ -120,6 +121,68 @@ module Branchout
         method_part = target.method_name.to_s.gsub("?", "P").gsub("!", "B").gsub("=", "E")
         method_part = method_part.sub(/\A[a-z]/) { |char| char.upcase }
         "#{const_part}#{method_part}CharacterizationTest"
+      end
+
+      # Minitest method names: the input's values, then what the test pins.
+      # A digest of the input keeps each name unique and unchanged when other
+      # inputs are added; a digest collision falls back to a counter.
+      def test_names(pins)
+        names = pins.map do |pin|
+          words = ["test", clip(input_words(pin.input), 40), clip(outcome_words(pin), 30)]
+          words << Digest::SHA256.hexdigest(pin.input.canonical)[0, 6]
+          words.reject(&:empty?).join("_")
+        end
+        seen = Hash.new(0)
+        names.map { |name| (seen[name] += 1) == 1 ? name : "#{name}_#{seen[name]}" }
+      end
+
+      # RSpec descriptions: the input as the report prints it, then what the
+      # test pins.
+      def description(pin)
+        outcome = if pin.error
+          "raises #{pin.error.class_name}"
+        elsif literal?(pin.value)
+          text = ruby_literal(pin.value)
+          "returns #{text.length > 60 ? "#{text[0, 57]}..." : text}"
+        else
+          "returns a #{class_literal(pin.value)}"
+        end
+        "#{pin.input.text} #{outcome}"
+      end
+
+      def input_words(input)
+        words = value_words(input.args) + value_words(input.kwargs)
+        words += ["new", *input_words(input.receiver)] if input.receiver
+        input.setup.each { |call| words += [call.method_name, *input_words(call.arguments)] }
+        words
+      end
+
+      def outcome_words(pin)
+        return ["raises", *snake_words(pin.error.class_name)] if pin.error
+        return ["returns", *value_words(pin.value)] if literal?(pin.value)
+
+        ["returns", *snake_words(class_literal(pin.value))]
+      end
+
+      def value_words(value)
+        case value
+        when Array then value.flat_map { |item| value_words(item) }
+        when Hash then value.sort_by { |key, _| key.to_s }.flat_map { |key, item| [key.to_s, *value_words(item)] }
+        when nil then ["nil"]
+        when "" then ["empty"]
+        when Numeric then [value.to_s.sub(/\A-/, "neg")]
+        else [value.to_s]
+        end
+      end
+
+      def snake_words(class_name)
+        [class_name.gsub("::", "_").gsub(/([a-z\d])([A-Z])/, '\1_\2')]
+      end
+
+      # Joins words into identifier characters, cut to at most +limit+.
+      def clip(words, limit)
+        text = words.join("_").downcase.gsub(/[^a-z0-9]+/, "_").gsub(/\A_+|_+\z/, "")
+        text[0, limit].sub(/_+\z/, "")
       end
 
       def cover_comment(pin, indent)

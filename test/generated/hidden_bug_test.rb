@@ -8,22 +8,22 @@ require "minitest/autorun"
 require_relative "../../examples/hidden_bug.rb"
 
 class HiddenBugScaleCharacterizationTest < Minitest::Test
-  def test_001
+  def test_0_0_returns_out_of_range_59a230
     # covers: if@6:4/else@14:6
     assert_equal :out_of_range, HiddenBug.scale(0, 0)
   end
 
-  def test_002
+  def test_100_11_returns_large_gap_518e83
     # covers: if@6:4/then@7:6, if@8:6/else@11:8
     assert_equal :large_gap, HiddenBug.scale(100, 11)
   end
 
-  def test_003
+  def test_11_11_returns_neg91_05c8cc
     # covers: if@6:4/then@7:6, if@8:6/then@9:8
     assert_equal -91, HiddenBug.scale(11, 11)
   end
 
-  def test_004
+  def test_24_12_raises_zero_division_error_bba48b
     # covers: if@6:4/then@7:6, if@8:6/then@9:8
     error = assert_raises(ZeroDivisionError) do
       HiddenBug.scale(24, 12)

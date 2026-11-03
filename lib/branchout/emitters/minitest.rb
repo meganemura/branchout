@@ -23,17 +23,18 @@ module Branchout
           lines << '    skip "branchout did not discover an input"'
           lines << "  end"
         else
+          names = Support.test_names(result.pins)
           result.pins.each_with_index do |pin, index|
             lines << "" unless index.zero?
-            lines.concat(example_lines(target, pin, index + 1))
+            lines.concat(example_lines(target, pin, names[index]))
           end
         end
         lines << "end"
         "#{lines.join("\n")}\n"
       end
 
-      def example_lines(target, pin, index)
-        lines = ["  def test_#{format("%03d", index)}"]
+      def example_lines(target, pin, name)
+        lines = ["  def #{name}"]
         lines.concat(Support.cover_comment(pin, "    "))
         arrange, call = Support.arrange(target, pin.input)
         if pin.error

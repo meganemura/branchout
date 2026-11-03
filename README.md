@@ -111,7 +111,7 @@ ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \
   --format rspec
 ```
 
-That run covers 4 of 4 arms and records `ZeroDivisionError` (`divided by 0`) for `[24,12]`. The emitted file pins each return value, or the exception class and message. A `NameError` or `NoMethodError` is pinned by its class and missing name (`error.name`), because Ruby 3.4 reworded their messages. A return value with no Ruby literal, such as a `Set` or a `Struct`, is pinned by its class only. A minitest path uses `--format minitest` and runs with `ruby`. An RSpec file needs the `rspec` gem.
+That run covers 4 of 4 arms and records `ZeroDivisionError` (`divided by 0`) for `[24,12]`. The emitted file pins each return value, or the exception class and message. A `NameError` or `NoMethodError` is pinned by its class and missing name (`error.name`), because Ruby 3.4 reworded their messages. A return value with no Ruby literal, such as a `Set` or a `Struct`, is pinned by its class only. Each test is named after its input and outcome, such as `test_24_12_raises_zero_division_error_bba48b` or `it "[24,12] raises ZeroDivisionError"`, and adding inputs does not rename the others. A minitest path uses `--format minitest` and runs with `ruby`. An RSpec file needs the `rspec` gem.
 
 ## How it builds the frontier
 

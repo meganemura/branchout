@@ -65,6 +65,21 @@ class PropertyTest < Minitest::Test
     end
   end
 
+  def test_emitted_test_names_are_unique_methods_and_kept_when_inputs_are_added
+    Hegel.test do |tc|
+      pins = tc.draw(arrays(booleans, min_size: 1, max_size: 6)).map do |raises|
+        error = raises ? Branchout::Runner::ExceptionInfo.new(class_name: "Foo::BarError") : nil
+        Branchout::Engine::Pin.new(input: draw_input(tc), value: tc.draw(json_values), error: error, arm_ids: [])
+      end
+      pins = pins.uniq { |pin| pin.input.canonical }
+      names = Branchout::Emitters::Support.test_names(pins)
+      assert_equal names.uniq, names
+      assert(names.all? { |name| name.match?(/\Atest_[a-z0-9_]+\z/) && name.length <= 90 })
+      kept = tc.draw(arrays(sampled_from((0...pins.length).to_a), max_size: pins.length)).uniq.sort
+      assert_equal kept.map { |index| names[index] }, Branchout::Emitters::Support.test_names(kept.map { |index| pins[index] })
+    end
+  end
+
   def test_keyword_order_does_not_change_an_input
     Hegel.test do |tc|
       kwargs = tc.draw(hashes(text(min_size: 1, max_size: 3), integers, max_size: 4))

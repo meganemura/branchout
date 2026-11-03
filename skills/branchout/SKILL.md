@@ -96,6 +96,8 @@ In one round, add inputs only for arms that are reached now and for faults you c
 
 When you stop, emit characterization tests. Each one pins a discovered input's return value, or the exception class and message. A `NameError` or `NoMethodError` is pinned by its class and `error.name`, so the test passes on Ruby 3.3 and 3.4+ alike. A return value with no Ruby literal, such as a `Set` or a `Struct`, is pinned by its class only.
 
+Each test is named after its input and what it pins. A minitest name is the input's values, the outcome, and six hex digits of the input's digest (`test_0_0_returns_out_of_range_59a230`). An RSpec description is the input as the report prints it and the outcome (`"[0,0] returns :out_of_range"`). A name depends only on its own input and outcome, so adding inputs and emitting again keeps the earlier names.
+
 ```sh
 branchout explore TARGET.rb Const.method \
   --inputs path/to/inputs.json \
@@ -146,7 +148,7 @@ cp .jitcatch/foo_parse_test.rb TESTS_DIR/
 jitcatch run --repo REPO BASE HEAD TESTS_DIR
 ```
 
-A test that passes on base and fails on head is a changed return value or exception for that input. Read the `# covers:` line above the assertion to see which arms the input took.
+A test that passes on base and fails on head is a changed return value or exception for that input. The test name says the input and what it pinned, such as `test_24_12_raises_zero_division_error_bba48b`. Read the `# covers:` line above the assertion to see which arms the input took.
 
 ## Pitfalls
 

@@ -52,6 +52,36 @@ class EmitterTest < Minitest::Test
     end
   end
 
+  # A name says what the test pins, and adding an input does not rename the
+  # tests that were already there.
+  def test_emitted_names_say_what_they_pin_and_survive_new_inputs
+    Dir.mktmpdir do |dir|
+      sources = [[[0, 0], [24, 12]], [[0, 0], [24, 12], [11, 11], [-3, 5]]].map do |list|
+        inputs = File.join(dir, "inputs.json")
+        File.write(inputs, JSON.generate({ "inputs" => list }))
+        %w[scale_test.rb scale_spec.rb].map do |name|
+          out = File.join(dir, name)
+          _out, err, status = run_cli(
+            "explore", "test/fixtures/scale.rb", "FixtureScale.scale",
+            "--inputs", inputs, "--strategy", "inputs", "--random", "0", "--emit-tests", out
+          )
+          assert status.success?, err
+          File.read(out)
+        end
+      end
+      test_names = sources.map { |test, _spec| test.scan(/^  def (test_\w+)$/).flatten }
+      assert_match(/\Atest_0_0_returns_out_of_range_\h{6}\z/, test_names[0][0])
+      assert_match(/\Atest_24_12_raises_zero_division_error_\h{6}\z/, test_names[0][1])
+      assert_includes test_names[1].join(" "), "test_neg3_5_returns_out_of_range_"
+      assert_empty test_names[0] - test_names[1]
+      assert_equal test_names[1].uniq, test_names[1]
+
+      spec_names = sources.map { |_test, spec| spec.scan(/^  it (".*") do$/).flatten }
+      assert_equal ['"[0,0] returns :out_of_range"', '"[24,12] raises ZeroDivisionError"'], spec_names[0]
+      assert_empty spec_names[0] - spec_names[1]
+    end
+  end
+
   def test_a_target_that_mutates_its_arguments_sees_the_values_the_test_passes
     Dir.mktmpdir do |dir|
       inputs = File.join(dir, "inputs.json")

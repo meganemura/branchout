@@ -42,6 +42,9 @@ module Branchout
           if pin.error.stable_message
             lines << "    assert_equal #{pin.error.message.inspect}, error.message"
           end
+        elsif pin.value.is_a?(Hash) && Support.literal?(pin.value)
+          # Without parentheses Ruby reads a leading { as a block.
+          lines << "    assert_equal(#{Support.ruby_literal(pin.value)}, #{call})"
         elsif Support.literal?(pin.value)
           lines << "    assert_equal #{Support.ruby_literal(pin.value)}, #{call}"
         else

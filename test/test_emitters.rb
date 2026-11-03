@@ -92,6 +92,22 @@ class EmitterTest < Minitest::Test
     end
   end
 
+  def test_a_hash_return_value_emits_valid_minitest
+    Dir.mktmpdir do |dir|
+      inputs = File.join(dir, "inputs.json")
+      File.write(inputs, JSON.generate({ "inputs" => [[0]] }))
+      test = File.join(dir, "shape_test.rb")
+      _out, err, status = run_cli(
+        "explore", "test/fixtures/shape.rb", "FixtureShape.build",
+        "--inputs", inputs, "--strategy", "inputs", "--random", "0", "--emit-tests", test
+      )
+      assert status.success?, err
+      assert_includes File.read(test), 'assert_equal({"n" => 0}, FixtureShape.build(0))'
+      _out, err, status = Open3.capture3(RbConfig.ruby, test)
+      assert status.success?, err
+    end
+  end
+
   def test_explicit_format_overrides_extension
     Dir.mktmpdir do |dir|
       inputs = File.join(dir, "inputs.json")

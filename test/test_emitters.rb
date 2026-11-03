@@ -350,6 +350,18 @@ class EmitterTest < Minitest::Test
     names.each { |name| assert_match(/\Atest_add_returns_ok_\h{6}\z/, name) }
   end
 
+  # Strings that share their start are named by the words from where they
+  # part.
+  def test_sibling_strings_are_named_from_where_they_differ
+    support = Branchout::Emitters::Support
+    diff = ->(old, new) { "--- expected\n+++ actual\n@@ -1 +1 @@\n \"classification\" => \"candidate\",\n-\"status\" => \"#{old}\"\n+\"status\" => \"#{new}\"\n" }
+    pins = [%w[fail pass], %w[pass fail], %w[error timeout]].map do |old, new|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [diff.(old, new), 1]), value: :ok, error: nil, arm_ids: [])
+    end
+    assert_equal %w[test_fail_status_pass_returns_ok test_pass_status_fail_returns_ok test_error_status_timeout_returns_ok],
+                 support.test_names(pins)
+  end
+
   def test_clip_keeps_a_word_that_fills_the_limit
     support = Branchout::Emitters::Support
     assert_equal "abcd", support.clip(["abcd"], 4)

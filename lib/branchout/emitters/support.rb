@@ -170,25 +170,37 @@ module Branchout
 
       # For each input, the words of every leaf whose value is not the same
       # in all +inputs+: the deepest key above it, then its value, or "none"
-      # where the input has no such leaf. Leaves keep their order in the
-      # first input by canonical form, so the words do not depend on the
-      # order of +inputs+.
+      # where the input has no such leaf. Strings at one leaf drop the words
+      # they all start with, so a shared start does not fill the name.
+      # Leaves keep their order in the first input by canonical form, so the
+      # words do not depend on the order of +inputs+.
       def differing_words(inputs)
         leaves = inputs.map { |input| input_leaves(input).to_h }
         paths = inputs.zip(leaves).sort_by { |input, _| input.canonical }.flat_map { |_, map| map.keys }.uniq
         differing = paths.reject do |path|
           leaves.all? { |map| map.key?(path) && map[path].eql?(leaves.first[path]) }
         end
+        shared = differing.to_h { |path| [path, shared_start(leaves.filter_map { |map| map[path] })] }
         leaves.map do |map|
           differing.flat_map do |path|
             key = path.reverse.find { |step| step.is_a?(String) }
+            rest = map[path].is_a?(String) ? tokens(map[path]).drop(shared[path]) : []
             value = if !map.key?(path) then ["none"]
             elsif map[path] == {} || map[path] == [] then ["empty"]
+            elsif !rest.empty? then rest
             else value_words(map[path])
             end
             key ? [Key.new(key), *value] : value
           end
         end
+      end
+
+      # How many leading words all of +values+ share, when they are Strings.
+      def shared_start(values)
+        return 0 unless values.all?(String)
+
+        words = values.map { |value| tokens(value) }
+        words.first.each_index.take_while { |index| words.all? { |list| list[index] == words.first[index] } }.length
       end
 
       # [path, value] for every scalar or empty collection of an input. A

@@ -141,6 +141,7 @@ private や protected の入口と private な `new` は、`explore` と同じ�
 `test_24_12_raises_zero_division_error` や `it "[24,12] raises ZeroDivisionError"` のようになる。
 名前が同じになる入力どうしは、互いに異なる値で名付ける（`test_status_timeout__error_class_timeout_returns_ok` など）。
 そのため、入力を足すとそれらの名前が変わることがある。
+先頭が同じ文字列どうしは、分かれたところからの単語で名付ける。
 名前は単語の切れ目で切る。
 空白だけの文字列は `blank` になり、Hash の引数は値で名付ける。
 Hash の結果はキーで名付け、各キーの前に `__` を置く。

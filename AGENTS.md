@@ -19,7 +19,7 @@ bundle exec rspec spec/generated
 
 `test/run_all.rb` loads `test/test_*.rb` and `test/generated/*_test.rb`. Coverage is process-global, so the CLI tests start `bin/branchout` in a subprocess.
 
-`test/generated/` and `spec/generated/` are checked-in characterization tests for `examples/`. Regenerate one by re-running `explore` with `--strategy inputs --random 0 --seed 1` and `--emit-tests` pointed at `test/generated/<name>_test.rb` (`--format minitest`) or `spec/generated/<name>_spec.rb` (`--format rspec`). `test/test_examples.rb` checks `reports/*.txt` and `reports/*_baselines.txt` against a fresh run.
+`test/generated/` and `spec/generated/` are checked-in characterization tests for `examples/`. Regenerate one by re-running `explore` with `--strategy inputs --random 0 --seed 1` and `--emit-tests` pointed at `test/generated/<name>_test.rb` (`--format minitest`) or `spec/generated/<name>_spec.rb` (`--format rspec`). `test/test_examples.rb` checks `reports/<name>.*`, `test/generated/`, and `spec/generated/` against a fresh run of each example. Regenerate them together when output changes.
 
 ## Invariants
 

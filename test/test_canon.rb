@@ -16,6 +16,14 @@ class CanonTest < Minitest::Test
     assert_equal "0.5", Branchout::Canon.format_float(0.5)
   end
 
+  def test_float_spelling_reads_back_as_the_same_float
+    [0.1 + 0.2, 1.0000000000000002e+16, Float::MAX, -Float::MIN].each do |value|
+      text = Branchout::Canon.format_float(value)
+      assert_equal value, JSON.parse(text), text
+      assert_equal value, Float(text), text
+    end
+  end
+
   def test_pretty_is_stable
     body = { "z" => [1, { "b" => 2, "a" => nil }], "a" => true }
     assert_equal Branchout::Canon.pretty(body), Branchout::Canon.pretty(body)

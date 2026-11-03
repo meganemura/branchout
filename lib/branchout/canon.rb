@@ -25,14 +25,14 @@ module Branchout
       end
     end
 
+    # Float#to_s is the shortest text that reads back as the same float in
+    # Ruby and in JSON. A fixed precision is not: %.16g printed 0.1 + 0.2 as
+    # 0.3, and the largest float as a number that parses to Infinity.
     def format_float(value)
       raise Error, "non-finite float" unless value.finite?
       return "0.0" if value.zero?
 
-      text = format("%.16g", value)
-      return text if text.include?(".") || text.include?("e") || text.include?("E")
-
-      "#{text}.0"
+      value.to_s
     end
 
     def pretty(obj, indent = 0)

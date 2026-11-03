@@ -1,0 +1,96 @@
+# concolic explore
+
+concolic explore
+target: examples/version_parser.rb
+entry: VersionParser.parse
+seed: 1
+strategies: inputs
+random: 0
+mutate_cap: 256
+timeout: 1
+inputs_ran: 6
+mutate_ran: 0
+random_ran: 0
+executions: 6
+arms_covered: 12
+arms_total: 12
+exceptions: 0
+
+COVERED
+id: if@11:6/else@14:8
+loc: examples/version_parser.rb:14:8
+cond: tag.start_with?("beta")
+sense: cond-false
+input: ["-"]
+
+id: if@11:6/then@12:8
+loc: examples/version_parser.rb:12:8
+cond: tag.start_with?("beta")
+sense: cond-true
+input: ["0-beta1"]
+
+id: if@16:4/else@19:6
+loc: examples/version_parser.rb:19:6
+cond: release?(text)
+sense: cond-false
+input: ["0"]
+
+id: if@16:4/then@17:6
+loc: examples/version_parser.rb:17:6
+cond: release?(text)
+sense: cond-true
+input: ["0.0.0"]
+
+id: if@5:4/else@7:4
+loc: examples/version_parser.rb:7:4
+cond: text.empty?
+sense: cond-false
+input: ["0-rc1"]
+
+id: if@5:4/then@6:6
+loc: examples/version_parser.rb:6:6
+cond: text.empty?
+sense: cond-true
+input: [""]
+
+id: if@7:4/else@16:4
+loc: examples/version_parser.rb:16:4
+cond: text.include?("-")
+sense: cond-false
+input: ["0"]
+
+id: if@7:4/then@8:6
+loc: examples/version_parser.rb:8:6
+cond: text.include?("-")
+sense: cond-true
+input: ["0-rc1"]
+
+id: if@9:6/else@11:6
+loc: examples/version_parser.rb:11:6
+cond: tag.start_with?("rc")
+sense: cond-false
+input: ["-"]
+
+id: if@9:6/then@10:8
+loc: examples/version_parser.rb:10:8
+cond: tag.start_with?("rc")
+sense: cond-true
+input: ["0-rc1"]
+
+id: unless@25:4/else@25:4
+loc: examples/version_parser.rb:25:4
+cond: parts.length == 3
+sense: cond-true
+input: ["0.0.0"]
+
+id: unless@25:4/then@25:4
+loc: examples/version_parser.rb:25:4
+cond: parts.length == 3
+sense: cond-false
+input: ["0"]
+
+FRONTIER
+(none)
+
+EXCEPTIONS
+(none)

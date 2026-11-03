@@ -1,0 +1,157 @@
+{
+  "version": 1,
+  "command": "explore",
+  "target": "examples/arithmetic.rb",
+  "entry": "Arithmetic.classify",
+  "seed": 1,
+  "strategies": [
+    "inputs"
+  ],
+  "random": 0,
+  "mutate_cap": 256,
+  "timeout": 1,
+  "inputs_ran": 5,
+  "mutate_ran": 0,
+  "random_ran": 0,
+  "executions": 5,
+  "arms_covered": 7,
+  "arms_total": 8,
+  "covered": [
+    {
+      "id": "if@10:8/else@13:10",
+      "loc": "examples/arithmetic.rb:13:10",
+      "line": 13,
+      "column": 10,
+      "cond": "z == 7",
+      "sense": "cond-false",
+      "input": {
+        "args": [
+          138,
+          143,
+          0
+        ],
+        "kwargs": {}
+      }
+    },
+    {
+      "id": "if@10:8/then@11:10",
+      "loc": "examples/arithmetic.rb:11:10",
+      "line": 11,
+      "column": 10,
+      "cond": "z == 7",
+      "sense": "cond-true",
+      "input": {
+        "args": [
+          138,
+          143,
+          7
+        ],
+        "kwargs": {}
+      }
+    },
+    {
+      "id": "if@18:4/else@21:6",
+      "loc": "examples/arithmetic.rb:21:6",
+      "line": 21,
+      "column": 6,
+      "cond": "x == 114514 && x == 0",
+      "sense": "cond-false",
+      "input": {
+        "args": [
+          0,
+          0,
+          0
+        ],
+        "kwargs": {}
+      }
+    },
+    {
+      "id": "if@8:4/else@18:4",
+      "loc": "examples/arithmetic.rb:18:4",
+      "line": 18,
+      "column": 4,
+      "cond": "(x * 3 + 7) % 1000 == 421",
+      "sense": "cond-false",
+      "input": {
+        "args": [
+          0,
+          0,
+          0
+        ],
+        "kwargs": {}
+      }
+    },
+    {
+      "id": "if@8:4/then@9:6",
+      "loc": "examples/arithmetic.rb:9:6",
+      "line": 9,
+      "column": 6,
+      "cond": "(x * 3 + 7) % 1000 == 421",
+      "sense": "cond-true",
+      "input": {
+        "args": [
+          138,
+          0,
+          0
+        ],
+        "kwargs": {}
+      }
+    },
+    {
+      "id": "if@9:6/else@16:8",
+      "loc": "examples/arithmetic.rb:16:8",
+      "line": 16,
+      "column": 8,
+      "cond": "y == x + 5",
+      "sense": "cond-false",
+      "input": {
+        "args": [
+          138,
+          0,
+          0
+        ],
+        "kwargs": {}
+      }
+    },
+    {
+      "id": "if@9:6/then@10:8",
+      "loc": "examples/arithmetic.rb:10:8",
+      "line": 10,
+      "column": 8,
+      "cond": "y == x + 5",
+      "sense": "cond-true",
+      "input": {
+        "args": [
+          138,
+          143,
+          0
+        ],
+        "kwargs": {}
+      }
+    }
+  ],
+  "frontier": [
+    {
+      "id": "if@18:4/then@19:6",
+      "loc": "examples/arithmetic.rb:19:6",
+      "line": 19,
+      "column": 6,
+      "cond": "x == 114514 && x == 0",
+      "sense": "cond-true",
+      "parent": "reached",
+      "nearest": {
+        "args": [
+          0,
+          0,
+          0
+        ],
+        "kwargs": {}
+      },
+      "path": [
+        "if@18:4/else@21:6",
+        "if@8:4/else@18:4"
+      ]
+    }
+  ],
+  "exceptions": []
+}

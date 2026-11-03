@@ -1,0 +1,46 @@
+concolic explore
+target: examples/hidden_bug.rb
+entry: HiddenBug.scale
+seed: 1
+strategies: inputs
+random: 0
+mutate_cap: 256
+timeout: 1
+inputs_ran: 2
+mutate_ran: 0
+random_ran: 0
+executions: 2
+arms_covered: 3
+arms_total: 4
+exceptions: 0
+
+COVERED
+id: if@6:4/else@14:6
+loc: examples/hidden_bug.rb:14:6
+cond: a > 10 && b > 10
+sense: cond-false
+input: [0,0]
+
+id: if@6:4/then@7:6
+loc: examples/hidden_bug.rb:7:6
+cond: a > 10 && b > 10
+sense: cond-true
+input: [11,11]
+
+id: if@8:6/then@9:8
+loc: examples/hidden_bug.rb:9:8
+cond: denom < 50
+sense: cond-true
+input: [11,11]
+
+FRONTIER
+id: if@8:6/else@11:8
+loc: examples/hidden_bug.rb:11:8
+cond: denom < 50
+sense: cond-false
+parent: reached
+nearest: [11,11]
+path: if@6:4/then@7:6, if@8:6/then@9:8
+
+EXCEPTIONS
+(none)

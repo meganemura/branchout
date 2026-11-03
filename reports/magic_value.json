@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "command": "explore",
+  "target": "examples/magic_value.rb",
+  "entry": "MagicValue.classify",
+  "seed": 1,
+  "strategies": [
+    "inputs"
+  ],
+  "random": 0,
+  "mutate_cap": 256,
+  "timeout": 1,
+  "inputs_ran": 2,
+  "mutate_ran": 0,
+  "random_ran": 0,
+  "executions": 2,
+  "arms_covered": 2,
+  "arms_total": 2,
+  "covered": [
+    {
+      "id": "if@5:4/else@8:6",
+      "loc": "examples/magic_value.rb:8:6",
+      "line": 8,
+      "column": 6,
+      "cond": "x == 114514",
+      "sense": "cond-false",
+      "input": {
+        "args": [
+          0
+        ],
+        "kwargs": {}
+      }
+    },
+    {
+      "id": "if@5:4/then@6:6",
+      "loc": "examples/magic_value.rb:6:6",
+      "line": 6,
+      "column": 6,
+      "cond": "x == 114514",
+      "sense": "cond-true",
+      "input": {
+        "args": [
+          114514
+        ],
+        "kwargs": {}
+      }
+    }
+  ],
+  "frontier": [],
+  "exceptions": []
+}

@@ -1,0 +1,36 @@
+# concolic explore
+
+concolic explore
+target: examples/magic_value.rb
+entry: MagicValue.classify
+seed: 1
+strategies: inputs
+random: 0
+mutate_cap: 256
+timeout: 1
+inputs_ran: 2
+mutate_ran: 0
+random_ran: 0
+executions: 2
+arms_covered: 2
+arms_total: 2
+exceptions: 0
+
+COVERED
+id: if@5:4/else@8:6
+loc: examples/magic_value.rb:8:6
+cond: x == 114514
+sense: cond-false
+input: [0]
+
+id: if@5:4/then@6:6
+loc: examples/magic_value.rb:6:6
+cond: x == 114514
+sense: cond-true
+input: [114514]
+
+FRONTIER
+(none)
+
+EXCEPTIONS
+(none)

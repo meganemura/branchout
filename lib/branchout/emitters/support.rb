@@ -190,9 +190,10 @@ module Branchout
       # and adding an input can rename its siblings. A name that still
       # collides gets six hex digits of its input's digest, and a digest
       # collision a counter.
-      def test_names(pins)
-        differences = hash_differences(pins.map { |pin| pin.error ? nil : pin.value })
-        outcomes = pins.zip(differences).map { |pin, differing| outcome_words(pin, differing) }
+      def test_names(pins, pin_keys = [])
+        pinned = pins.map { |pin| pinned_pin(pin, pin_keys) }
+        differences = hash_differences(pinned.map { |pin| pin.error ? nil : pin.value })
+        outcomes = pinned.zip(differences).map { |pin, differing| outcome_words(pin, differing) }
         names = pins.each_with_index.map { |pin, index| name_of(input_words(pin.input), outcomes[index]) }
         names.each_index.group_by { |index| names[index] }.each_value do |siblings|
           next if siblings.one?
@@ -276,9 +277,24 @@ module Branchout
       # What each pin's test pins, as RSpec says it: "raises KeyError",
       # "returns :miss". A Hash says the scalar entries that differ between
       # the Hashes of +pins+, so siblings say how their results differ.
-      def outcomes(pins)
-        differences = hash_differences(pins.map { |pin| pin.error ? nil : pin.value })
-        pins.zip(differences).to_h { |pin, differing| [pin, outcome_text(pin, differing)] }
+      def outcomes(pins, pin_keys = [])
+        pinned = pins.map { |pin| pinned_pin(pin, pin_keys) }
+        differences = hash_differences(pinned.map { |pin| pin.error ? nil : pin.value })
+        pins.each_index.to_h { |index| [pins[index], outcome_text(pinned[index], differences[index])] }
+      end
+
+      # The entries of a returned Hash whose keys +pin_keys+ names, by
+      # name, so a key added later fails no test. A value that is not a
+      # Hash, or a Hash with none of the keys, is pinned whole.
+      def pinned_value(value, pin_keys)
+        return value if pin_keys.empty? || !value.is_a?(Hash)
+
+        chosen = value.select { |key, _| pin_keys.include?(key.to_s) }
+        chosen.empty? ? value : chosen
+      end
+
+      def pinned_pin(pin, pin_keys)
+        pin.error ? pin : pin.dup.tap { |copy| copy.value = pinned_value(pin.value, pin_keys) }
       end
 
       def outcome_text(pin, differing)

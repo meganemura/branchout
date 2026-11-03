@@ -5,7 +5,7 @@ module Branchout
     module Minitest
       module_function
 
-      def render(result, target, destination, require_by_name: false)
+      def render(result, target, destination, require_by_name: false, pin_keys: [])
         lines = Support.header(target, "tests", destination)
         lines << ""
         lines << 'require "minitest/autorun"'
@@ -17,17 +17,17 @@ module Branchout
           lines << '    skip "branchout did not discover an input"'
           lines << "  end"
         else
-          names = Support.test_names(result.pins)
+          names = Support.test_names(result.pins, pin_keys)
           result.pins.each_with_index do |pin, index|
             lines << "" unless index.zero?
-            lines.concat(example_lines(target, pin, names[index], result.private_calls))
+            lines.concat(example_lines(target, pin, names[index], result.private_calls, pin_keys))
           end
         end
         lines << "end"
         "#{lines.join("\n")}\n"
       end
 
-      def example_lines(target, pin, name, private_calls)
+      def example_lines(target, pin, name, private_calls, pin_keys)
         lines = ["  def #{name}"]
         lines.concat(Support.cover_comment(pin, "    "))
         arrange, call = Support.arrange(target, pin.input, private_calls: private_calls)
@@ -44,7 +44,11 @@ module Branchout
         end
 
         arrange.each { |line| lines << "    #{line}" }
-        if pin.value.nil?
+        pinned = Support.pinned_value(pin.value, pin_keys)
+        if !pinned.equal?(pin.value) && Support.literal?(pinned)
+          keys = pinned.keys.map { |key| Support.ruby_literal(key) }.join(", ")
+          lines << "    assert_equal(#{Support.ruby_literal(pinned)}, #{call}.slice(#{keys}))"
+        elsif pin.value.nil?
           # Minitest 6 fails assert_equal with an expected nil.
           lines << "    assert_nil #{call}"
         elsif pin.value.is_a?(Hash) && Support.literal?(pin.value)

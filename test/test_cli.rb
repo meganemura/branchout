@@ -437,6 +437,31 @@ class CLITest < Minitest::Test
     end
   end
 
+  # --pin-keys pins chosen keys of a returned Hash, so a key added later
+  # fails no test.
+  def test_pin_keys_pins_only_the_chosen_keys_of_a_hash
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "receipt.rb")
+      File.write(target, "module Receipt\n  def self.build(n)\n    { total: n * 2, tax: n > 2 ? 1 : 0, id: \"r\" }\n  end\nend\n")
+      path = write_inputs(dir, { "inputs" => [[1], [3]] })
+      test = File.join(dir, "receipt_test.rb")
+      spec = File.join(dir, "receipt_spec.rb")
+      [test, spec].each do |out|
+        _out, err, status = run_cli("explore", target, "Receipt.build", "--strategy", "inputs", "--random", "0",
+                                    "--inputs", path, "--emit-tests", out, "--pin-keys", "total,tax,missing")
+        assert status.success?, err
+      end
+      assert_includes File.read(test), "    assert_equal({total: 6, tax: 1}, Receipt.build(3).slice(:total, :tax))\n"
+      assert_includes File.read(test), "  def test_3_returns__total_6__tax_1\n"
+      assert_includes File.read(spec), "      expect(Receipt.build(3)).to include({total: 6, tax: 1})\n"
+      File.write(target, "module Receipt\n  def self.build(n)\n    { total: n * 2, tax: n > 2 ? 1 : 0, id: \"r\", note: nil }\n  end\nend\n")
+      _out, err, status = Open3.capture3(RbConfig.ruby, test)
+      assert status.success?, err
+      _out, err, status = Open3.capture3(RbConfig.ruby, "-rrspec/autorun", "-e", "", spec)
+      assert status.success?, err
+    end
+  end
+
   # With --require-by-name the emitted test loads the library from the load
   # path, so it tests whichever checkout -I names: jitcatch runs it in a base
   # and a head worktree.
@@ -713,6 +738,8 @@ class CLITest < Minitest::Test
     %w[explore t.rb A.b --inputs] => "--inputs needs a value",
     %w[explore t.rb A.b --verbose] => "unknown option --verbose",
     %w[explore t.rb A.b --format rspec] => "--format requires --emit-tests",
+    %w[explore t.rb A.b --pin-keys a] => "--pin-keys requires --emit-tests",
+    %w[explore t.rb A.b --emit-tests x.rb --pin-keys ,] => "--pin-keys list is empty",
     %w[explore t.rb A.b --emit-tests x.rb --format tap] => "format must be minitest or rspec",
     %w[baselines t.rb A.b --emit-tests x.rb] => "--emit-tests is only valid with explore"
   }.freeze

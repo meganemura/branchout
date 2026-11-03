@@ -30,6 +30,7 @@ module Branchout
         --md-out PATH       write the text report as Markdown
         --emit-tests PATH   write characterization tests (explore only)
         --format NAME       minitest or rspec (default minitest; _spec.rb infers rspec)
+        --pin-keys LIST     comma list of keys: a returned Hash pins only these keys
         --require-by-name   emitted tests require the --require files and the target
                             through the load path, from each --require file's directory
         --help
@@ -73,6 +74,7 @@ module Branchout
         emit_tests: nil,
         format: nil,
         require_by_name: false,
+        pin_keys: [],
         requires: []
       }
       positionals = []
@@ -93,6 +95,7 @@ module Branchout
         when "--emit-tests" then opts[:emit_tests] = take(args, arg)
         when "--format" then opts[:format] = take(args, arg)
         when "--require-by-name" then opts[:require_by_name] = true
+        when "--pin-keys" then opts[:pin_keys] = parse_keys(take(args, arg))
         when "--help", "-h"
           puts HELP
           return 0
@@ -118,6 +121,7 @@ module Branchout
         raise Error, "--require-by-name requires --require" if opts[:requires].empty?
         raise Error, "--require-by-name requires --emit-tests" unless opts[:emit_tests]
       end
+      raise Error, "--pin-keys requires --emit-tests" if !opts[:pin_keys].empty? && !opts[:emit_tests]
       if opts[:format] && !opts[:emit_tests]
         raise Error, "--format requires --emit-tests"
       end
@@ -161,7 +165,8 @@ module Branchout
         if opts[:emit_tests]
           parsed = Target.parse(target, entry, type_overrides: type_overrides)
           format = Emitters.resolve(opts[:format], opts[:emit_tests])
-          Emitters.write(format, result, parsed, opts[:emit_tests], require_by_name: opts[:require_by_name])
+          Emitters.write(format, result, parsed, opts[:emit_tests], require_by_name: opts[:require_by_name],
+                                                                     pin_keys: opts[:pin_keys])
         end
       when "baselines"
         info = {
@@ -228,6 +233,13 @@ module Branchout
       value == value.to_i ? value.to_i : value
     rescue ArgumentError
       raise Error, "timeout must be a number"
+    end
+
+    def parse_keys(text)
+      keys = text.split(",").map(&:strip).reject(&:empty?)
+      raise Error, "--pin-keys list is empty" if keys.empty?
+
+      keys
     end
 
     def parse_strategies(text)

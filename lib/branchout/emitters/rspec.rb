@@ -26,7 +26,7 @@ module Branchout
 
       module_function
 
-      def render(result, target, destination, require_by_name: false)
+      def render(result, target, destination, require_by_name: false, pin_keys: [])
         lines = Support.header(target, "specs", destination)
         lines << ""
         lines.concat(Support.require_lines(result.requires, (target.path unless result.target_required), destination, by_name: require_by_name))
@@ -38,7 +38,7 @@ module Branchout
           lines << '      skip "branchout did not discover an input"'
           lines << "    end"
         else
-          spec = Spec.new(target, result.pins, result.private_calls)
+          spec = Spec.new(target, result.pins, result.private_calls, pin_keys)
           lines.concat(spec.lines)
         end
         lines << "  end"
@@ -49,12 +49,13 @@ module Branchout
       # The describe block of one entry: its subject, its tree of contexts,
       # and the examples.
       class Spec
-        def initialize(target, pins, private_calls)
+        def initialize(target, pins, private_calls, pin_keys)
           @target = target
           @private_calls = private_calls
+          @pin_keys = pin_keys
           @receiver = receiver_name
           @subject = subject_name if pins.all? { |pin| pin.input.args.empty? && pin.input.kwargs.empty? }
-          @outcomes = Support.outcomes(pins)
+          @outcomes = Support.outcomes(pins, pin_keys)
           entries = pins.map { |pin| [pin, steps_of(pin)] }
           shared = entries.map { |_, steps| steps.select { |step| step.kind == :fact } }.reduce(:&)
           entries = entries.map { |pin, steps| [pin, steps - shared] }
@@ -133,6 +134,8 @@ module Branchout
         end
 
         def value_matcher(value)
+          pinned = Support.pinned_value(value, @pin_keys)
+          return "include(#{Support.ruby_literal(pinned)})" if !pinned.equal?(value) && Support.literal?(pinned)
           return "be_a(#{Support.class_literal(value)})" unless Support.literal?(value)
 
           "eq(#{Support.ruby_literal(value)})"

@@ -23,12 +23,13 @@ module Branchout
       "minitest"
     end
 
-    def write(format, result, target, destination, require_by_name: false)
-      Support.write_file(destination, render(format, result, target, destination, require_by_name: require_by_name))
+    def write(format, result, target, destination, require_by_name: false, pin_keys: [])
+      Support.write_file(destination, render(format, result, target, destination, require_by_name: require_by_name, pin_keys: pin_keys))
     end
 
-    def render(format, result, target, destination, require_by_name: false)
-      emitter_for(format).render(result, target, destination, require_by_name: require_by_name)
+    # +pin_keys+ names the keys a returned Hash pins; empty pins it whole.
+    def render(format, result, target, destination, require_by_name: false, pin_keys: [])
+      emitter_for(format).render(result, target, destination, require_by_name: require_by_name, pin_keys: pin_keys)
     end
 
     def emitter_for(format)

@@ -491,6 +491,30 @@ class EmitterTest < Minitest::Test
     assert_equal "/home/u/repo/lib/a.rb", support.relative_require("/tmp/out/a_test.rb", "/home/u/repo/lib/a.rb")
   end
 
+  # A target outside the working directory is named from its project's
+  # root, or from the emitted file when no project holds it, so a committed
+  # header carries no machine path.
+  def test_the_target_header_carries_no_machine_path
+    Dir.mktmpdir do |dir|
+      project = File.join(dir, "project")
+      FileUtils.mkdir_p(File.join(project, "lib"))
+      File.write(File.join(project, "Gemfile"), "")
+      FileUtils.cp(File.join(ROOT, "test/fixtures/magic.rb"), File.join(project, "lib/magic.rb"))
+      loose = File.join(dir, "loose")
+      FileUtils.mkdir_p(loose)
+      FileUtils.cp(File.join(ROOT, "test/fixtures/magic.rb"), File.join(loose, "magic.rb"))
+      inputs = File.join(dir, "inputs.json")
+      File.write(inputs, JSON.generate({ "inputs" => [[0]] }))
+      [[File.join(project, "lib/magic.rb"), File.join(project, "test/magic_test.rb"), "lib/magic.rb"],
+       [File.join(loose, "magic.rb"), File.join(loose, "test/magic_spec.rb"), "../magic.rb"]].each do |target, out, shown|
+        _out, err, status = run_cli("explore", target, "FixtureMagic.classify", "--inputs", inputs,
+                                    "--strategy", "inputs", "--random", "0", "--emit-tests", out)
+        assert status.success?, err
+        assert_includes File.read(out), "\n# target: #{shown}\n"
+      end
+    end
+  end
+
   def test_an_empty_run_emits_a_skip_and_requires_load_first
     target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path)
                    .new(true, "Foo", :bar, "Foo.bar", "lib/foo.rb", File.join(ROOT, "lib/foo.rb"))

@@ -6,7 +6,7 @@ module Branchout
       module_function
 
       def render(result, target, destination, require_by_name: false)
-        lines = Support.header(target, "tests")
+        lines = Support.header(target, "tests", destination)
         lines << ""
         lines << 'require "minitest/autorun"'
         lines.concat(Support.require_lines(result.requires, target.path, destination, by_name: require_by_name))

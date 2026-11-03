@@ -7,7 +7,7 @@ module Branchout
       module_function
 
       def render(result, target, destination, require_by_name: false)
-        lines = Support.header(target, "specs")
+        lines = Support.header(target, "specs", destination)
         lines << ""
         lines.concat(Support.require_lines(result.requires, target.path, destination, by_name: require_by_name))
         lines << ""

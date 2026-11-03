@@ -35,3 +35,15 @@ class FixtureParser
     @kind = @text.include?("=") ? :pair : :word
   end
 end
+
+class FixtureMaker
+  def self.apply(x) = build(x).kind
+
+  def self.build(x) = x
+
+  def self.inspected = new.tap { |made| made.kind }
+
+  def self.nothing; end
+
+  def kind = @kind ? :set : :unset
+end

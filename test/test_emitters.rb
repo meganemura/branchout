@@ -329,6 +329,45 @@ class EmitterTest < Minitest::Test
     refute_equal names[4], names[5]
   end
 
+  # Keywords, new, and setup calls are leaves too, and an empty collection
+  # reads "empty".
+  def test_siblings_differ_in_keywords_new_setup_and_empty_values
+    support = Branchout::Emitters::Support
+    pin = ->(input) { Branchout::Engine::Pin.new(input: input, value: :ok, error: nil, arm_ids: []) }
+    input = ->(**parts) { Branchout::Input.new(args: [], **parts) }
+    call = ->(name, arg) { Branchout::Input::SetupCall.new(name, Branchout::Input.new(args: [arg])) }
+    names = support.test_names([[{ "a" => [] }], [{ "a" => {} }], [{ "a" => 1 }]].map { |arg| pin.(Branchout::Input.new(args: [{ "x" => arg.first }])) })
+    assert_match(/\Atest_a_empty_returns_ok_\h{6}\z/, names[0])
+    assert_match(/\Atest_a_empty_returns_ok_\h{6}\z/, names[1])
+    assert_equal "test_a_1_returns_ok", names[2]
+    assert_equal %w[test_b_1_returns_ok test_b_2_returns_ok],
+                 support.test_names([1, 2].map { |n| pin.(input.(kwargs: { "k" => { "a" => { "b" => n } } })) })
+    assert_equal %w[test_b_1_returns_ok test_b_2_returns_ok],
+                 support.test_names([1, 2].map { |n| pin.(input.(receiver: Branchout::Input.new(args: [{ "a" => { "b" => n } }]))) })
+    assert_equal %w[test_b_1_returns_ok test_b_2_returns_ok],
+                 support.test_names([1, 2].map { |n| pin.(input.(setup: [call.("add", { "a" => { "b" => n } })])) })
+    names = support.test_names(%w[add! add?].map { |name| pin.(input.(setup: [call.(name, {})])) })
+    names.each { |name| assert_match(/\Atest_add_returns_ok_\h{6}\z/, name) }
+  end
+
+  def test_clip_keeps_a_word_that_fills_the_limit
+    support = Branchout::Emitters::Support
+    assert_equal "abcd", support.clip(["abcd"], 4)
+    assert_equal "abc", support.clip(["abcd"], 3)
+    assert_equal "ab_c", support.clip(%w[ab c], 4)
+    assert_equal "ab", support.clip(%w[ab cd], 4)
+  end
+
+  def test_an_emitted_file_creates_its_directory
+    Dir.mktmpdir do |dir|
+      target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path)
+                     .new(true, "Foo", :bar, "Foo.bar", "lib/foo.rb", File.join(dir, "lib/foo.rb"))
+      destination = File.join(dir, "new/dir/foo_test.rb")
+      Branchout::Emitters::Minitest.write(Branchout::Engine::Result.new(pins: [], requires: []), target, destination)
+      assert_includes File.read(destination), "def test_no_inputs_discovered"
+    end
+  end
+
   def test_explicit_format_overrides_extension
     Dir.mktmpdir do |dir|
       inputs = File.join(dir, "inputs.json")

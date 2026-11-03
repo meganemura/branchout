@@ -332,6 +332,23 @@ class CLITest < Minitest::Test
     end
   end
 
+  # Only a call on an instance the method builds with new is followed, and
+  # a tap with a block, or a method with no body, follows nothing.
+  def test_a_call_on_another_value_or_a_tap_block_is_not_followed
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [[1]] })
+      %w[FixtureMaker.apply FixtureMaker.inspected FixtureMaker.nothing].each do |entry|
+        inputs = entry.end_with?("apply") ? path : write_inputs(dir, { "inputs" => [[]] })
+        stdout, stderr, status = run_cli(
+          "explore", "test/fixtures/delegate.rb", entry,
+          "--strategy", "inputs", "--random", "0", "--inputs", inputs
+        )
+        assert status.success?, stderr
+        assert_includes stdout, "arms_total: 0\n", entry
+      end
+    end
+  end
+
   def test_an_entry_with_no_arms_warns
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [[1]] })

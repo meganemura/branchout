@@ -376,6 +376,24 @@ class EmitterTest < Minitest::Test
                  Branchout::Emitters::Support.test_names(pins)
   end
 
+  # A Hash argument that holds Arrays of Hashes is named, in both formats,
+  # by the one leaf that differs, and not by the empty Array beside it.
+  def test_a_leaf_inside_an_array_of_a_hash_argument_names_its_sibling
+    doc = ->(name) { { "methods" => [{ "id" => "m01", "bare_name" => name }], "tests" => [] } }
+    pins = %w[a b].map do |name|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [doc.(name)]), value: 0, error: nil, arm_ids: [])
+    end
+    assert_equal %w[test_bare_name_a_returns_0 test_bare_name_b_returns_0], Branchout::Emitters::Support.test_names(pins)
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Plan", :count, "Plan.count", "lib/plan.rb", File.join(ROOT, "lib/plan.rb"), [], [Struct.new(:name).new(:doc)])
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+    spec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/plan_spec.rb"))
+    descriptions = spec.scan(/^ *it (.*) do$/).flatten
+    assert_equal 2, descriptions.length
+    descriptions.zip(%w[a b]) { |text, name| assert_match(/bare_name\b.*\b#{name}\b/, text) }
+    refute_match(/none/, spec)
+  end
+
   # --pin-keys keeps the named entries of a Hash, by name, and leaves any
   # other value whole; the outcome then says only those entries.
   def test_pinned_values_and_their_outcomes

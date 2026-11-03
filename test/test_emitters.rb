@@ -290,6 +290,13 @@ class EmitterTest < Minitest::Test
     ]
     expected.zip(names).each { |pattern, name| assert_match pattern, name }
 
+    # A Hash argument is named by its values, and a collection nested in an
+    # argument by its kind, so a tree of arguments still reads.
+    error = Branchout::Runner::ExceptionInfo.new(class_name: "QuintDriver::Unsupported")
+    tree = [{ "kind" => "name", "name" => "l" }, { "kind" => "app", "args" => [{ "kind" => "int", "value" => -1 }] }]
+    nested = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: tree, kwargs: { "env" => 1 }), value: nil, error: error, arm_ids: [])
+    assert_match(/\Atest_name_l_app_array_env_1_raises_quint_driver_\h{6}\z/, Branchout::Emitters::Support.test_names([nested]).first)
+
     point = Struct.new(:x)
     long_word = "a" * 50
     names = Branchout::Emitters::Support.test_names([pin.([long_word], Set[1]), pin.([4], point.new(4))])

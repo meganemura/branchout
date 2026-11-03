@@ -164,7 +164,8 @@ module Branchout
       end
 
       def input_words(input)
-        words = value_words(input.args) + value_words(input.kwargs)
+        words = input.args.flat_map { |arg| argument_words(arg) }
+        words += input.kwargs.flat_map { |key, value| [key.to_s, *argument_words(value)] }
         words += ["new", *input_words(input.receiver)] if input.receiver
         input.setup.each { |call| words += [call.method_name, *input_words(call.arguments)] }
         words
@@ -189,10 +190,24 @@ module Branchout
         end
       end
 
+      # A Hash argument is named by its values, and a collection inside an
+      # argument by its kind, so a tree of arguments does not fill the name.
+      def argument_words(value)
+        items = value.is_a?(Hash) ? value.values : value
+        return value_words(value) unless items.is_a?(Array)
+
+        items.flat_map do |item|
+          case item
+          when Hash then ["hash"]
+          when Array then ["array"]
+          else value_words(item)
+          end
+        end
+      end
+
       def value_words(value)
         case value
         when Array then value.flat_map { |item| value_words(item) }
-        when Hash then value.flat_map { |key, item| [key.to_s, *value_words(item)] }
         when nil then ["nil"]
         when "" then ["empty"]
         when /\A\s+\z/ then ["blank"]

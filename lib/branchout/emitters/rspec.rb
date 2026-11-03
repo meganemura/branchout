@@ -208,7 +208,11 @@ module Branchout
         # 'when kind is "int"', or %q(...) when it holds both quotes.
         def quoted(text)
           plain = text.inspect
-          return plain unless text.include?('"') && plain == "\"#{text.gsub('"', '\"')}\""
+          # Single quotes and %q read only a doubled backslash or their own
+          # delimiter as an escape, so a text that a value's own literal put
+          # a backslash in still reads as written.
+          literal = text.match?(/\A[[:print:]]*\z/) && !text.include?("\\\\") && !text.end_with?("\\")
+          return plain unless text.include?('"') && literal
           return "'#{text}'" unless text.include?("'")
           return "%q(#{text})" unless text.match?(/[()]/)
 

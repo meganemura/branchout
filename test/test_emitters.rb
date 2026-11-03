@@ -812,11 +812,12 @@ class EmitterTest < Minitest::Test
   def test_rspec_texts_need_no_escapes
     target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
                    .new(true, "Box", :put, "Box.put", "lib/x.rb", File.join(ROOT, "lib/x.rb"), [], [Struct.new(:name).new(:x)])
-    pins = ["it's", "(it's)", "a\\b", "tab\t"].map { |arg| Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [arg]), value: 1, error: nil, arm_ids: []) }
+    pins = ["it's", "(it's)", "a\\b", "tab\t", 'say "hi"'].map { |arg| Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [arg]), value: 1, error: nil, arm_ids: []) }
     result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
     texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *it (.*) do$/).flatten
     assert_equal [%q(%q(returns 1 when x is "it's")), %q("returns 1 when x is \"(it's)\""),
-                  "returns 1 when x is #{"a\\b".inspect}".inspect, "returns 1 when x is #{"tab\t".inspect}".inspect], texts
+                  "returns 1 when x is #{"a\\b".inspect}".inspect, %q('returns 1 when x is "tab\t"'),
+                  %q('returns 1 when x is "say \"hi\""')], texts
   end
 
   # A text over 80 characters keeps only the facts that tell it from its

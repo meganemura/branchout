@@ -62,9 +62,20 @@ inputs の形:
 
 `types` を省くと、メソッド本体の使われ方から int / float / string / array / hash を推定する。
 
+## コーディングエージェントと使う
+
+探索手順は [Agent Skill](skills/branchout/SKILL.md)（英語）にある。他プロジェクトのエージェントはこのリポジトリの `AGENTS.md` を読まない。`skills/branchout` をエージェントの skills ディレクトリへコピーするか、シンボリックリンクする。
+
+```sh
+mkdir -p .agents/skills
+ln -s /path/to/branchout/skills/branchout .agents/skills/branchout
+```
+
+`.claude/skills/` と `.cursor/skills/` でも同じ。スキル名は `branchout`。
+
 ## エージェントのループ
 
-手順の本体は [AGENTS.md](AGENTS.md)。探索中は `--strategy inputs --random 0 --seed 1` に固定する。エージェントは `parent: reached` の腕ごとに、`nearest` を 1 箇所だけ変えた入力を inputs.json の末尾へ足して、同じコマンドを再実行する。ツールはファイルを書き換えない。
+手順の本体は [skills/branchout/SKILL.md](skills/branchout/SKILL.md)。探索中は `--strategy inputs --random 0 --seed 1` に固定する。エージェントは `parent: reached` の腕ごとに、`nearest` を 1 箇所だけ変えた入力を inputs.json の末尾へ足して、同じコマンドを再実行する。ツールはファイルを書き換えない。
 
 デモではその手順をこのまま実行した。モデル API は使っていない。ツールに LLM バックエンドはない。
 

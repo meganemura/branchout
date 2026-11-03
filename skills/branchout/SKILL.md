@@ -1,0 +1,132 @@
+---
+name: branchout
+description: "Explore concrete inputs that reach uncovered Ruby branch arms and emit minitest or RSpec characterization tests. Use when adding tests for under-covered Ruby branches, when exploring inputs that reach an uncovered if/unless/case/while arm, or when a Ruby method's branch coverage is still incomplete."
+compatibility: Requires Ruby 3.3+ and the branchout executable. Running emitted RSpec needs the rspec gem.
+---
+
+# branchout
+
+branchout runs one Ruby method on concrete inputs and prints the branch arms still uncovered. It does not solve constraints, call a model, or edit the inputs file. You read the frontier, append inputs, and rerun the same command.
+
+## Install
+
+Ruby 3.3 or newer. Exploring uses Coverage, Prism, and json from the standard library. No gem is required to explore.
+
+The executable is `bin/branchout`. Put that `bin` directory on `PATH`, or run `ruby /path/to/branchout/bin/branchout` with the same arguments. A project may instead depend on the gem with a path or git source and call `bundle exec branchout`.
+
+Emitted minitest files run under `ruby` (minitest ships with Ruby). Emitted RSpec files need the `rspec` gem.
+
+## Explore
+
+Keep literal mutation and random sampling off, so new coverage comes only from inputs you add.
+
+```sh
+branchout explore TARGET.rb Const.method \
+  --inputs path/to/inputs.json \
+  --strategy inputs \
+  --random 0 \
+  --seed 1
+```
+
+`ENTRY` is `Const.method` for a class or module method, or `Const#method` for an instance method. The instance form needs `new` with no required arguments. `--entry ENTRY` may replace the positional entry.
+
+`--strategy` is a comma list of `inputs`, `mutate`, and `random` (default: all three). `--random` defaults to 16 and `--seed` to 0. During the search, pass `--strategy inputs --random 0` and keep `--seed` fixed. The same inputs, flags, and CRuby produce the same stdout.
+
+Other flags: `--mutate-cap N` (default 256), `--timeout SEC` (default 1, must be > 0), `--json` (JSON on stdout instead of text), `--json-out PATH`, `--md-out PATH`.
+
+## Inputs JSON
+
+Start from one seed. [inputs.example.json](inputs.example.json) shows every accepted key. A real seed is usually just `inputs`; set `types` only when inference is wrong, one entry per positional parameter.
+
+```json
+{
+  "inputs": [
+    {"args": [0]}
+  ]
+}
+```
+
+- An entry is `{"args": [...]}` or a bare array. Keywords go in `kwargs`: `{"args": [0], "kwargs": {"flag": true}}`.
+- Seeds: `[0]` int, `[0.0]` float, `[""]` string, `[[]]` array, `[{}]` hash.
+- `"types"` values are `int`, `float`, `string`, `array`, or `hash`. The array length must match the positional parameters. Extra top-level keys such as `meta` are ignored.
+- Values may be null, booleans, numbers, strings, arrays, and objects. `-0.0` is stored as `0.0`.
+- Append. Do not delete or reorder entries. Leave a failed attempt in the file so you do not retry it blindly.
+
+The target file must load and define the entry. The method's own stdout and stderr are discarded.
+
+## Reading the frontier
+
+Stdout is the contract. Sections are `COVERED`, `FRONTIER`, and `EXCEPTIONS`. Ids are sorted. There is no timestamp.
+
+- `id` is `kind@line:column/arm@line:column`. Columns are 0-based, matching Coverage and Prism. A loop count greater than 1 is appended as `*count`.
+- `loc` is `file:line:column`. Open that line. `cond` is the predicate, or the `when` / `in` line. Longer text is cut at 160 characters.
+- `sense` selects the arm: `cond-true` (`if` then, `unless` else), `cond-false` (`if` else, `unless` then), `arm-matched` (that `when` or `in`), `arm-else` (case else), `body-entered` (`while` or `until` body), `receiver-present` / `receiver-nil` (`&.`). Anything else is `taken`.
+- `parent: reached` means some input executed the decision. Flip these first. `parent: not-reached` means the parent has not run and `nearest` is `null`. Reach the parent first.
+- `nearest` reached the decision with the fewest taken arms, then the smallest weight (absolute numeric size, plus string and container length), then the smallest canonical JSON. With no keywords it prints as the args array (`[0,1]`), which pastes into `args`. With keywords it prints as `{"args":[...],"kwargs":{...}}`.
+- `path` is the sorted set of arms `nearest` took. Order is not recorded. An empty set prints `(none)`; a missing path prints `null`.
+- `COVERED` uses `input` for the witness of that arm. `EXCEPTIONS` lists `class`, `loc`, `input`, and `message`. An empty frontier can still have exceptions, and a covered method can still raise.
+
+`--json` is the same report (`version`, counts, `covered`, `frontier`, `exceptions`). Each frontier object has `id`, `loc`, `cond`, `sense`, `parent`, `nearest` (`{"args","kwargs"}` or null), and `path`.
+
+## Rounds
+
+1. Run the explore command.
+2. Read uncovered arms with `parent: reached`, in id order.
+3. If you have not yet added an input meant to flip that arm, add one. Copy `nearest` and change it only enough to satisfy `cond` and `sense`. `&&` and `||` are not separate arms.
+4. If a covered arm divides by a non-constant denominator, indexes out of range, or `raise`s, and you have not yet added an input that fires that fault while staying in the arm, add one.
+5. Save and rerun the same command.
+6. Stop when `FRONTIER` is `(none)` and no fault remains to aim at, or every remaining `parent: reached` arm has already been tried and did not flip (unsatisfiable, such as `x == 1 && x == 0`), or you have completed 8 rounds.
+
+In one round, add inputs only for arms that are reached now and for faults you can see now. Do not batch `parent: not-reached` arms before their parent has run.
+
+## Emit tests
+
+When you stop, emit characterization tests. Each one pins a discovered input's return value, or the exception class and message.
+
+```sh
+branchout explore TARGET.rb Const.method \
+  --inputs path/to/inputs.json \
+  --strategy inputs --random 0 --seed 1 \
+  --emit-tests test/generated/name_test.rb \
+  --format minitest \
+  --json-out reports/name.json \
+  --md-out reports/name.md
+```
+
+```sh
+branchout explore TARGET.rb Const.method \
+  --inputs path/to/inputs.json \
+  --strategy inputs --random 0 --seed 1 \
+  --emit-tests spec/generated/name_spec.rb \
+  --format rspec
+```
+
+`--format` is `minitest` or `rspec` and requires `--emit-tests`. `--emit-tests` is valid only with `explore`. Without `--format`, a path ending in `_spec.rb` selects RSpec and any other path selects minitest.
+
+Verify the files run:
+
+```sh
+ruby test/generated/name_test.rb
+rspec spec/generated/name_spec.rb
+```
+
+Optional, and not part of the search: compare the inputs file with random sampling and literal mutation.
+
+```sh
+branchout baselines TARGET.rb Const.method \
+  --inputs path/to/inputs.json \
+  --seed 1 --random 40
+```
+
+`baselines` prints three rows: `random` only, `mutate` only, and `agent` (the inputs file only). Random integers are -3..12. Random strings have length 0..3 over `abc01.-`. Mutation tries each source literal and literal±1 in each slot, then a cartesian product of the first two numeric slots, cut by `--mutate-cap` (default 256). It does not solve a congruence or concatenate string literals. Full arm coverage is not the same as finding a fault inside an arm.
+
+## Pitfalls
+
+- The target really runs. Files, globals, and the network are not sandboxed.
+- A method that depends on time, randomness, or I/O will not stay stable across runs.
+- A path is a set of arms, not an order. Two orders that take the same arms look the same. A modifier `unless` can put `then` and `else` at the same `loc`; the arm name in the id distinguishes them.
+- Only a bare call or `self.` in the same file is followed. `send` and other files are out of scope.
+- `Timeout.timeout` does not stop every block. If the timeout backtrace has no target line, `loc` is the method definition line.
+- An unsatisfiable condition stays on the frontier. Stop trying it.
+- Coverage is process-global. Run the CLI in its own process.
+- Do not put secrets in inputs or reports. The tool will not rewrite the inputs file.

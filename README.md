@@ -60,9 +60,20 @@ Input file:
 
 If `types` is omitted, each parameter is inferred as int, float, string, array, or hash from how the method body uses it.
 
+## Using with coding agents
+
+The explore loop is an [Agent Skill](skills/branchout/SKILL.md). Agents working in another project do not read this repository's `AGENTS.md`. Install the skill by copying or symlinking `skills/branchout` into the agent's skills directory:
+
+```sh
+mkdir -p .agents/skills
+ln -s /path/to/branchout/skills/branchout .agents/skills/branchout
+```
+
+`.claude/skills/` and `.cursor/skills/` work the same way. The skill name is `branchout`.
+
 ## Agent loop
 
-The procedure is in [AGENTS.md](AGENTS.md). During search, keep `--strategy inputs --random 0 --seed 1`. For each `parent: reached` arm, the agent appends one input derived from `nearest` and reruns the same command. The tool does not edit the file.
+The procedure is in [skills/branchout/SKILL.md](skills/branchout/SKILL.md). During search, keep `--strategy inputs --random 0 --seed 1`. For each `parent: reached` arm, the agent appends one input derived from `nearest` and reruns the same command. The tool does not edit the file.
 
 The demos below were produced by following that procedure. No model API was called. The tool has no LLM backend.
 

@@ -1,87 +1,29 @@
-# Driving branchout
+# Developing branchout
 
-This tool does not call an LLM. A person or a coding agent reads the frontier, appends inputs, and reruns the same command.
+The usage loop for a coding agent that is driving branchout lives in [skills/branchout/SKILL.md](skills/branchout/SKILL.md). Copy or symlink that directory into the agent's skills folder when using the tool from another project (see the README). This file is for changing this repository.
 
-## One command
+## Setup
 
-Turn random sampling and literal mutation off during the search, so new coverage comes only from inputs you add.
-
-```sh
-ruby bin/branchout explore TARGET.rb Const.method \
-  --inputs path/to/inputs.json \
-  --strategy inputs \
-  --random 0 \
-  --seed 1
-```
-
-An instance method is `Const#method`. The class must be constructible with `new` and no required arguments.
-
-Start from a single seed:
-
-```json
-{
-  "inputs": [
-    {"args": [0]}
-  ]
-}
-```
-
-Use `[""]` for a string, `[[]]` for an array, and `[{}]` for a hash. If inference is wrong, set `"types": ["int", "string"]` at the top level. `meta` is ignored. Do not delete or reorder existing entries. Append.
-
-## Reading the frontier
-
-Stdout is the contract. The same inputs and seed produce the same bytes. There is no timestamp. Ids are sorted.
-
-- `id` is `kind@line:column/arm@line:column`. Columns are 0-based, matching Coverage and Prism.
-- `cond` is the decision's condition. For `when`, it is that line.
-- `sense` is the direction that selects the arm.
-  - `cond-true` means the condition is true (`if` then, `unless` else).
-  - `cond-false` means the condition is false (`if` else, `unless` then).
-  - `arm-matched` is that `when` or `in`. `arm-else` is the case else.
-  - `body-entered` is the `while` or `until` body.
-- `parent: reached` means some input executed the decision. Flip these first.
-- `nearest` is the input that reached the decision with the fewest taken arms, then the smallest absolute numeric weight, then the smallest canonical JSON.
-- `path` is the sorted set of arms `nearest` took. Order is not recorded. An empty set prints `(none)`.
-- `parent: not-reached` means the parent decision has not run. Reach the parent first.
-- `EXCEPTIONS` are runtime exceptions. A full frontier can still be empty of exceptions, and a covered method can still raise.
-
-`--json` is the same report in a stable machine-readable form.
-
-## Rounds
-
-1. Run the command above.
-2. Read uncovered arms with `parent: reached`, in id order.
-3. If you have not yet added an input meant to flip that arm, add one. Copy `nearest` and change it only enough to satisfy `cond` and `sense`. Open the source at that line.
-4. If a covered arm divides by a non-constant denominator, indexes out of range, or `raise`s, and you have not yet added an input that fires that fault while staying in the arm, add one.
-5. Save and rerun the same command.
-6. Stop when any of these is true:
-   - `FRONTIER` is `(none)` and there is no remaining fault to aim at.
-   - Every remaining `parent: reached` arm has already been tried and did not flip (the condition is unsatisfiable).
-   - You have completed 8 rounds.
-
-Do not batch `parent: not-reached` arms before their parent has run. In one round, add inputs only for arms that are reached now and for faults you can see now.
-
-## When you stop
+Ruby 3.3 or newer. `explore` uses the standard library. Development gems are minitest and rspec:
 
 ```sh
-ruby bin/branchout explore TARGET.rb Const.method \
-  --inputs path/to/inputs.json \
-  --strategy inputs --random 0 --seed 1 \
-  --emit-tests test/generated/name_test.rb \
-  --json-out reports/name.json \
-  --md-out reports/name.md
-
-ruby bin/branchout baselines TARGET.rb Const.method \
-  --inputs path/to/inputs.json \
-  --seed 1 --random 40
+bundle install
 ```
 
-For RSpec, use `--emit-tests spec/generated/name_spec.rb`. A `_spec.rb` path selects RSpec without `--format`. Pass `--format rspec` to force it.
+## Tests
 
-`baselines` runs random only, literal mutation only, and the inputs file only. Random integers are -3..12. Random strings have length 0..3 over `abc01.-`. Mutation tries each source literal and literal±1 in each slot, then a cartesian product of the first two numeric slots up to `--mutate-cap` (default 256). Neither solves a congruence nor concatenates strings into something like `"0-rc1"`.
+```sh
+ruby test/run_all.rb
+bundle exec rspec spec/generated
+```
 
-## Do not
+`test/run_all.rb` loads `test/test_*.rb` and `test/generated/*_test.rb`. Coverage is process-global, so the CLI tests start `bin/branchout` in a subprocess.
 
-- Add an LLM client, an API key, or an external command to this tool.
-- Put secrets in inputs or reports.
-- Expect the tool to rewrite inputs.json.
+`test/generated/` and `spec/generated/` are checked-in characterization tests for `examples/`. Regenerate one by re-running `explore` with `--strategy inputs --random 0 --seed 1` and `--emit-tests` pointed at `test/generated/<name>_test.rb` (`--format minitest`) or `spec/generated/<name>_spec.rb` (`--format rspec`). `test/test_examples.rb` checks `reports/*.txt` and `reports/*_baselines.txt` against a fresh run.
+
+## Invariants
+
+- Do not add an LLM client, an API key, or an external command. The agent stays outside the process.
+- The same inputs, flags, and CRuby must produce the same stdout. No timestamps. Paths are relative to the working directory.
+- The tool does not rewrite an inputs file.
+- Do not put secrets in inputs, fixtures, or reports.

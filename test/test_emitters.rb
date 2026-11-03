@@ -730,6 +730,22 @@ class EmitterTest < Minitest::Test
     assert_includes render.(target_for.(:x), [[7], [0]]), '"returns 1 when x is 7"'
   end
 
+  # A context says only the facts that tell it from its siblings: every
+  # modulo node with a 7 has an int second operand, so no context says
+  # args[1].kind.
+  def test_an_rspec_context_says_only_the_facts_that_tell_it_apart
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Model", :value, "Model.value", "lib/x.rb", File.join(ROOT, "lib/x.rb"), [], [Struct.new(:name).new(:node)])
+    modulo = ->(a, b) { { "opcode" => "imod", "args" => [{ "kind" => "int", "value" => a }, { "kind" => a.negative? ? "nat" : "int", "value" => b }] } }
+    pins = [[7, 0], [-7, 3], [7, 3]].map do |a, b|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [modulo.(a, b)]), value: 1, error: nil, arm_ids: [])
+    end
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+    texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *((?:it|context) .*) do$/).flatten
+    assert_equal [%q(it 'returns 1 when args[0].value is -7, args[1].kind is "nat" and args[1].value is 3'), 'context "when args[0].value is 7"',
+                  'it "returns 1 when args[1].value is 0"', 'it "returns 1 when args[1].value is 3"'], texts
+  end
+
   # A text is quoted so that it needs no escape where one quoting allows it.
   def test_rspec_texts_need_no_escapes
     target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)

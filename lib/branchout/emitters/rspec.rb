@@ -151,17 +151,17 @@ module Branchout
         end
 
         # The text of each member of one group, at most LIMIT characters. A
-        # member whose text is longer says only the facts that tell it from
-        # its siblings, then names them by their deepest key, then is cut.
-        # Texts that would still be the same end in their first input's
-        # digest.
+        # context, and a member whose text is longer, says only the facts
+        # that tell it from its siblings; a text still too long names them
+        # by their deepest key, then is cut. Texts that would still be the
+        # same end in their first input's digest.
         def member_texts(members)
           peers = members.flat_map { |member| pins_of(member) }
           texts = members.to_h do |member|
             others = members.reject { |other| other.equal?(member) }.flat_map { |other| pins_of(other) }
             steps = member.is_a?(Example) ? member.facts : member.steps
             text = member_text(member, steps, peers)
-            text = member_text(member, telling(steps, others), peers) if text.length > LIMIT
+            text = member_text(member, telling(steps, others), peers) if text.length > LIMIT || member.is_a?(Node)
             text = member_text(member, telling(steps, others), peers, short: true) if text.length > LIMIT
             [member, text.length > LIMIT ? "#{text[0, LIMIT - 3]}..." : text]
           end

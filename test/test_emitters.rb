@@ -520,6 +520,20 @@ class EmitterTest < Minitest::Test
     assert_equal ['require "cart"'], lines
   end
 
+  # A private constant cannot be named bare where a test loads, so both
+  # formats reach it as explore resolved it.
+  def test_a_private_constant_is_reached_through_const_get
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Box::Lid", :put, "Box::Lid.put", "lib/x.rb", File.join(ROOT, "lib/x.rb"), [], [Struct.new(:name).new(:x)])
+    pins = [Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1]), value: 1, error: nil, arm_ids: [])]
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [], const_expression: "Box.const_get(:Lid)")
+    spec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb"))
+    assert_includes spec, %(RSpec.describe "Box::Lid" do\n)
+    assert_includes spec, "expect(Box.const_get(:Lid).put(1)).to eq(1)"
+    assert_includes Branchout::Emitters.render("minitest", result, target, File.join(ROOT, "test/x_test.rb")),
+                    "assert_equal 1, Box.const_get(:Lid).put(1)"
+  end
+
   # A setter or an operator in a setup call has no plain form that keeps
   # its arguments, so it goes through send.
   def test_a_setter_or_an_operator_is_called_through_send

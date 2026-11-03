@@ -27,9 +27,11 @@ module Branchout
 
     # +private_calls+ names the entry and new when they are private or
     # protected, so a test has to call them through send.
+    # +const_expression+ names the target class as a test can write it:
+    # a private constant has to be reached through const_get.
     # +target_required+ is true when a --require file already loads the
     # target, so a test needs no require of its own for it.
-    attr_reader :template, :private_calls, :target_required
+    attr_reader :template, :private_calls, :target_required, :const_expression
 
     # +requires+ are files the target needs loaded first, such as its
     # library's entry file. They load after coverage starts, so the target
@@ -113,9 +115,17 @@ module Branchout
     end
 
     def resolve
+      expression = nil
       const = @target.const_name.split("::").inject(Object) do |mod, name|
+        hidden = mod.const_defined?(name, false) && !mod.constants(false).include?(name.to_sym)
+        expression = if hidden
+                       "#{expression || "Object"}.const_get(:#{name})"
+                     else
+                       [expression, name].compact.join("::")
+                     end
         mod.const_get(name)
       end
+      @const_expression = expression
       if @target.singleton
         @method = const.method(@target.method_name)
         @private_calls = const.singleton_class.public_method_defined?(@target.method_name) ? [] : [@target.method_name]

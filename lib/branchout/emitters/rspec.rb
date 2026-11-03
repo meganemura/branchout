@@ -37,14 +37,17 @@ module Branchout
         lines << ""
         lines.concat(Support.require_lines(result.requires, (target.path unless result.target_required), destination, by_name: require_by_name))
         lines << ""
-        lines << "RSpec.describe #{target.const_name} do"
+        const = result.const_expression || target.const_name
+        # A private constant cannot be named bare at load time, so the
+        # describe names it as text.
+        lines << "RSpec.describe #{const == target.const_name ? const : target.const_name.inspect} do"
         lines << "  describe #{"#{target.singleton ? "." : "#"}#{target.method_name}".inspect} do"
         if result.pins.empty?
           lines << '    it "discovers no inputs" do'
           lines << '      skip "branchout did not discover an input"'
           lines << "    end"
         else
-          spec = Spec.new(target, result.pins, result.private_calls, pin_keys)
+          spec = Spec.new(target, result.pins, result.private_calls, pin_keys, const)
           lines.concat(spec.lines)
         end
         lines << "  end"
@@ -55,8 +58,9 @@ module Branchout
       # The describe block of one entry: its subject, its tree of contexts,
       # and the examples.
       class Spec
-        def initialize(target, pins, private_calls, pin_keys)
+        def initialize(target, pins, private_calls, pin_keys, const = target.const_name)
           @target = target
+          @const = const
           @private_calls = private_calls
           @pin_keys = pin_keys
           @receiver = receiver_name
@@ -267,7 +271,7 @@ module Branchout
             unless @target.singleton
               arguments = input.receiver ? Support.argument_list(input.receiver) : ""
               plain = input.receiver ? Support.argument_list(input.receiver, mutable: false) : ""
-              code = Support.call_text(@target.const_name, :new, arguments, @private_calls)
+              code = Support.call_text(@const, :new, arguments, @private_calls)
               steps << Step.new(:let, plain.empty? ? "with new" : "with new(#{plain})", code)
             end
             # A setup call that may be the one that raised stays inside the
@@ -336,7 +340,7 @@ module Branchout
         end
 
         def receiver_expression
-          @target.singleton ? @target.const_name : @receiver
+          @target.singleton ? @const : @receiver
         end
 
         def entry_call(input = nil)

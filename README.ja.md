@@ -141,6 +141,7 @@ RSpec では、`Struct` と `Data` の値はクラスとメンバーで固定し
 minitest は `Struct` をクラスだけで固定する。
 期待する Hash は値そのもののキー順で書くので、失敗時の差分をキーごとに見比べられる。
 private や protected の入口と private な `new` は、`explore` と同じく `send` で呼ぶ。
+`private_constant` で隠したクラスやモジュールは `const_get` でたどり（`Shop.const_get(:Ledger)`）、RSpec の describe はその名前を文字列で書く。
 minitest のテスト名は入力と結果から作る。
 `test_24_12_raises_zero_division_error` のようになる。
 名前が同じになる入力どうしは、互いに異なる値で名付ける（`test_status_timeout__error_class_timeout_returns_ok` など）。

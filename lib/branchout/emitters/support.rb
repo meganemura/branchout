@@ -83,12 +83,12 @@ module Branchout
       # The statements that build the receiver, and the entry call. With no
       # setup calls the receiver is built inline and there is no statement.
       # A name in +private_calls+ (the entry, or new) is called through send,
-      # as explore called it.
-      def arrange(target, input, private_calls: [])
+      # as explore called it. +const+ is the class as the test writes it.
+      def arrange(target, input, private_calls: [], const: target.const_name)
         receiver = if target.singleton
-          target.const_name
+          const
         else
-          call_text(target.const_name, :new, input.receiver ? argument_list(input.receiver) : "", private_calls)
+          call_text(const, :new, input.receiver ? argument_list(input.receiver) : "", private_calls)
         end
         call = ->(on) { call_text(on, target.method_name, argument_list(input), private_calls) }
         return [[], call.(receiver)] if input.setup.empty?

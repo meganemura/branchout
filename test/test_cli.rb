@@ -214,6 +214,20 @@ class CLITest < Minitest::Test
     end
   end
 
+  def test_a_module_function_runs_as_a_class_method
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [[1], [0], [-1]] })
+      args = ["--strategy", "inputs", "--random", "0", "--inputs", path]
+      stdout, stderr, status = run_cli("explore", "test/fixtures/helpers.rb", "FixtureHelpers.sign", *args)
+      assert status.success?, stderr
+      assert_includes stdout, "arms_covered: 4\narms_total: 4"
+
+      _stdout, stderr, status = run_cli("explore", "test/fixtures/helpers.rb", "FixtureHelpers#sign", *args)
+      refute status.success?
+      assert_includes stderr, "FixtureHelpers is a module, so its methods have no receiver; target FixtureHelpers.sign"
+    end
+  end
+
   def test_require_loads_the_library_before_the_target
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [[0], [4]] })

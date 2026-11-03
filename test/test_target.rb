@@ -68,6 +68,16 @@ class TargetTest < Minitest::Test
     assert_match(/bad entry/, error.message)
   end
 
+  def test_module_function_methods_are_class_methods_too
+    path = File.join(@root, "test/fixtures/helpers.rb")
+    target = Branchout::Target.parse(path, "FixtureHelpers.sign")
+    assert target.covers_line?(13)
+    assert Branchout::Target.parse(path, "FixtureHelpers#sign")
+    assert_includes Branchout::Target.parse(path, "FixtureNamed.twice").literals.ints, 3
+    error = assert_raises(Branchout::Error) { Branchout::Target.parse(path, "FixtureNamed.nope") }
+    assert_match(/cannot find FixtureNamed.nope/, error.message)
+  end
+
   def test_type_override_length
     error = assert_raises(Branchout::Error) do
       Branchout::Target.parse(

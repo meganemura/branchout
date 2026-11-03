@@ -373,21 +373,36 @@ module Branchout
       end
     end
 
-    def collect_defs(node, stack, in_singleton, acc)
+    # functions tracks module_function in the current module body: a bare
+    # call makes every later def a class method too, and named arguments
+    # make those defs class methods too.
+    def collect_defs(node, stack, in_singleton, acc, functions = nil)
       return unless node.is_a?(Prism::Node)
 
       case node.type
       when :module_node, :class_node
-        body = node.body
-        collect_defs(body, stack + [module_segment(node, stack)], false, acc) if body
+        return unless node.body
+
+        inner = stack + [module_segment(node, stack)]
+        functions = { after: false, names: [] }
+        collect_defs(node.body, inner, false, acc, functions)
+        named = acc.select do |info|
+          info.const_name == inner.join("::") && !info.singleton && functions[:names].include?(info.node.name)
+        end
+        named.each { |info| acc << DefInfo.new(const_name: info.const_name, singleton: true, node: info.node) }
       when :singleton_class_node
-        body = node.body
-        collect_defs(body, stack, true, acc) if body
+        collect_defs(node.body, stack, true, acc) if node.body
       when :def_node
         singleton = in_singleton || node.receiver&.type == :self_node
         acc << DefInfo.new(const_name: stack.join("::"), singleton: singleton, node: node)
+        acc << DefInfo.new(const_name: stack.join("::"), singleton: true, node: node) if !singleton && functions&.dig(:after)
       else
-        node.compact_child_nodes.each { |child| collect_defs(child, stack, in_singleton, acc) }
+        if functions && node.type == :call_node && node.name == :module_function && node.receiver.nil?
+          arguments = node.arguments&.arguments
+          functions[:after] = true unless arguments
+          Array(arguments).each { |arg| functions[:names] << arg.unescaped.to_sym if arg.type == :symbol_node }
+        end
+        node.compact_child_nodes.each { |child| collect_defs(child, stack, in_singleton, acc, functions) }
       end
     end
 

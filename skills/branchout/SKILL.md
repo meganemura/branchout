@@ -28,7 +28,7 @@ branchout explore TARGET.rb Const.method \
   --seed 1
 ```
 
-`ENTRY` is `Const.method` for a class or module method, or `Const#method` for an instance method. The instance form builds a new receiver for each input with `Const.new`. When `initialize` takes arguments, put them in `new` on every input. `--entry ENTRY` may replace the positional entry.
+`ENTRY` is `Const.method` for a class or module method, including one under `module_function`, or `Const#method` for an instance method. The instance form builds a new receiver for each input with `Const.new`. When `initialize` takes arguments, put them in `new` on every input. `--entry ENTRY` may replace the positional entry.
 
 `--strategy` is a comma list of `inputs`, `mutate`, and `random` (default: all three). `--random` defaults to 16 and `--seed` to 0. During the search, pass `--strategy inputs --random 0` and keep `--seed` fixed. The same inputs, flags, and CRuby produce the same stdout.
 

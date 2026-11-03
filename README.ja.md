@@ -60,6 +60,7 @@ EXCEPTIONS
 `cond: x == 114514` の `sense: cond-true` が、`[0]` では通らなかった腕である。`[114514]` を足して同じコマンドを再実行する。`examples/inputs/magic_value.json` がそのファイルで、`arms_covered: 2`、`FRONTIER` は `(none)` になる。
 
 `ENTRY` は `Const.method` か `Const#method`。
+`module_function` のメソッドは `Const.method` で指定する。
 `Const#method` では、入力ごとに `Const.new` で新しいレシーバーを作る。
 `initialize` が引数を取るときは、各入力の `new` に入力と同じ形で書く。
 `{"args": [5], "new": [10]}` は `Const.new(10).method(5)` を呼ぶ。

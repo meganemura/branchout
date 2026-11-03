@@ -78,6 +78,11 @@ module Branchout
       if @target.singleton
         @method = const.method(@target.method_name)
       else
+        unless const.is_a?(Class)
+          raise Error, "#{@target.const_name} is a module, so its methods have no receiver; " \
+                       "target #{@target.const_name}.#{@target.method_name}"
+        end
+
         @const = const
         @method = const.instance_method(@target.method_name)
         @required_new_arguments = const.instance_method(:initialize).parameters.count { |kind, _name| kind == :req }

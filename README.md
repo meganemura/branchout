@@ -36,6 +36,7 @@ ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \
   --strategy inputs --random 0 --seed 1 \
   --emit-tests spec/generated/hidden_bug_spec.rb
 
+bundle install
 bundle exec rspec spec/generated
 
 ruby test/run_all.rb

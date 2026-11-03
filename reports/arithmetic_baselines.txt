@@ -1,0 +1,18 @@
+branchout baselines
+target: examples/arithmetic.rb
+entry: Arithmetic.classify
+seed: 1
+random: 40
+mutate_cap: 256
+timeout: 1
+strategy    executions  covered  total  exceptions
+random              40        2      8           0
+mutate             256        2      8           0
+agent                5        7      8           0
+
+random_covered: if@18:4/else@21:6, if@8:4/else@18:4
+random_exceptions: (none)
+mutate_covered: if@18:4/else@21:6, if@8:4/else@18:4
+mutate_exceptions: (none)
+agent_covered: if@10:8/else@13:10, if@10:8/then@11:10, if@18:4/else@21:6, if@8:4/else@18:4, if@8:4/then@9:6, if@9:6/else@16:8, if@9:6/then@10:8
+agent_exceptions: (none)

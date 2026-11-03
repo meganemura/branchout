@@ -1,0 +1,72 @@
+branchout explore
+target: examples/arithmetic.rb
+entry: Arithmetic.classify
+seed: 1
+strategies: inputs
+random: 0
+mutate_cap: 256
+timeout: 1
+inputs_ran: 4
+mutate_ran: 0
+random_ran: 0
+executions: 4
+arms_covered: 6
+arms_total: 8
+exceptions: 0
+
+COVERED
+id: if@10:8/else@13:10
+loc: examples/arithmetic.rb:13:10
+cond: z == 7
+sense: cond-false
+input: [138,143,0]
+
+id: if@18:4/else@21:6
+loc: examples/arithmetic.rb:21:6
+cond: x == 114514 && x == 0
+sense: cond-false
+input: [0,0,0]
+
+id: if@8:4/else@18:4
+loc: examples/arithmetic.rb:18:4
+cond: (x * 3 + 7) % 1000 == 421
+sense: cond-false
+input: [0,0,0]
+
+id: if@8:4/then@9:6
+loc: examples/arithmetic.rb:9:6
+cond: (x * 3 + 7) % 1000 == 421
+sense: cond-true
+input: [138,0,0]
+
+id: if@9:6/else@16:8
+loc: examples/arithmetic.rb:16:8
+cond: y == x + 5
+sense: cond-false
+input: [138,0,0]
+
+id: if@9:6/then@10:8
+loc: examples/arithmetic.rb:10:8
+cond: y == x + 5
+sense: cond-true
+input: [138,143,0]
+
+FRONTIER
+id: if@10:8/then@11:10
+loc: examples/arithmetic.rb:11:10
+cond: z == 7
+sense: cond-true
+parent: reached
+nearest: [138,143,0]
+path: if@10:8/else@13:10, if@8:4/then@9:6, if@9:6/then@10:8
+
+id: if@18:4/then@19:6
+loc: examples/arithmetic.rb:19:6
+cond: x == 114514 && x == 0
+sense: cond-true
+parent: reached
+nearest: [0,0,0]
+path: if@18:4/else@21:6, if@8:4/else@18:4
+
+EXCEPTIONS
+(none)

@@ -1,0 +1,18 @@
+branchout baselines
+target: examples/magic_value.rb
+entry: MagicValue.classify
+seed: 1
+random: 40
+mutate_cap: 256
+timeout: 1
+strategy    executions  covered  total  exceptions
+random              15        1      2           0
+mutate               6        2      2           0
+agent                2        2      2           0
+
+random_covered: if@5:4/else@8:6
+random_exceptions: (none)
+mutate_covered: if@5:4/else@8:6, if@5:4/then@6:6
+mutate_exceptions: (none)
+agent_covered: if@5:4/else@8:6, if@5:4/then@6:6
+agent_exceptions: (none)

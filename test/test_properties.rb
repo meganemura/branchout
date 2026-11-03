@@ -72,7 +72,9 @@ class PropertyTest < Minitest::Test
     end
   end
 
-  def test_emitted_test_names_are_unique_methods_and_kept_when_inputs_are_added
+  # The names depend on the set of inputs, not on their order, so the same
+  # inputs file gives the same names.
+  def test_emitted_test_names_are_unique_methods_whatever_the_input_order
     Hegel.test do |tc|
       pins = tc.draw(arrays(booleans, min_size: 1, max_size: 6)).map do |raises|
         error = raises ? Branchout::Runner::ExceptionInfo.new(class_name: "Foo::BarError") : nil
@@ -82,8 +84,22 @@ class PropertyTest < Minitest::Test
       names = Branchout::Emitters::Support.test_names(pins)
       assert_equal names.uniq, names
       assert(names.all? { |name| name.match?(/\Atest_[a-z0-9_]+\z/) && name.length <= 90 })
-      kept = tc.draw(arrays(sampled_from((0...pins.length).to_a), max_size: pins.length)).uniq.sort
-      assert_equal kept.map { |index| names[index] }, Branchout::Emitters::Support.test_names(kept.map { |index| pins[index] })
+      order = tc.draw(permutations((0...pins.length).to_a))
+      assert_equal order.map { |index| names[index] }, Branchout::Emitters::Support.test_names(order.map { |index| pins[index] })
+    end
+  end
+
+  # Inputs that share every word of their name are named by the leaves that
+  # differ between them, and a digest stays only where that still collides.
+  def test_sibling_names_carry_a_digest_only_when_they_still_collide
+    Hegel.test do |tc|
+      statuses = tc.draw(arrays(sampled_from(%w[fail pass timeout error skip]), min_size: 2, max_size: 5, unique: true))
+      pins = statuses.map do |status|
+        doc = { "tests" => [{ "id" => "t1", "head" => { "status" => status } }] }
+        Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [doc]), value: 1, error: nil, arm_ids: [])
+      end
+      names = Branchout::Emitters::Support.test_names(pins)
+      assert_equal statuses.map { |status| "test_status_#{status}_returns_1" }, names
     end
   end
 
@@ -101,8 +117,7 @@ class PropertyTest < Minitest::Test
       error = tc.draw(booleans) ? Branchout::Runner::ExceptionInfo.new(class_name: "Foo::BarError") : nil
       pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: args), value: tc.draw(value), error: error, arm_ids: [])
       name = Branchout::Emitters::Support.test_names([pin]).first
-      *words, digest = name.split(/_+/)
-      assert_match(/\A\h{6}\z/, digest)
+      words = name.split(/_+/)
       words.each { |part| assert(vocabulary.include?(part) || shapes.include?(part) || part.match?(/\A(neg)?\d+\z/), name) }
       first = args.first
       expected = first.is_a?(Integer) ? first.to_s.sub("-", "neg") : { "" => "empty", " " => "blank", "  " => "blank" }.fetch(first, first)
@@ -117,7 +132,7 @@ class PropertyTest < Minitest::Test
       value = tc.draw(hashes(keys, integers(min_value: 0, max_value: 9), min_size: 1, max_size: 5))
       pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1]), value: value, error: nil, arm_ids: [])
       name = Branchout::Emitters::Support.test_names([pin]).first
-      named = name.delete_prefix("test_1_returns_hash__").sub(/_\h{6}\z/, "").split("__")
+      named = name.delete_prefix("test_1_returns_hash__").split("__")
       refute_empty named, name
       assert_equal value.keys.first(named.length), named, name
     end

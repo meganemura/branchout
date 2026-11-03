@@ -8,12 +8,12 @@ require "minitest/autorun"
 require_relative "../../examples/magic_value.rb"
 
 class MagicValueClassifyCharacterizationTest < Minitest::Test
-  def test_0_returns_ordinary_1c2855
+  def test_0_returns_ordinary
     # covers: if@5:4/else@8:6
     assert_equal :ordinary, MagicValue.classify(0)
   end
 
-  def test_114514_returns_magic_f5a0b5
+  def test_114514_returns_magic
     # covers: if@5:4/then@6:6
     assert_equal :magic, MagicValue.classify(114514)
   end

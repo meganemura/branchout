@@ -52,9 +52,9 @@ class EmitterTest < Minitest::Test
     end
   end
 
-  # A name says what the test pins, and adding an input does not rename the
-  # tests that were already there.
-  def test_emitted_names_say_what_they_pin_and_survive_new_inputs
+  # A name says what the test pins. An input that no other input shares its
+  # words with keeps its name when inputs are added.
+  def test_emitted_names_say_what_they_pin
     Dir.mktmpdir do |dir|
       sources = [[[0, 0], [24, 12]], [[0, 0], [24, 12], [11, 11], [-3, 5]]].map do |list|
         inputs = File.join(dir, "inputs.json")
@@ -70,9 +70,9 @@ class EmitterTest < Minitest::Test
         end
       end
       test_names = sources.map { |test, _spec| test.scan(/^  def (test_\w+)$/).flatten }
-      assert_match(/\Atest_0_0_returns_out_of_range_\h{6}\z/, test_names[0][0])
-      assert_match(/\Atest_24_12_raises_zero_division_error_\h{6}\z/, test_names[0][1])
-      assert_includes test_names[1].join(" "), "test_neg3_5_returns_out_of_range_"
+      assert_match(/\Atest_0_0_returns_out_of_range\z/, test_names[0][0])
+      assert_match(/\Atest_24_12_raises_zero_division_error\z/, test_names[0][1])
+      assert_includes test_names[1], "test_neg3_5_returns_out_of_range"
       assert_empty test_names[0] - test_names[1]
       assert_equal test_names[1].uniq, test_names[1]
 
@@ -282,13 +282,13 @@ class EmitterTest < Minitest::Test
       pin.([3], {})
     ])
     expected = [
-      /\Atest_blank_1_raises_argument_error_\h{6}\z/,
-      /\Atest_empty_returns_ok_\h{6}\z/,
-      /\Atest_50_returns_hash__discount_\h{6}\z/,
-      /\Atest_51_returns_hash__line_items__sum_\h{6}\z/,
-      /\Atest_1_returns_raised_argumenterror_\h{6}\z/,
-      /\Atest_2_returns_array_of_2_\h{6}\z/,
-      /\Atest_3_returns_empty_hash_\h{6}\z/
+      /\Atest_blank_1_raises_argument_error\z/,
+      /\Atest_empty_returns_ok\z/,
+      /\Atest_50_returns_hash__discount\z/,
+      /\Atest_51_returns_hash__line_items__sum\z/,
+      /\Atest_1_returns_raised_argumenterror\z/,
+      /\Atest_2_returns_array_of_2\z/,
+      /\Atest_3_returns_empty_hash\z/
     ]
     expected.zip(names).each { |pattern, name| assert_match pattern, name }
 
@@ -297,13 +297,36 @@ class EmitterTest < Minitest::Test
     error = Branchout::Runner::ExceptionInfo.new(class_name: "QuintDriver::Unsupported")
     tree = [{ "kind" => "name", "name" => "l" }, { "kind" => "app", "args" => [{ "kind" => "int", "value" => -1 }] }]
     nested = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: tree, kwargs: { "env" => 1 }), value: nil, error: error, arm_ids: [])
-    assert_match(/\Atest_name_l_app_array_env_1_raises_quint_driver_\h{6}\z/, Branchout::Emitters::Support.test_names([nested]).first)
+    assert_match(/\Atest_name_l_app_array_env_1_raises_quint_driver\z/, Branchout::Emitters::Support.test_names([nested]).first)
 
     point = Struct.new(:x)
     long_word = "a" * 50
     names = Branchout::Emitters::Support.test_names([pin.([long_word], Set[1]), pin.([4], point.new(4))])
-    assert_match(/\Atest_#{"a" * 40}_returns_set_\h{6}\z/, names[0])
-    assert_match(/\Atest_4_returns_struct_\h{6}\z/, names[1])
+    assert_match(/\Atest_#{"a" * 40}_returns_set\z/, names[0])
+    assert_match(/\Atest_4_returns_struct\z/, names[1])
+  end
+
+  # Inputs whose names would differ only in a digest are named by the leaves
+  # that differ between them. A key one input lacks reads "none".
+  def test_sibling_inputs_are_named_by_the_leaves_that_differ
+    pin = ->(args) { Branchout::Engine::Pin.new(input: Branchout::Input.new(args: args), value: :ok, error: nil, arm_ids: []) }
+    head = ->(fields) { { "methods" => [{ "id" => "m1" }], "tests" => [{ "id" => "t1", "head" => fields }] } }
+    pins = [
+      pin.([head.({ "status" => "fail", "error_class" => "Minitest::Assertion" })]),
+      pin.([head.({ "status" => "timeout", "error_class" => "Timeout" })]),
+      pin.([head.({ "status" => "pass" })]),
+      pin.([1]),
+      pin.(["!"]),
+      pin.(["?"])
+    ]
+    names = Branchout::Emitters::Support.test_names(pins)
+    assert_equal "test_status_fail__error_class_minitest_returns_ok", names[0]
+    assert_equal "test_status_timeout__error_class_timeout_returns_ok", names[1]
+    assert_equal "test_status_pass__error_class_none_returns_ok", names[2]
+    assert_equal "test_1_returns_ok", names[3]
+    assert_match(/\Atest_text_returns_ok_\h{6}\z/, names[4])
+    assert_match(/\Atest_text_returns_ok_\h{6}\z/, names[5])
+    refute_equal names[4], names[5]
   end
 
   def test_explicit_format_overrides_extension
@@ -376,13 +399,13 @@ class EmitterTest < Minitest::Test
       end
     end
     name = Branchout::Emitters::Support.test_names(pins.take(1)).first
-    assert_match(/\Atest_new_eur_add_apple_qty_2_returns_7_\h{6}\z/, name)
+    assert_match(/\Atest_new_eur_add_apple_qty_2_returns_7\z/, name)
   end
 
   def test_names_and_descriptions_of_keywords_nil_and_long_values
     pin = ->(input, value) { Branchout::Engine::Pin.new(input: input, value: value, error: nil, arm_ids: []) }
     keywords = pin.(Branchout::Input.new(args: [1], kwargs: { "k" => 2 }), nil)
-    assert_match(/\Atest_1_k_2_returns_nil_\h{6}\z/, Branchout::Emitters::Support.test_names([keywords]).first)
+    assert_match(/\Atest_1_k_2_returns_nil\z/, Branchout::Emitters::Support.test_names([keywords]).first)
     fits = "a" * 58
     too_long = "a" * 59
     assert_equal "[1] returns #{fits.inspect}", Branchout::Emitters::Support.description(pin.(Branchout::Input.new(args: [1]), fits))

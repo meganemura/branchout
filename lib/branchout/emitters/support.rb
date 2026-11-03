@@ -142,16 +142,79 @@ module Branchout
       end
 
       # Minitest method names: the input's values, then what the test pins.
-      # A digest of the input keeps each name unique and unchanged when other
-      # inputs are added; a digest collision falls back to a counter.
+      # Siblings, inputs whose names would be the same, are named by the
+      # leaves that differ between them instead, so a name tells them apart
+      # and adding an input can rename its siblings. A name that still
+      # collides gets six hex digits of its input's digest, and a digest
+      # collision a counter.
       def test_names(pins)
-        names = pins.map do |pin|
-          words = ["test", clip(input_words(pin.input), 40), clip(outcome_words(pin), 30)]
-          words << Digest::SHA256.hexdigest(pin.input.canonical)[0, 6]
-          words.reject(&:empty?).join("_")
+        outcomes = pins.map { |pin| outcome_words(pin) }
+        names = pins.each_with_index.map { |pin, index| name_of(input_words(pin.input), outcomes[index]) }
+        names.each_index.group_by { |index| names[index] }.each_value do |siblings|
+          next if siblings.one?
+
+          words = differing_words(siblings.map { |index| pins[index].input })
+          siblings.zip(words) { |index, differing| names[index] = name_of(differing, outcomes[index]) }
+        end
+        repeated = names.tally
+        names = names.each_with_index.map do |name, index|
+          repeated[name] > 1 ? "#{name}_#{Digest::SHA256.hexdigest(pins[index].input.canonical)[0, 6]}" : name
         end
         seen = Hash.new(0)
         names.map { |name| (seen[name] += 1) == 1 ? name : "#{name}_#{seen[name]}" }
+      end
+
+      def name_of(input_words, outcome_words)
+        ["test", clip(input_words, 40), clip(outcome_words, 30)].reject(&:empty?).join("_")
+      end
+
+      # For each input, the words of every leaf whose value is not the same
+      # in all +inputs+: the deepest key above it, then its value, or "none"
+      # where the input has no such leaf. Leaves keep their order in the
+      # first input by canonical form, so the words do not depend on the
+      # order of +inputs+.
+      def differing_words(inputs)
+        leaves = inputs.map { |input| input_leaves(input).to_h }
+        paths = inputs.zip(leaves).sort_by { |input, _| input.canonical }.flat_map { |_, map| map.keys }.uniq
+        differing = paths.reject do |path|
+          leaves.all? { |map| map.key?(path) && map[path].eql?(leaves.first[path]) }
+        end
+        leaves.map do |map|
+          differing.flat_map do |path|
+            key = path.reverse.find { |step| step.is_a?(String) }
+            value = if !map.key?(path) then ["none"]
+            elsif map[path] == {} || map[path] == [] then ["empty"]
+            else value_words(map[path])
+            end
+            key ? [Key.new(key), *value] : value
+          end
+        end
+      end
+
+      # [path, value] for every scalar or empty collection of an input. A
+      # Symbol step names a part of the input, a String a Hash key, and an
+      # Integer a position.
+      def input_leaves(input)
+        out = []
+        input.args.each_with_index { |arg, index| collect_leaves(arg, [:args, index], out) }
+        input.kwargs.each { |key, value| collect_leaves(value, [:kwargs, key], out) }
+        input_leaves(input.receiver).each { |path, value| out << [[:new, *path], value] } if input.receiver
+        input.setup.each_with_index do |call, index|
+          out << [[:setup, index, :method], call.method_name]
+          input_leaves(call.arguments).each { |path, value| out << [[:setup, index, *path], value] }
+        end
+        out
+      end
+
+      def collect_leaves(value, path, out)
+        children = case value
+          when Hash then value.map { |key, item| [key.to_s, item] }
+          when Array then value.each_with_index.map { |item, index| [index, item] }
+          else []
+        end
+        return out << [path, value] if children.empty?
+
+        children.each { |step, item| collect_leaves(item, path + [step], out) }
       end
 
       # RSpec descriptions: the input as the report prints it, then what the

@@ -138,10 +138,12 @@ Ruby 3.4 でメッセージの文言が変わったためである。
 期待する Hash は値そのもののキー順で書くので、失敗時の差分をキーごとに見比べられる。
 private や protected の入口と private な `new` は、`explore` と同じく `send` で呼ぶ。
 各テストの名前は入力と結果から作る。
-`test_24_12_raises_zero_division_error_bba48b` や `it "[24,12] raises ZeroDivisionError"` のようになる。
-入力を足しても、ほかのテストの名前は変わらない。
+`test_24_12_raises_zero_division_error` や `it "[24,12] raises ZeroDivisionError"` のようになる。
+名前が同じになる入力どうしは、互いに異なる値で名付ける（`test_status_timeout__error_class_timeout_returns_ok` など）。
+そのため、入力を足すとそれらの名前が変わることがある。
 名前は単語の切れ目で切る。
-空白だけの文字列は `blank` になり、Hash の引数は値で、Hash の結果はキーで名付ける。
+空白だけの文字列は `blank` になり、Hash の引数は値で名付ける。
+Hash の結果はキーで名付け、各キーの前に `__` を置く。
 対象のディレクトリの外に出力したテストは、対象を絶対パスで読み込む。
 minitest のパスは `--format minitest` で、`ruby` で実行する。RSpec には `rspec` gem が要る。
 

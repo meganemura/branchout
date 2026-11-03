@@ -434,6 +434,16 @@ class EmitterTest < Minitest::Test
     refute_match(/none/, spec)
   end
 
+  # An Array that is empty in one input and holds items in another is not
+  # missing from either: the empty one says "empty", and the other is
+  # named by its items, never "none".
+  def test_an_empty_array_beside_a_full_one_is_not_none
+    pins = [[], [{ "id" => "k01" }]].map do |constants|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [{ "constants" => constants, "tests" => [1] }]), value: 0, error: nil, arm_ids: [])
+    end
+    assert_equal %w[test_constants_empty_returns_0 test_id_k01_returns_0], Branchout::Emitters::Support.test_names(pins)
+  end
+
   # --pin-keys keeps the named entries of a Hash, by name, and leaves any
   # other value whole; the outcome then says only those entries.
   def test_pinned_values_and_their_outcomes

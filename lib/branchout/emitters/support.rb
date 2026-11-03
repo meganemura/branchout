@@ -229,6 +229,10 @@ module Branchout
         shared = differing.to_h { |path| [path, shared_start(leaves.filter_map { |map| map[path] })] }
         leaves.map do |map|
           differing.flat_map do |path|
+            # An input that has an empty collection above this leaf, or
+            # items below it, does have the key; its own leaf names it.
+            next [] if !map.key?(path) && map.keys.any? { |other| other.first(path.length) == path || path.first(other.length) == other }
+
             key = path.reverse.find { |step| step.is_a?(String) }
             rest = map[path].is_a?(String) ? tokens(map[path]).drop(shared[path]) : []
             value = if !map.key?(path) then ["none"]

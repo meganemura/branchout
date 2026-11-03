@@ -55,6 +55,17 @@ Start from one seed. [inputs.example.json](inputs.example.json) shows every acce
 
 The target file must load and define the entry. When it needs the rest of its library (a constant from another file), pass the library's entry file with `--require PATH`, repeatable. It loads before the target, and emitted tests require it too. The method's own stdout and stderr are discarded.
 
+An instance method of a library class, with constructor arguments in each input's `new`:
+
+```sh
+branchout explore lib/foo/model.rb 'Foo::Model#value' \
+  --require lib/foo.rb \
+  --inputs path/to/inputs.json \
+  --strategy inputs --random 0
+```
+
+Run from the project root. `loc` and `target` print relative to the current directory, and absolute paths otherwise.
+
 ## Reading the frontier
 
 Stdout is the contract. Sections are `COVERED`, `FRONTIER`, and `EXCEPTIONS`. Ids are sorted. There is no timestamp.
@@ -121,12 +132,29 @@ branchout baselines TARGET.rb Const.method \
 
 `baselines` prints three rows: `random` only, `mutate` only, and `agent` (the inputs file only). Random integers are -3..12. Random strings have length 0..3 over `abc01.-`. Mutation tries each source literal and literal±1 in each slot, then a cartesian product of the first two numeric slots, cut by `--mutate-cap` (default 256). It does not solve a congruence or concatenate string literals. Full arm coverage is not the same as finding a fault inside an arm.
 
+## Use with the other tools
+
+Emitted minitest files work as jitcatch candidate tests. jitcatch copies each candidate into `.jitcatch/` of a base and a head checkout, so emit to that path inside a checkout of the base revision. Then `require_relative` resolves in both checkouts.
+
+```sh
+git -C REPO archive BASE | tar -x -C base-checkout
+cd base-checkout
+branchout explore lib/foo.rb Foo.parse --inputs inputs.json \
+  --strategy inputs --random 0 --emit-tests .jitcatch/foo_parse_test.rb
+cp .jitcatch/foo_parse_test.rb TESTS_DIR/
+jitcatch run --repo REPO BASE HEAD TESTS_DIR
+```
+
+A test that passes on base and fails on head is a changed return value or exception for that input. Read the `# covers:` line above the assertion to see which arms the input took.
+
 ## Pitfalls
 
 - The target really runs. Files, globals, and the network are not sandboxed.
 - A method that depends on time, randomness, or I/O will not stay stable across runs.
 - A path is a set of arms, not an order. Two orders that take the same arms look the same. A modifier `unless` can put `then` and `else` at the same `loc`; the arm name in the id distinguishes them.
-- Only a bare call or `self.` in the same file is followed. `send` and other files are out of scope.
+- Only a bare call or `self.` in the same file is followed. `send` and other files are out of scope. `def self.apply(x) = new.check(x)` has no arms of its own, and `explore` warns on stderr. Target `Const#check` instead.
+- `new` passes constructor arguments only. A receiver whose state comes from later calls, such as `cart.add(...)`, cannot be set up. Target a method that takes that state as arguments.
+- Emitted tests pin exception messages exactly. Ruby 3.4 changed the text of `NoMethodError`, so run emitted tests on the Ruby that emitted them.
 - `Timeout.timeout` does not stop every block. If the timeout backtrace has no target line, `loc` is the method definition line.
 - An unsatisfiable condition stays on the frontier. Stop trying it.
 - Coverage is process-global. Run the CLI in its own process.

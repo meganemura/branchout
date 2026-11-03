@@ -55,6 +55,7 @@ module Branchout
           @pin_keys = pin_keys
           @receiver = receiver_name
           @subject = subject_name if pins.all? { |pin| pin.input.args.empty? && pin.input.kwargs.empty? }
+          @one_argument = pins.all? { |pin| pin.input.args.length == 1 && pin.input.kwargs.empty? }
           @outcomes = Support.outcomes(pins, pin_keys)
           entries = pins.map { |pin| [pin, steps_of(pin)] }
           shared = entries.map { |_, steps| steps.select { |step| step.kind == :fact } }.reduce(:&)
@@ -217,13 +218,17 @@ module Branchout
           end
         end
 
+        # A fact names its leaf by a path into the argument (args[0].value).
+        # When every input passes one argument and no keyword, the path
+        # inside that argument says enough, and the parameter's name is
+        # left out.
         def fact_steps(input)
           names = parameter_names
           leaves = []
           input.args.each_with_index { |arg, index| Support.collect_leaves(arg, [names[index] || "argument #{index + 1}"], leaves) }
           input.kwargs.each { |key, value| Support.collect_leaves(value, [key], leaves) }
-          leaves.map do |path, value|
-            name = path.first + path.drop(1).map { |step| "[#{Support.ruby_literal(step)}]" }.join
+          leaves.map do |(root, *path), value|
+            name = path.empty? || !@one_argument ? Support.path_text(path, root) : Support.path_text(path)
             text = Support.ruby_literal(value)
             text = "#{text[0, 27]}..." if text.length > 30
             Step.new(:fact, "#{name} is #{text}", nil)

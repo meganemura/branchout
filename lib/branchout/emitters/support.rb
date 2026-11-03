@@ -400,13 +400,15 @@ module Branchout
 
       # A path into a value as a reader writes it: lines[0].sku. A key that
       # is not a plain name keeps its brackets: ["a b"].
-      def path_text(path)
-        path.each_with_index.map do |step, index|
-          next "[#{step}]" if step.is_a?(Integer)
-          next(index.zero? ? step : ".#{step}") if step.match?(/\A[A-Za-z_][A-Za-z0-9_]*[?!]?\z/)
-
-          "[#{step.inspect}]"
-        end.join
+      # +root+, when given, is the name the path starts from.
+      def path_text(path, root = nil)
+        path.each_with_object(+root.to_s) do |step, text|
+          text << if step.is_a?(Integer) then "[#{step}]"
+                  elsif !step.match?(/\A[A-Za-z_][A-Za-z0-9_]*[?!]?\z/) then "[#{step.inspect}]"
+                  elsif text.empty? then step
+                  else ".#{step}"
+                  end
+        end
       end
 
       def input_words(input)

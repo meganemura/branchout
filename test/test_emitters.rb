@@ -712,6 +712,24 @@ class EmitterTest < Minitest::Test
   # The subject and the receiver keep clear of RSpec's own names, a fact
   # names a keyword or an unnamed argument, a long value is cut, and two
   # examples whose text would be the same get their input's digest.
+  def test_rspec_facts_name_a_leaf_by_a_path_a_reader_writes
+    target_for = lambda do |*params|
+      Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+            .new(true, "Model", :value, "Model.value", "lib/x.rb", File.join(ROOT, "lib/x.rb"), [], params.map { |name| Struct.new(:name).new(name) })
+    end
+    render = lambda do |target, args_list|
+      pins = args_list.map { |args| Branchout::Engine::Pin.new(input: Branchout::Input.new(args: args), value: 1, error: nil, arm_ids: []) }
+      result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+      Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *(?:it|context) (.*) do$/).flatten
+    end
+    node = ->(value) { { "kind" => "app", "args" => [{ "kind" => "int", "value" => value }], "a b" => value } }
+    labels = render.(target_for.(:node), [[node.(7)], [node.(0)]])
+    assert_includes labels, '"returns 1 when args[0].value is 7 and [\"a b\"] is 7"'
+    labels = render.(target_for.(:node, :env), [[node.(7), 1], [node.(0), 1]])
+    assert_includes labels, '"returns 1 when node.args[0].value is 7 and node[\"a b\"] is 7"'
+    assert_includes render.(target_for.(:x), [[7], [0]]), '"returns 1 when x is 7"'
+  end
+
   def test_rspec_names_subjects_receivers_and_facts
     target_for = lambda do |const, method, singleton: false|
       Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)

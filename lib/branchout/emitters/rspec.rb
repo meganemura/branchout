@@ -1,0 +1,52 @@
+# frozen_string_literal: true
+
+module Branchout
+  module Emitters
+    # Emits RSpec source. This file does not load the rspec gem.
+    module RSpec
+      module_function
+
+      def write(result, target, destination)
+        Support.write_file(destination, render(result, target, destination))
+      end
+
+      def render(result, target, destination)
+        relative = Support.relative_require(destination, target.path)
+        lines = Support.header(target, "specs")
+        lines << ""
+        lines << "require_relative #{relative.inspect}"
+        lines << ""
+        lines << "RSpec.describe #{target.entry.inspect} do"
+        if result.pins.empty?
+          lines << '  it "discovers no inputs" do'
+          lines << '    skip "branchout did not discover an input"'
+          lines << "  end"
+        else
+          result.pins.each_with_index do |pin, index|
+            lines << "" unless index.zero?
+            lines.concat(example_lines(target, pin, index + 1))
+          end
+        end
+        lines << "end"
+        "#{lines.join("\n")}\n"
+      end
+
+      def example_lines(target, pin, index)
+        lines = ["  it #{format("%03d", index).inspect} do"]
+        lines.concat(Support.cover_comment(pin, "    "))
+        call = Support.render_call(target, pin.input)
+        if pin.error
+          if pin.error.stable_message
+            lines << "    expect { #{call} }.to raise_error(#{pin.error.class_name}, #{pin.error.message.inspect})"
+          else
+            lines << "    expect { #{call} }.to raise_error(#{pin.error.class_name})"
+          end
+        else
+          lines << "    expect(#{call}).to eq(#{Support.ruby_literal(pin.value)})"
+        end
+        lines << "  end"
+        lines
+      end
+    end
+  end
+end

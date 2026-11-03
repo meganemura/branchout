@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "minitest/autorun"
-require "concolic"
+require "branchout"
 
 class TargetTest < Minitest::Test
   def setup
@@ -9,7 +9,7 @@ class TargetTest < Minitest::Test
   end
 
   def test_magic_literal_and_int_type
-    target = Concolic::Target.parse(File.join(@root, "test/fixtures/magic.rb"), "FixtureMagic.classify")
+    target = Branchout::Target.parse(File.join(@root, "test/fixtures/magic.rb"), "FixtureMagic.classify")
     assert_equal [:x], target.positional.map(&:name)
     assert_equal ["int"], target.positional.map(&:inferred_type)
     assert_includes target.literals.ints, 114514
@@ -17,7 +17,7 @@ class TargetTest < Minitest::Test
   end
 
   def test_call_graph_skips_uncalled_helpers
-    target = Concolic::Target.parse(File.join(@root, "test/fixtures/call.rb"), "FixtureCall.entry")
+    target = Branchout::Target.parse(File.join(@root, "test/fixtures/call.rb"), "FixtureCall.entry")
     assert_equal [0, 10], target.literals.ints
     refute_includes target.literals.ints, 9
     assert target.covers_line?(5)
@@ -26,13 +26,13 @@ class TargetTest < Minitest::Test
   end
 
   def test_case_infers_string_and_int
-    target = Concolic::Target.parse(File.join(@root, "test/fixtures/branches.rb"), "FixtureBranches.demo")
+    target = Branchout::Target.parse(File.join(@root, "test/fixtures/branches.rb"), "FixtureBranches.demo")
     types = target.positional.map { |param| [param.name, param.inferred_type] }
     assert_equal [[:s, "string"], [:n, "int"]], types
   end
 
   def test_instance_method_entry
-    target = Concolic::Target.parse(File.join(@root, "test/fixtures/box.rb"), "FixtureBox#parity")
+    target = Branchout::Target.parse(File.join(@root, "test/fixtures/box.rb"), "FixtureBox#parity")
     refute target.singleton
     assert_equal :parity, target.method_name
     assert_equal "int", target.positional.first.inferred_type
@@ -54,7 +54,7 @@ class TargetTest < Minitest::Test
         end
       end
     RUBY
-    target = Concolic::Target.parse(path, "Foo::Bar.ping")
+    target = Branchout::Target.parse(path, "Foo::Bar.ping")
     assert_equal "Foo::Bar", target.const_name
     assert_includes target.literals.ints, 2
   ensure
@@ -62,15 +62,15 @@ class TargetTest < Minitest::Test
   end
 
   def test_bad_entry
-    error = assert_raises(Concolic::Error) do
-      Concolic::Target.parse(File.join(@root, "test/fixtures/magic.rb"), "nope")
+    error = assert_raises(Branchout::Error) do
+      Branchout::Target.parse(File.join(@root, "test/fixtures/magic.rb"), "nope")
     end
     assert_match(/bad entry/, error.message)
   end
 
   def test_type_override_length
-    error = assert_raises(Concolic::Error) do
-      Concolic::Target.parse(
+    error = assert_raises(Branchout::Error) do
+      Branchout::Target.parse(
         File.join(@root, "test/fixtures/arith.rb"),
         "FixtureArith.classify",
         type_overrides: ["int"]

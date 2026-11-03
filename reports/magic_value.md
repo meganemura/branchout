@@ -1,6 +1,6 @@
-# concolic explore
+# branchout explore
 
-concolic explore
+branchout explore
 target: examples/magic_value.rb
 entry: MagicValue.classify
 seed: 1

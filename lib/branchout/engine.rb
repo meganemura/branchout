@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Concolic
+module Branchout
   class Engine
     STRATEGY_ORDER = %w[inputs mutate random].freeze
 

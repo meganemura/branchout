@@ -1,6 +1,6 @@
-# concolic explore
+# branchout explore
 
-concolic explore
+branchout explore
 target: examples/version_parser.rb
 entry: VersionParser.parse
 seed: 1

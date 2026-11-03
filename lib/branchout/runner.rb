@@ -2,7 +2,7 @@
 
 require "coverage"
 
-module Concolic
+module Branchout
   module CoverageSession
     module_function
 

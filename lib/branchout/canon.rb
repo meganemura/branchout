@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Concolic
+module Branchout
   # Byte-stable JSON. Key order is sorted, floats have a fixed spelling,
   # and non-ASCII is escaped so the bytes do not depend on a JSON mode flag.
   module Canon

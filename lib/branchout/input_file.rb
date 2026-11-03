@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Concolic
+module Branchout
   module InputFile
     module_function
 

@@ -1,4 +1,4 @@
-concolic baselines
+branchout baselines
 target: examples/arithmetic.rb
 entry: Arithmetic.classify
 seed: 1

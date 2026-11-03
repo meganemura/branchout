@@ -2,14 +2,14 @@
 
 require "fileutils"
 
-module Concolic
+module Branchout
   module CLI
     HELP = <<~TEXT
-      concolic #{VERSION}
+      branchout #{VERSION}
 
       Usage:
-        concolic explore TARGET ENTRY [options]
-        concolic baselines TARGET ENTRY [options]
+        branchout explore TARGET ENTRY [options]
+        branchout baselines TARGET ENTRY [options]
 
       ENTRY is Const.method or Const#method. --entry ENTRY is accepted too.
 
@@ -28,6 +28,7 @@ module Concolic
         --json-out PATH     write JSON to a file
         --md-out PATH       write the text report as Markdown
         --emit-tests PATH   write characterization tests (explore only)
+        --format NAME       minitest or rspec (default minitest; _spec.rb infers rspec)
         --help
         --version
     TEXT
@@ -37,7 +38,7 @@ module Concolic
     def start(argv)
       run(argv)
     rescue Error => e
-      warn "concolic: #{e.message}"
+      warn "branchout: #{e.message}"
       1
     end
 
@@ -48,7 +49,7 @@ module Concolic
         return 0
       end
       if args == ["--version"] || args == ["-v"]
-        puts "concolic #{VERSION}"
+        puts "branchout #{VERSION}"
         return 0
       end
 
@@ -66,7 +67,8 @@ module Concolic
         entry: nil,
         json_out: nil,
         md_out: nil,
-        emit_tests: nil
+        emit_tests: nil,
+        format: nil
       }
       positionals = []
       until args.empty?
@@ -83,6 +85,7 @@ module Concolic
         when "--json-out" then opts[:json_out] = take(args, arg)
         when "--md-out" then opts[:md_out] = take(args, arg)
         when "--emit-tests" then opts[:emit_tests] = take(args, arg)
+        when "--format" then opts[:format] = take(args, arg)
         when "--help", "-h"
           puts HELP
           return 0
@@ -103,6 +106,12 @@ module Concolic
       raise Error, "mutate-cap must be >= 0" if opts[:mutate_cap].negative?
       if opts[:emit_tests] && command != "explore"
         raise Error, "--emit-tests is only valid with explore"
+      end
+      if opts[:format] && !opts[:emit_tests]
+        raise Error, "--format requires --emit-tests"
+      end
+      if opts[:emit_tests]
+        opts[:format] = Emitters.resolve(opts[:format], opts[:emit_tests])
       end
 
       user_inputs = []
@@ -130,7 +139,8 @@ module Concolic
         write_optional(opts[:md_out], Report.markdown(result))
         if opts[:emit_tests]
           parsed = Target.parse(target, entry, type_overrides: type_overrides)
-          Characterize.write(result, parsed, opts[:emit_tests])
+          format = Emitters.resolve(opts[:format], opts[:emit_tests])
+          Emitters.write(format, result, parsed, opts[:emit_tests])
         end
       when "baselines"
         info = {

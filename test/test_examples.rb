@@ -5,7 +5,7 @@ require "open3"
 
 class ExampleReportTest < Minitest::Test
   ROOT = File.expand_path("..", __dir__)
-  BIN = File.join(ROOT, "bin/concolic")
+  BIN = File.join(ROOT, "bin/branchout")
 
   DEMOS = [
     ["magic_value", "examples/magic_value.rb", "MagicValue.classify"],

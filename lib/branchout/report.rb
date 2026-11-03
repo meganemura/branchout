@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Concolic
+module Branchout
   module Report
     module_function
 
@@ -37,12 +37,12 @@ module Concolic
     end
 
     def markdown(result)
-      "# concolic #{result.command}\n\n#{text(result)}"
+      "# branchout #{result.command}\n\n#{text(result)}"
     end
 
     def baselines_text(info, rows)
       lines = [
-        "concolic baselines",
+        "branchout baselines",
         "target: #{info[:target]}",
         "entry: #{info[:entry]}",
         "seed: #{info[:seed]}",
@@ -94,12 +94,12 @@ module Concolic
     end
 
     def baselines_markdown(info, rows)
-      "# concolic baselines\n\n#{baselines_text(info, rows)}"
+      "# branchout baselines\n\n#{baselines_text(info, rows)}"
     end
 
     def header_lines(result)
       [
-        "concolic #{result.command}",
+        "branchout #{result.command}",
         "target: #{result.target}",
         "entry: #{result.entry}",
         "seed: #{result.seed}",

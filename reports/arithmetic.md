@@ -1,6 +1,6 @@
-# concolic explore
+# branchout explore
 
-concolic explore
+branchout explore
 target: examples/arithmetic.rb
 entry: Arithmetic.classify
 seed: 1

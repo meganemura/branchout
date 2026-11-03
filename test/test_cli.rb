@@ -7,7 +7,7 @@ require "fileutils"
 
 class CLITest < Minitest::Test
   ROOT = File.expand_path("..", __dir__)
-  BIN = File.join(ROOT, "bin/concolic")
+  BIN = File.join(ROOT, "bin/branchout")
 
   def run_cli(*args)
     Open3.capture3(RbConfig.ruby, BIN, *args.map(&:to_s), chdir: ROOT)
@@ -22,12 +22,12 @@ class CLITest < Minitest::Test
   def test_help_and_version
     stdout, stderr, status = run_cli("--help")
     assert status.success?
-    assert_includes stdout, "concolic explore"
+    assert_includes stdout, "branchout explore"
     assert_empty stderr
 
     stdout, _stderr, status = run_cli("--version")
     assert status.success?
-    assert_equal "concolic #{Concolic::VERSION}\n", stdout
+    assert_equal "branchout #{Branchout::VERSION}\n", stdout
   end
 
   def test_magic_mutation_covers_both_arms_and_is_byte_stable
@@ -58,7 +58,7 @@ class CLITest < Minitest::Test
     )
     assert status.success?
     assert_equal <<~OUT, stdout
-      concolic explore
+      branchout explore
       target: test/fixtures/magic.rb
       entry: FixtureMagic.classify
       seed: 0
@@ -258,9 +258,9 @@ class CLITest < Minitest::Test
         "--json-out", json_path, "--md-out", md_path
       )
       assert status.success?, stderr
-      assert_includes stdout, "concolic explore"
-      assert_includes File.read(md_path), "# concolic explore"
-      assert_equal stdout, File.read(md_path).sub(/\A# concolic explore\n\n/, "")
+      assert_includes stdout, "branchout explore"
+      assert_includes File.read(md_path), "# branchout explore"
+      assert_equal stdout, File.read(md_path).sub(/\A# branchout explore\n\n/, "")
       data = JSON.parse(File.read(json_path))
       assert_equal 2, data["arms_covered"]
     end

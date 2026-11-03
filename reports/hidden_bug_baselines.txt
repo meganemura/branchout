@@ -1,4 +1,4 @@
-concolic baselines
+branchout baselines
 target: examples/hidden_bug.rb
 entry: HiddenBug.scale
 seed: 1

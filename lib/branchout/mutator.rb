@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Concolic
+module Branchout
   # Literal mutation in the style of a cheap comparison-guided fuzzer.
   # Every source literal is tried in each argument slot. A capped cartesian
   # product of the first two numeric slots comes after that, so a magic

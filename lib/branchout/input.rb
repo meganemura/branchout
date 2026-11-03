@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Concolic
+module Branchout
   class Input
     attr_reader :args, :kwargs
 

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Concolic
+module Branchout
   class Sampler
     ALPHABET = "abc01.-"
     INT_MIN = -3

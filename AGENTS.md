@@ -1,4 +1,4 @@
-# concolic をエージェントが回す
+# branchout をエージェントが回す
 
 このツールは LLM を呼ばない。フロンティアを読み、入力を足し、同じコマンドを再実行するのは、人間かコーディングエージェントの仕事。
 
@@ -7,7 +7,7 @@
 探索中はランダムとリテラル変異を切り、足した入力だけが新しいカバーの原因になるようにする。
 
 ```sh
-ruby bin/concolic explore TARGET.rb Const.method \
+ruby bin/branchout explore TARGET.rb Const.method \
   --inputs path/to/inputs.json \
   --strategy inputs \
   --random 0 \
@@ -64,14 +64,16 @@ ruby bin/concolic explore TARGET.rb Const.method \
 ## 終わったら
 
 ```sh
-ruby bin/concolic explore TARGET.rb Const.method \
+ruby bin/branchout explore TARGET.rb Const.method \
   --inputs path/to/inputs.json \
   --strategy inputs --random 0 --seed 1 \
   --emit-tests test/generated/name_test.rb \
   --json-out reports/name.json \
   --md-out reports/name.md
 
-ruby bin/concolic baselines TARGET.rb Const.method \
+RSpec にするときは `--emit-tests spec/generated/name_spec.rb`（`_spec.rb` なら `--format` は不要）。明示するなら `--format rspec`。
+
+ruby bin/branchout baselines TARGET.rb Const.method \
   --inputs path/to/inputs.json \
   --seed 1 --random 40
 ```

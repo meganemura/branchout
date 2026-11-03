@@ -1,8 +1,10 @@
-# concolic
+# branchout
 
-Ruby メソッドの分岐を、具体入力で実行しながら潰していくための小さな CLI。Concolic execution の「通った経路を見て、まだ通っていない腕への入力を求める」部分だけを残し、SMT も LLM もツールの中では呼ばない。未カバーの腕は短いフロンティアとして出す。次の入力を決めるのは、それを読む人間かコーディングエージェント。
+カバレッジに導かれる、エージェント駆動の入力探索。concolic execution に着想を得ているが、ツールの中では記号制約を集めず、解かない。
 
-依存 gem はない。Coverage、Prism、json、minitest は処理系に付いているものを使う。Ruby 3.3 以降のその API を想定し、Ruby 3.4.12 と Ruby 4.0.9 で `ruby test/run_all.rb` が通ること、デモのレポートが両者でバイト一致することを確認した。3.3 そのものでは実行していない。
+concolic execution は具体実行と同時に経路条件を記録し、まだ通っていない枝をソルバに解かせる。branchout がやるのはその前半の観測だけである。対象メソッドを具体入力で実行し、Coverage の分岐腕のうち未カバーのものを短いフロンティアとして出す。次の入力を提案するのは、その出力を読む人間かコーディングエージェントで、ツールの外にいる。SMT も LLM も呼ばない。
+
+実行に gem は要らない。Coverage、Prism、json、minitest は処理系に付いているものを使う。出した RSpec を走らせるときだけ `rspec` が要る。開発用の Gemfile では minitest と rspec を dev dependency にしている。Ruby 3.3 以降のその API を想定し、Ruby 3.4.12 と Ruby 4.0.9 で `ruby test/run_all.rb` と `bundle exec rspec spec/generated` が通ること、デモの件数とカバー数が両者で一致することを確認した。3.3 そのものでは実行していない。
 
 ## 設計
 
@@ -14,27 +16,34 @@ Ruby メソッドの分岐を、具体入力で実行しながら潰していく
 6. リテラル変異は、そのスライスに出てくる整数・浮動小数・文字列を集め、各引数スロットへ入れる。整数は 0, 1, -1 とリテラル±1 も入れる。数値 2 引数だけ直積を足し、`--mutate-cap` で切る。文字列リテラル同士は連結しない。
 7. ランダムは純 Ruby の Park-Miller。整数は -3..12、文字列は長さ 0..3、文字は `abc01.-`。種は `--seed`。
 8. 例外は捕捉して所見にする。ゼロ除算のような、腕の中に隠れている故障はカバー数とは別に残る。
-9. 発見した入力（inputs に書いたもの、腕の証人、例外を起こした入力）から minitest の特徴づけテストを出す。
+9. 発見した入力（inputs に書いたもの、腕の証人、例外を起こした入力）から特徴づけテストを出す。エミッタは `lib/branchout/emitters/` に分かれており、minitest と RSpec を選べる。コアはどちらも require しない。
 
 出力に時刻は入れない。同じ入力、同じフラグ、同じ CRuby なら標準出力はバイト一致する。
 
 ## 実行
 
 ```sh
-ruby bin/concolic explore examples/magic_value.rb MagicValue.classify \
+ruby bin/branchout explore examples/magic_value.rb MagicValue.classify \
   --inputs examples/inputs/magic_value.json \
   --strategy inputs --random 0 --seed 1
 
-ruby bin/concolic baselines examples/magic_value.rb MagicValue.classify \
+ruby bin/branchout baselines examples/magic_value.rb MagicValue.classify \
   --inputs examples/inputs/magic_value.json \
   --seed 1 --random 40
+
+ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \
+  --inputs examples/inputs/hidden_bug.json \
+  --strategy inputs --random 0 --seed 1 \
+  --emit-tests spec/generated/hidden_bug_spec.rb
+
+bundle exec rspec spec/generated
 
 ruby test/run_all.rb
 ```
 
 `ENTRY` は `Const.method` か `Const#method`。後者は `new` の必須引数が 0 であること。
 
-主なフラグは `--inputs`、`--seed`、`--random`、`--mutate-cap`、`--strategy inputs,mutate,random`、`--timeout`、`--json`、`--json-out`、`--md-out`、`--emit-tests`。
+主なフラグは `--inputs`、`--seed`、`--random`、`--mutate-cap`、`--strategy inputs,mutate,random`、`--timeout`、`--json`、`--json-out`、`--md-out`、`--emit-tests`、`--format minitest|rspec`。`--format` を省くと、出力パスが `_spec.rb` で終わるときだけ RSpec、それ以外は minitest。
 
 inputs の形:
 
@@ -59,7 +68,7 @@ inputs の形:
 魔法数のラウンド 0（`examples/inputs/magic_value.seed.json`）:
 
 ```
-concolic explore
+branchout explore
 target: examples/magic_value.rb
 entry: MagicValue.classify
 seed: 1
@@ -133,11 +142,14 @@ hidden_bug の変異は直積で 4 腕すべてを通した。`a == 2 * b` か�
 
 ## 特徴づけテスト
 
-`test/generated/` は最終 inputs から出した minitest。戻り値、または例外クラスとメッセージを固定する。
+`test/generated/` は minitest、`spec/generated/` は RSpec。どちらも最終 inputs から出し、戻り値、または例外クラスとメッセージを固定する。
 
 ```sh
 ruby test/generated/hidden_bug_test.rb
+bundle exec rspec spec/generated/hidden_bug_spec.rb
 ```
+
+RSpec 側は `expect(HiddenBug.scale(0, 0)).to eq(:out_of_range)` と `expect { HiddenBug.scale(24, 12) }.to raise_error(ZeroDivisionError, "divided by 0")` の形になる。
 
 `HiddenBug.scale(24, 12)` は `ZeroDivisionError` と `"divided by 0"`。`HiddenBug.scale(11, 11)` は `-91`（`1000 / -11`）。
 
@@ -159,7 +171,7 @@ id、フロンティア、例外、ベースラインの行はソートされる
 
 ## 次の一歩
 
-発見した具体値は、プロパティテストの種になる。gem `hegeltest`（Hegel の Ruby バインディング）は `Hegel.test` で値を引き、失敗を `reproduce_failure` と example database（`database_key`）で再生する。concolic の inputs.json を、そのデータベースの初期失敗として入れるか、プロパティの先頭で同じ引数を一度ずつ評価するアダプタに渡す。Hypothesis 系の crosshair がソルバで例を寄せるのと同じ位置を、ここではフロンティアとエージェントの提案が担う。
+発見した具体値は、プロパティテストの種になる。gem `hegeltest`（Hegel の Ruby バインディング）は `Hegel.test` で値を引き、失敗を `reproduce_failure` と example database（`database_key`）で再生する。branchout の inputs.json を、そのデータベースの初期失敗として入れるか、プロパティの先頭で同じ引数を一度ずつ評価するアダプタに渡す。Hypothesis 系の crosshair がソルバで例を寄せるのと同じ位置を、ここではフロンティアとエージェントの提案が担う。
 
 Just-in-Time catching test にするなら、同じ入力を base と head で実行し、戻り値か例外が割れたものだけを残す。shadow symbolic execution が変更の影響する経路へ入力を寄せる代わりに、未カバー腕と、そこへ到達した nearest を種にする。
 

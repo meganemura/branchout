@@ -1,6 +1,6 @@
-# concolic explore
+# branchout explore
 
-concolic explore
+branchout explore
 target: examples/hidden_bug.rb
 entry: HiddenBug.scale
 seed: 1

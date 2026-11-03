@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Concolic
+module Branchout
   # Park-Miller minimal standard generator. Pure Ruby so the stream does not
   # depend on CRuby's Random implementation.
   class Rng

@@ -1,4 +1,4 @@
-concolic baselines
+branchout baselines
 target: examples/version_parser.rb
 entry: VersionParser.parse
 seed: 1

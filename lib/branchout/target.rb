@@ -2,7 +2,7 @@
 
 require "prism"
 
-module Concolic
+module Branchout
   # Static picture of one method: where it lives, which same-file callees it
   # reaches, the literals in that slice, and the condition text for each
   # decision Prism can see.

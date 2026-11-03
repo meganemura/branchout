@@ -18,3 +18,11 @@ module FixtureNamed
   def twice(x) = x > 3 ? :big : :small
   module_function :twice
 end
+
+module FixtureExtended
+  def early(x) = x > 2 ? :big : late(x)
+
+  extend self
+
+  def late(x) = x.zero? ? :zero : :other
+end

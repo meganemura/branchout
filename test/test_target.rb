@@ -81,6 +81,15 @@ class TargetTest < Minitest::Test
     assert_match(/cannot find FixtureNamed.nope/, error.message)
   end
 
+  def test_extend_self_makes_every_def_a_class_method_once
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "t.rb")
+      File.write(path, "module T\n  def f(x) = g(x)\n  module_function\n  extend self\n  def g(x) = x > 1\nend\n")
+      assert Branchout::Target.parse(path, "T.f").covers_line?(5)
+      assert Branchout::Target.parse(path, "T.g")
+    end
+  end
+
   # Each source is the body of module T; the type is inferred for the first
   # positional parameter of T.f. Ties go string, hash, array, float, int.
   TYPE_CASES = {

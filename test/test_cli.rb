@@ -228,6 +228,18 @@ class CLITest < Minitest::Test
     end
   end
 
+  def test_an_extend_self_method_runs_as_a_class_method
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [[3], [0], [1]] })
+      stdout, stderr, status = run_cli(
+        "explore", "test/fixtures/helpers.rb", "FixtureExtended.early",
+        "--strategy", "inputs", "--random", "0", "--inputs", path
+      )
+      assert status.success?, stderr
+      assert_includes stdout, "arms_covered: 4\narms_total: 4"
+    end
+  end
+
   def test_an_entry_with_no_arms_warns
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [[1]] })

@@ -373,9 +373,10 @@ module Branchout
       end
     end
 
-    # functions tracks module_function in the current module body: a bare
-    # call makes every later def a class method too, and named arguments
-    # make those defs class methods too.
+    # functions tracks module_function and extend self in the current module
+    # body: a bare module_function makes every later def a class method too,
+    # named arguments make those defs class methods too, and extend self
+    # makes every def in the body one, including those above it.
     def collect_defs(node, stack, in_singleton, acc, functions = nil)
       return unless node.is_a?(Prism::Node)
 
@@ -384,12 +385,17 @@ module Branchout
         return unless node.body
 
         inner = stack + [module_segment(node, stack)]
-        functions = { after: false, names: [] }
+        functions = { after: false, names: [], all: false }
         collect_defs(node.body, inner, false, acc, functions)
         named = acc.select do |info|
-          info.const_name == inner.join("::") && !info.singleton && functions[:names].include?(info.node.name)
+          info.const_name == inner.join("::") && !info.singleton &&
+            (functions[:all] || functions[:names].include?(info.node.name))
         end
-        named.each { |info| acc << DefInfo.new(const_name: info.const_name, singleton: true, node: info.node) }
+        named.each do |info|
+          next if acc.any? { |other| other.singleton && other.node.equal?(info.node) }
+
+          acc << DefInfo.new(const_name: info.const_name, singleton: true, node: info.node)
+        end
       when :singleton_class_node
         collect_defs(node.body, stack, true, acc) if node.body
       when :def_node
@@ -401,6 +407,10 @@ module Branchout
           arguments = node.arguments&.arguments
           functions[:after] = true unless arguments
           Array(arguments).each { |arg| functions[:names] << arg.unescaped.to_sym if arg.type == :symbol_node }
+        end
+        if functions && node.type == :call_node && node.name == :extend && node.receiver.nil? &&
+           node.arguments&.arguments&.map(&:type) == [:self_node]
+          functions[:all] = true
         end
         node.compact_child_nodes.each { |child| collect_defs(child, stack, in_singleton, acc, functions) }
       end

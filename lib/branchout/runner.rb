@@ -21,7 +21,9 @@ module Branchout
   # Branch counters are cleared between calls. Load-time execution is discarded.
   class Runner
     Execution = Struct.new(:input, :value, :error, :lines, :branches, :path_ids, :origin, keyword_init: true)
-    ExceptionInfo = Struct.new(:class_name, :message, :loc, :stable_message, keyword_init: true)
+    # +name+ is the missing name of a NameError, which is stable where its
+    # message is not: Ruby 3.4 reworded both NameError and NoMethodError.
+    ExceptionInfo = Struct.new(:class_name, :message, :loc, :stable_message, :name, keyword_init: true)
 
     attr_reader :template
 
@@ -177,7 +179,8 @@ module Branchout
         loc = "#{display_path}:#{fallback_line}"
       end
       name = exception.is_a?(Timeout::Error) ? "Timeout::Error" : exception.class.name
-      new(class_name: name, message: clean, loc: loc, stable_message: stable)
+      missing = exception.name if exception.is_a?(NameError) && exception.name.is_a?(Symbol)
+      new(class_name: name, message: clean, loc: loc, stable_message: stable, name: missing)
     end
 
     def self.locate(exception, display_path, real_path)

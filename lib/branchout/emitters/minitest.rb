@@ -40,7 +40,9 @@ module Branchout
           lines << "    error = assert_raises(#{pin.error.class_name}) do"
           lines << "      #{call}"
           lines << "    end"
-          if pin.error.stable_message
+          if pin.error.name
+            lines << "    assert_equal #{pin.error.name.inspect}, error.name"
+          elsif pin.error.stable_message
             lines << "    assert_equal #{pin.error.message.inspect}, error.message"
           end
         elsif pin.value.nil?

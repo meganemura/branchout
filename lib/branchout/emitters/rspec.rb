@@ -37,7 +37,9 @@ module Branchout
         lines.concat(Support.cover_comment(pin, "    "))
         call = Support.render_call(target, pin.input)
         if pin.error
-          if pin.error.stable_message
+          if pin.error.name
+            lines << "    expect { #{call} }.to raise_error(#{pin.error.class_name}) { |error| expect(error.name).to eq(#{pin.error.name.inspect}) }"
+          elsif pin.error.stable_message
             lines << "    expect { #{call} }.to raise_error(#{pin.error.class_name}, #{pin.error.message.inspect})"
           else
             lines << "    expect { #{call} }.to raise_error(#{pin.error.class_name})"

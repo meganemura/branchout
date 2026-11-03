@@ -93,7 +93,7 @@ In one round, add inputs only for arms that are reached now and for faults you c
 
 ## Emit tests
 
-When you stop, emit characterization tests. Each one pins a discovered input's return value, or the exception class and message. A return value with no Ruby literal, such as a `Set` or a `Struct`, is pinned by its class only.
+When you stop, emit characterization tests. Each one pins a discovered input's return value, or the exception class and message. A `NameError` or `NoMethodError` is pinned by its class and `error.name`, so the test passes on Ruby 3.3 and 3.4+ alike. A return value with no Ruby literal, such as a `Set` or a `Struct`, is pinned by its class only.
 
 ```sh
 branchout explore TARGET.rb Const.method \
@@ -154,7 +154,7 @@ A test that passes on base and fails on head is a changed return value or except
 - A path is a set of arms, not an order. Two orders that take the same arms look the same. A modifier `unless` can put `then` and `else` at the same `loc`; the arm name in the id distinguishes them.
 - Only a bare call, a `self.` call, and a call on a bare `new(...)` in the same file are followed. `def self.apply(doc) = new(doc).apply` reaches `initialize` and `#apply`. `send`, another receiver, and other files are out of scope. When the entry reaches no arm, `explore` warns on stderr; target the method that branches.
 - `new` passes constructor arguments only. A receiver whose state comes from later calls, such as `cart.add(...)`, cannot be set up. Target a method that takes that state as arguments.
-- Emitted tests pin exception messages exactly. Ruby 3.4 changed the text of `NoMethodError`, so run emitted tests on the Ruby that emitted them.
+- Emitted tests pin other exception messages exactly. A message that differs between Ruby versions fails on a Ruby other than the one that emitted it.
 - `Timeout.timeout` does not stop every block. If the timeout backtrace has no target line, `loc` is the method definition line.
 - An unsatisfiable condition stays on the frontier. Stop trying it.
 - Coverage is process-global. Run the CLI in its own process.

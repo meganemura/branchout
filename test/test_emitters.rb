@@ -108,6 +108,35 @@ class EmitterTest < Minitest::Test
     end
   end
 
+  # NameError and NoMethodError reword their messages between Ruby 3.3 and
+  # 3.4, so their pin is the missing name.
+  def test_a_name_error_is_pinned_by_its_name_not_its_message
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "names.rb")
+      File.write(target, "module T\n  def self.f(x) = x.zero? ? x.upcase : Missing\nend\n")
+      inputs = File.join(dir, "inputs.json")
+      File.write(inputs, JSON.generate({ "inputs" => [[0], [1]] }))
+      test = File.join(dir, "names_test.rb")
+      spec = File.join(dir, "names_spec.rb")
+      [test, spec].each do |path|
+        _out, err, status = run_cli(
+          "explore", target, "T.f", "--inputs", inputs, "--strategy", "inputs", "--random", "0", "--emit-tests", path
+        )
+        assert status.success?, err
+      end
+      test_source = File.read(test)
+      assert_includes test_source, "    error = assert_raises(NoMethodError) do\n      T.f(0)\n    end\n" \
+                                   "    assert_equal :upcase, error.name\n"
+      assert_includes test_source, "    assert_equal :Missing, error.name\n"
+      refute_includes test_source, "undefined"
+      spec_source = File.read(spec)
+      assert_includes spec_source, "expect { T.f(0) }.to raise_error(NoMethodError) { |error| expect(error.name).to eq(:upcase) }"
+      assert_includes spec_source, "expect { T.f(1) }.to raise_error(NameError) { |error| expect(error.name).to eq(:Missing) }"
+      _out, err, status = Open3.capture3(RbConfig.ruby, test)
+      assert status.success?, err
+    end
+  end
+
   def test_a_nil_return_value_emits_assert_nil
     Dir.mktmpdir do |dir|
       inputs = File.join(dir, "inputs.json")

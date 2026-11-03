@@ -481,6 +481,23 @@ class CLITest < Minitest::Test
     assert_includes stderr, "unknown command"
   end
 
+  # Kernel#warn prints nothing under -W0, and an error or a no-branch
+  # notice must still reach the person running the command.
+  def test_errors_and_notices_print_under_w0
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [[1]] })
+      _stdout, stderr, status = Open3.capture3(RbConfig.ruby, "-W0", BIN, "nope", chdir: ROOT)
+      refute status.success?
+      assert_equal "branchout: unknown command \"nope\"\n", stderr
+      _stdout, stderr, status = Open3.capture3(
+        RbConfig.ruby, "-W0", BIN, "explore", "test/fixtures/delegate.rb", "FixtureDelegate.forward",
+        "--strategy", "inputs", "--random", "0", "--inputs", path, chdir: ROOT
+      )
+      assert status.success?
+      assert_includes stderr, "have no branches"
+    end
+  end
+
   USAGE_ERRORS = {
     %w[explore test/fixtures/magic.rb] => "missing ENTRY",
     %w[explore test/fixtures/magic.rb A.b extra] => "unexpected arguments: extra",

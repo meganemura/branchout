@@ -39,7 +39,7 @@ module Branchout
     def start(argv)
       run(argv)
     rescue Error => e
-      warn "branchout: #{e.message}"
+      $stderr.puts "branchout: #{e.message}"
       1
     end
 
@@ -140,7 +140,7 @@ module Branchout
         stdout = opts[:json] ? Report.json(result) : Report.text(result)
         $stdout.write(stdout)
         if result.covered.empty? && result.frontier.empty?
-          warn "branchout: #{entry} and the methods it calls in #{result.target} have no branches. " \
+          $stderr.puts "branchout: #{entry} and the methods it calls in #{result.target} have no branches. " \
                "Only a bare call, a self. call, and a call on new are followed; target the method that branches. " \
                "--emit-tests still pins the return value or error of each input."
         end

@@ -376,13 +376,13 @@ class CLITest < Minitest::Test
   # it is loaded again to be measured.
   def test_branchout_explores_its_own_files
     Dir.mktmpdir do |dir|
-      path = write_inputs(dir, { "inputs" => [[["ab", "cd"], 1], [["ab", "cd"], 9]] })
+      path = write_inputs(dir, { "inputs" => [["a"], ["a b"]] })
       stdout, stderr, status = run_cli(
-        "explore", "lib/branchout/emitters/support.rb", "Branchout::Emitters::Support.clip",
+        "explore", "lib/branchout/emitters/support.rb", "Branchout::Emitters::Support.keyword_literal",
         "--strategy", "inputs", "--random", "0", "--inputs", path
       )
       assert status.success?, stderr
-      assert_includes stdout, "arms_covered: 3"
+      assert_includes stdout, "arms_covered: 2\narms_total: 2\n"
       assert_empty stderr
     end
   end

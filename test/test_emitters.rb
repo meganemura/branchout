@@ -276,6 +276,7 @@ class EmitterTest < Minitest::Test
       pin.(["   ", 1], nil, error),
       pin.([""], :ok),
       pin.([50], receipt),
+      pin.([51], { "line_items" => [], sum: 0, "discount" => 1 }),
       pin.([1], "raised ArgumentError: bad quantity"),
       pin.([2], [[1, 2], [3]]),
       pin.([3], {})
@@ -283,7 +284,8 @@ class EmitterTest < Minitest::Test
     expected = [
       /\Atest_blank_1_raises_argument_error_\h{6}\z/,
       /\Atest_empty_returns_ok_\h{6}\z/,
-      /\Atest_50_returns_hash_discount_discount_\h{6}\z/,
+      /\Atest_50_returns_hash__discount_\h{6}\z/,
+      /\Atest_51_returns_hash__line_items__sum_\h{6}\z/,
       /\Atest_1_returns_raised_argumenterror_\h{6}\z/,
       /\Atest_2_returns_array_of_2_\h{6}\z/,
       /\Atest_3_returns_empty_hash_\h{6}\z/

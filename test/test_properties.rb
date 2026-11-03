@@ -101,12 +101,25 @@ class PropertyTest < Minitest::Test
       error = tc.draw(booleans) ? Branchout::Runner::ExceptionInfo.new(class_name: "Foo::BarError") : nil
       pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: args), value: tc.draw(value), error: error, arm_ids: [])
       name = Branchout::Emitters::Support.test_names([pin]).first
-      *words, digest = name.split("_")
+      *words, digest = name.split(/_+/)
       assert_match(/\A\h{6}\z/, digest)
       words.each { |part| assert(vocabulary.include?(part) || shapes.include?(part) || part.match?(/\A(neg)?\d+\z/), name) }
       first = args.first
       expected = first.is_a?(Integer) ? first.to_s.sub("-", "neg") : { "" => "empty", " " => "blank", "  " => "blank" }.fetch(first, first)
       assert_equal expected, words[1], name
+    end
+  end
+
+  # A Hash outcome names its first keys whole and in order, each after "__".
+  def test_a_hash_outcome_names_its_first_keys_whole
+    keys = sampled_from(%w[due line_items discount_cents a_b_c qty])
+    Hegel.test do |tc|
+      value = tc.draw(hashes(keys, integers(min_value: 0, max_value: 9), min_size: 1, max_size: 5))
+      pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1]), value: value, error: nil, arm_ids: [])
+      name = Branchout::Emitters::Support.test_names([pin]).first
+      named = name.delete_prefix("test_1_returns_hash__").sub(/_\h{6}\z/, "").split("__")
+      refute_empty named, name
+      assert_equal value.keys.first(named.length), named, name
     end
   end
 

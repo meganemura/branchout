@@ -188,7 +188,7 @@ module Branchout
       def shape_words(value)
         case value
         when {}, [] then ["empty", value.is_a?(Hash) ? "hash" : "array"]
-        when Hash then ["hash", *value.keys.map(&:to_s)]
+        when Hash then ["hash", *value.keys.map { |key| Key.new(key.to_s) }]
         when Array
           value.any? { |item| item.is_a?(Hash) || item.is_a?(Array) } ? ["array", "of", value.length.to_s] : value_words(value)
         else value_words(value)
@@ -226,17 +226,34 @@ module Branchout
         [class_name.gsub("::", "_").gsub(/([a-z\d])([A-Z])/, '\1_\2')]
       end
 
+      # A Hash key in a name. It is set off by "__" and never cut, so
+      # line_items reads as one key and not as the keys line and items.
+      Key = Data.define(:text)
+
       # Joins words into identifier characters, at most +limit+ long, cut
       # between words. Only a first word longer than +limit+ is cut inside.
       def clip(words, limit)
-        tokens = words.join("_").downcase.split(/[^a-z0-9]+/).reject(&:empty?)
-        return tokens.first.to_s[0, limit] if tokens.first.to_s.length > limit
+        units = words.flat_map do |word|
+          next tokens(word).map { |token| ["_", token] } unless word.is_a?(Key)
 
-        tokens.each_with_object([]) { |token, kept|
-          break kept if (kept + [token]).join("_").length > limit
+          key = tokens(word.text).join("_")
+          key.empty? ? [] : [["__", key]]
+        end
+        return "" if units.empty?
 
-          kept << token
-        }.join("_")
+        text = units.first[1]
+        return text[0, limit] if text.length > limit
+
+        units.drop(1).each do |joiner, unit|
+          break if text.length + joiner.length + unit.length > limit
+
+          text += joiner + unit
+        end
+        text
+      end
+
+      def tokens(word)
+        word.to_s.downcase.split(/[^a-z0-9]+/).reject(&:empty?)
       end
 
       def cover_comment(pin, indent)

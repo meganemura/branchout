@@ -155,6 +155,19 @@ class CLITest < Minitest::Test
     end
   end
 
+  def test_each_input_gets_a_new_receiver
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [[2], [3]] })
+      stdout, stderr, status = run_cli(
+        "explore", "test/fixtures/tally.rb", "FixtureTally#bump",
+        "--strategy", "inputs", "--random", "0", "--inputs", path
+      )
+      assert status.success?, stderr
+      assert_includes stdout, "arms_covered: 1"
+      assert_includes stdout, "FRONTIER\nid: if@10:4/then@11:6"
+    end
+  end
+
   def test_division_is_recorded
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [{ "args" => [24, 12] }] })

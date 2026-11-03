@@ -70,20 +70,23 @@ module Branchout
       if @target.singleton
         const.method(@target.method_name)
       else
-        build_receiver(const).method(@target.method_name)
+        instance_entry(const)
       end
     rescue NameError => e
       raise Error, "cannot resolve #{@target.entry}: #{e.message}"
     end
 
-    def build_receiver(const)
+    # Each call gets a new receiver, as an emitted test does, so one input
+    # cannot change the state the next input sees.
+    def instance_entry(const)
       init = const.instance_method(:initialize)
       required = init.parameters.count { |kind, _name| kind == :req }
       if required.positive?
         raise Error, "#{@target.const_name}#initialize requires #{required} arguments"
       end
 
-      const.new
+      method = const.instance_method(@target.method_name)
+      ->(*args, **kwargs) { method.bind_call(const.new, *args, **kwargs) }
     end
 
     def invoke(input)

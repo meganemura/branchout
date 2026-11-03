@@ -152,7 +152,14 @@ branchout explore lib/foo/parser.rb Foo::Parser.parse --require lib/foo.rb \
 jitcatch run --repo REPO BASE HEAD TESTS_DIR
 ```
 
-For an RSpec project, emit `--format rspec` to a `*_spec.rb` file in TESTS_DIR; jitcatch runs each example as one row and prints `rerun: bundle exec rspec {tests}/name_spec.rb:LINE`.
+For an RSpec project, emit `--format rspec` to a `*_spec.rb` file in TESTS_DIR. jitcatch runs each example as one row, named by its full description, and the row's `rerun:` line runs that one example from the repository root. On branchout itself, with jitcatch fe33733 and a spec that branchout 256128a emitted on the base checkout:
+
+```text
+  c01 Branchout::Emitters::Support.hash_differences returns [[], []] when values[0]["tests"][0] is 1, values[0]["counts"]["discarded"] is 0, values[1]["tests"][0] is 1 and values[1]["counts"]["discarded"] is 1 base=pass head=fail m18 assertion,report,touches:changed_method
+    expected: [[], []]
+    got: [[[["counts", "discarded"], 0]], [[["counts", "discarded"], 1]]]
+    rerun: bundle exec ruby -Ilib -I. -e 'require "rspec/core"; RSpec::Core::RubyProject.instance_variable_set(:@project_root, Dir.pwd); exit(RSpec::Core::Runner.run(ARGV))' {tests}/hash_differences_spec.rb:21
+```
 
 When `initialize` takes other arguments on head than on base, an input's `new` fits one side only, and every row of the other side fails with an arity `ArgumentError` (jitcatch discards it as `signature_change`). Emit on the side whose constructor the test should pin: on base, to catch a change in what the method returns for the objects base callers build. Split the inputs that need the new constructor into a second inputs file, emit it on head, and expect its rows to be `fail_on_base`; they pin the new behavior, not a regression.
 

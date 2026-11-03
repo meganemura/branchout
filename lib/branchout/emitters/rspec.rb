@@ -59,8 +59,7 @@ module Branchout
           entries = pins.map { |pin| [pin, steps_of(pin)] }
           shared = entries.map { |_, steps| steps.select { |step| step.kind == :fact } }.reduce(:&)
           entries = entries.map { |pin, steps| [pin, steps - shared] }
-          @root = build([], entries)
-          @root = Node.new(@root.steps + @root.members.first.steps, @root.members.first.members) while lone_node?(@root)
+          @root = merged(build([], entries))
         end
 
         def lines
@@ -164,7 +163,7 @@ module Branchout
 
         # Groups +entries+ by their first step, in the order they appear. An
         # entry left with only facts, or none, is an example; the rest share
-        # a node, which takes a lone child node's steps as its own.
+        # a node. Examples come before nodes.
         def build(steps, entries)
           members = []
           groups = entries.group_by { |_, rest| rest.first }
@@ -175,16 +174,19 @@ module Branchout
             elsif first.nil?
               group.each { |pin, _| members << Example.new(pin, steps_of(pin), []) }
             else
-              child = build([first], group.map { |pin, rest| [pin, rest.drop(1)] })
-              child = Node.new(child.steps + child.members.first.steps, child.members.first.members) while lone_node?(child)
-              members << child
+              members << merged(build([first], group.map { |pin, rest| [pin, rest.drop(1)] }))
             end
           end
           Node.new(steps, members.partition { |member| member.is_a?(Example) }.flatten)
         end
 
-        def lone_node?(node)
-          node.members.one? && node.members.first.is_a?(Node)
+        # A node whose one member is a node takes that node's steps and
+        # members, so a chain of single contexts reads as one.
+        def merged(node)
+          while node.members.one? && node.members.first.is_a?(Node)
+            node = Node.new(node.steps + node.members.first.steps, node.members.first.members)
+          end
+          node
         end
 
         def steps_of(pin)

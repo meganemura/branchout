@@ -275,6 +275,16 @@ class TargetTest < Minitest::Test
     parse_source(source, "Wide.open") { |target| assert_equal [4..4], target.ranges }
   end
 
+  # Prism parses superclasses that Ruby would refuse to load, so a cycle in
+  # them must still end the walk.
+  def test_a_superclass_cycle_ends
+    Timeout.timeout(5) do
+      parse_source("class A < B\nend\nclass B < A\n  def f = 1\nend\n", "A#f") { |target| assert_equal [4..4], target.ranges }
+      error = assert_raises(Branchout::Error) { parse_source("class A < B\nend\nclass B < A\nend\n", "A#f") { flunk } }
+      assert_match(/\Acannot find A#f/, error.message)
+    end
+  end
+
   def test_a_nested_def_is_not_part_of_the_method
     parse_source("module T\n  def self.f(x)\n    def self.g = 9\n    x > 1\n  end\nend\n", "T.f") do |target|
       assert_equal [1], target.literals.ints

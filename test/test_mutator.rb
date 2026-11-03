@@ -72,6 +72,31 @@ class MutatorTest < Minitest::Test
     assert_includes inputs.map(&:kwargs), { "label" => "x" }
   end
 
+  SAMPLED = "module T\n  def self.f(i, x, s, a, h, k:, opt: 1)\n    i + 1; x + 1.5; s.strip; a.first; h.keys\n  end\nend\n"
+
+  def test_sampler_stream_and_domains
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "t.rb")
+      File.write(path, SAMPLED)
+      target = Branchout::Target.parse(path, "T.f")
+      assert_equal [
+        '{"args":[4,-1.5,"--",[],{"a":0,"b":10}],"kwargs":{"k":5}}',
+        '{"args":[2,9.0,".c1",[1],{}],"kwargs":{"k":-2}}'
+      ], Branchout::Sampler.new(target, seed: 1, count: 2).inputs.map(&:canonical)
+
+      (0..20).flat_map { |seed| Branchout::Sampler.new(target, seed: seed, count: 8).inputs }.each do |input|
+        int, float, string, array, hash = input.args
+        assert_includes(-3..12, int)
+        assert_includes(-3.0..12.5, float)
+        assert_equal 0, (float * 2) % 1
+        assert_match(/\A[abc01.-]{0,3}\z/, string)
+        assert_operator array.length, :<=, 2
+        assert_includes [[], %w[a], %w[a b]], hash.keys
+        assert_equal ["k"], input.kwargs.keys
+      end
+    end
+  end
+
   INPUT_FILE_ERRORS = {
     "[1" => "invalid JSON in",
     "{}" => "is missing \"inputs\"",

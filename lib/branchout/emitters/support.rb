@@ -94,10 +94,7 @@ module Branchout
         const_part = target.const_name.gsub("::", "")
         method_part = target.method_name.to_s.gsub("?", "P").gsub("!", "B").gsub("=", "E")
         method_part = method_part.sub(/\A[a-z]/) { |char| char.upcase }
-        name = "#{const_part}#{method_part}CharacterizationTest"
-        raise Error, "cannot name a test class for #{target.entry}" unless name.match?(/\A[A-Z][A-Za-z0-9_]*\z/)
-
-        name
+        "#{const_part}#{method_part}CharacterizationTest"
       end
 
       def cover_comment(pin, indent)

@@ -124,6 +124,18 @@ class EmitterTest < Minitest::Test
     end
   end
 
+  def test_literals_calls_and_class_names
+    support = Branchout::Emitters::Support
+    assert_equal '{"a" => [nil, false], "b" => true, :c => +"x"}',
+                 support.ruby_literal({ "b" => true, c: "x", "a" => [nil, false] }, mutable: true)
+    target = Struct.new(:singleton, :const_name, :method_name, :entry).new(true, "Foo::Bar", :baz?, "Foo::Bar.baz?")
+    input = Branchout::Input.new(args: [1], kwargs: { "z" => 1, "a b" => "s" })
+    assert_equal 'Foo::Bar.baz?(1, "a b": +"s", z: 1)', support.render_call(target, input)
+    assert_equal "FooBarBazPCharacterizationTest", support.class_name_for(target)
+    target.method_name = :reset!
+    assert_equal "FooBarResetBCharacterizationTest", support.class_name_for(target)
+  end
+
   def test_explicit_format_overrides_extension
     Dir.mktmpdir do |dir|
       inputs = File.join(dir, "inputs.json")

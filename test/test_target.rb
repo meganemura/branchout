@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 require "minitest/autorun"
+require "json"
+require "open3"
+require "tmpdir"
 require "branchout"
 
 class TargetTest < Minitest::Test
@@ -76,6 +79,99 @@ class TargetTest < Minitest::Test
     assert_includes Branchout::Target.parse(path, "FixtureNamed.twice").literals.ints, 3
     error = assert_raises(Branchout::Error) { Branchout::Target.parse(path, "FixtureNamed.nope") }
     assert_match(/cannot find FixtureNamed.nope/, error.message)
+  end
+
+  # Each source is the body of module T; the type is inferred for the first
+  # positional parameter of T.f. Ties go string, hash, array, float, int.
+  TYPE_CASES = {
+    'def self.f(s) = s.include?("a")' => "string",
+    "def self.f(h) = h.keys" => "hash",
+    "def self.f(a) = a.first" => "array",
+    "def self.f(x) = x + 1.5" => "float",
+    "def self.f(x) = x + 1" => "int",
+    'def self.f(x = "a") = x' => "string",
+    "def self.f(x = 2.0) = x" => "float",
+    "def self.f(x) = x" => "int",
+    'def self.f(s) = s.include?("a") || s == 1' => "string",
+    "def self.f(h) = h.keys || h.first" => "hash",
+    "def self.f(a) = a.first || a + 1" => "array",
+    "def self.f(x) = x + 1.5 || x + 1" => "float",
+    'def self.f(s) = s.include?("a") || s.keys || s.fetch(1)' => "hash",
+    'def self.f(h) = h.keys || h.first || h.last' => "array",
+    'def self.f(x) = x == "a"' => "string",
+    "def self.f(x) = 1.5 < x" => "float",
+    'def self.f(x) = "a" == x' => "string",
+    "def self.f(x) = 1 + x" => "int",
+    'def self.f(s) = s.count("a")' => "string",
+    "def self.f(a) = a.count" => "int",
+    "def self.f(x)\n  case x\n  when 1.5 then 1\n  end\nend" => "float",
+    "def self.f(x)\n  case x\n  when \"a\" then 1\n  end\nend" => "string",
+    "def self.f(x)\n  case x\n  when 1 then 1\n  end\nend" => "int",
+    "def self.f(x, y) = g(x) || x.first\ndef self.g(x) = x.include?(\"a\") || x.strip" => "string",
+    %q{def self.f(s) = s.include?("a") || s.first} => "string",
+    %q{def self.f(s) = s.include?("a") || s + 1.5} => "string",
+    "def self.f(h) = h.keys || h + 1" => "hash",
+    "def self.f(h) = h.keys || h + 1.5" => "hash",
+    "def self.f(a) = a.first || a + 1.5" => "array",
+    "def self.f(a) = a.first || a + 1 || a - 1" => "int",
+    "def self.f(x) = x + 1.5 || x + 1 || x - 1" => "int",
+    %q{def self.f(s) = s.include?("a") || s.first || s.last} => "array",
+    %q{def self.f(s) = s.include?("a") || s + 1 || s - 1} => "int",
+    "def self.f(h) = h.keys || h + 1.5 || h - 1.5" => "float"
+  }.freeze
+
+  def test_type_inference_table
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "t.rb")
+      TYPE_CASES.each do |source, type|
+        File.write(path, "module T\n#{source}\nend\n")
+        assert_equal type, Branchout::Target.parse(path, "T.f").positional.first.inferred_type, source
+      end
+    end
+  end
+
+  def test_parameter_kinds_defaults_and_types
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "t.rb")
+      File.write(path, "module T\n  def self.f(a, b = 2, *rest, k:, j: 1.5, s: \"x\") = a\nend\n")
+      params = Branchout::Target.parse(path, "T.f").parameters
+      assert_equal [[:req, :a, nil, "int"], [:opt, :b, 2, "int"], [:rest, :rest, nil, "array"],
+                    [:keyreq, :k, nil, "int"], [:key, :j, 1.5, "float"], [:key, :s, "x", "string"]],
+                   params.map { |param| [param.kind, param.name, param.default, param.inferred_type] }
+      error = assert_raises(Branchout::Error) { Branchout::Target.parse(File.join(dir, "nope.rb"), "T.f") }
+      assert_equal "target file not found: #{File.join(dir, "nope.rb")}", error.message
+      File.write(path, "module T\n  def self.f(\nend\n")
+      error = assert_raises(Branchout::Error) { Branchout::Target.parse(path, "T.f") }
+      assert_match(/\Afailed to parse .*t\.rb: /, error.message)
+    end
+  end
+
+  def test_condition_text_for_each_kind_of_decision
+    expected = {
+      "pick" => { "case@5:4/else@10:6" => "case x else", "case@5:4/when@6:19" => "when 1, 2 then :low",
+                  "case@5:4/when@8:6" => "when 3" },
+      "shape" => { "case@15:4/in@16:34" => "in Integer => n if n > 5 then :big",
+                   "case@15:4/in@17:20" => "in Integer then :int", "case@15:4/else@18:9" => "case x else" },
+      "bare" => { "case@23:4/when@24:20" => "when x > 1 then :gt", "case@23:4/else@23:4" => "case else" },
+      "long" => { "if@29:4/then@29:4" => "x == 1 && x != 22222222222222222222 && x != 33333333333333333333 && " \
+                                         "x != 44444444444444444444 && x != 55555555555555555555 && " \
+                                         "x != 66666666666666666666 && x ..." },
+      "loop" => { "while@35:4/body@35:4" => "x > 0" }
+    }
+    Dir.mktmpdir do |dir|
+      inputs = File.join(dir, "inputs.json")
+      File.write(inputs, '{"inputs": [[0]]}')
+      expected.each do |name, conds|
+        stdout, stderr, status = Open3.capture3(
+          RbConfig.ruby, File.join(@root, "bin/branchout"), "explore", "test/fixtures/conds.rb", "FixtureConds.#{name}",
+          "--inputs", inputs, "--strategy", "inputs", "--random", "0", "--json", chdir: @root
+        )
+        assert status.success?, stderr
+        report = JSON.parse(stdout)
+        arms = (report["covered"] + report["frontier"]).to_h { |arm| [arm["id"], arm["cond"]] }
+        conds.each { |id, cond| assert_equal cond, arms[id], "#{name} #{id}" }
+      end
+    end
   end
 
   def test_type_override_length

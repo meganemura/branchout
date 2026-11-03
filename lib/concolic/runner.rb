@@ -20,7 +20,7 @@ module Concolic
   # Loads the target under Coverage and runs one input at a time.
   # Branch counters are cleared between calls. Load-time execution is discarded.
   class Runner
-    Execution = Struct.new(:input, :value, :error, :lines, :branches, :path_ids, keyword_init: true)
+    Execution = Struct.new(:input, :value, :error, :lines, :branches, :path_ids, :origin, keyword_init: true)
     ExceptionInfo = Struct.new(:class_name, :message, :loc, :stable_message, keyword_init: true)
 
     attr_reader :template

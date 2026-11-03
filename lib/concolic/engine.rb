@@ -59,7 +59,7 @@ module Concolic
           next if seen[key]
 
           seen[key] = true
-          plan << input
+          plan << [input, origin]
           counts[origin] += 1
         end
       end
@@ -68,7 +68,11 @@ module Concolic
       enqueue.call(randoms, :random)
 
       runner = Runner.new(target, timeout: @timeout)
-      executions = plan.map { |input| runner.execute(input) }
+      executions = plan.map do |input, origin|
+        execution = runner.execute(input)
+        execution.origin = origin
+        execution
+      end
       build_result(target, runner.template, executions, counts)
     end
 
@@ -183,8 +187,11 @@ module Concolic
 
     def collect_pins(executions, covered, findings)
       by_input = {}
-      executions.each { |execution| by_input[execution.input.canonical] = execution }
       keys = {}
+      executions.each do |execution|
+        by_input[execution.input.canonical] = execution
+        keys[execution.input.canonical] = true if execution.origin == :inputs
+      end
       covered.each do |arm|
         keys[arm.input.canonical] = true
       end

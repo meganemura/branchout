@@ -153,7 +153,7 @@ A test that passes on base and fails on head is a changed return value or except
 ## Pitfalls
 
 - The target really runs. Files, globals, and the network are not sandboxed.
-- The target loads into branchout's own process. A target that defines constants under `Branchout`, such as another checkout of branchout, replaces the tool's own classes, and the run uses the target's code. Run that checkout's own `bin/branchout` instead.
+- The target loads into branchout's own process. A target or `--require` file that loads another checkout of branchout is refused, because it would replace the tool's own classes. Run that checkout's own `bin/branchout` on its own files: a file the tool itself loaded is loaded again, so coverage measures it.
 - The entry must be defined in the target file, under that constant or a superclass declared in the same file. `BrokenLoans#borrow`, defined on `Loans`, runs `Loans#borrow` and follows `BrokenLoans`'s override of `limited?`, as Ruby does.
 - A method that depends on time, randomness, or I/O will not stay stable across runs.
 - A path is a set of arms, not an order. Two orders that take the same arms look the same. A modifier `unless` can put `then` and `else` at the same `loc`; the arm name in the id distinguishes them.

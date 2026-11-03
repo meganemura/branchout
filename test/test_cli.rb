@@ -356,6 +356,37 @@ class CLITest < Minitest::Test
     end
   end
 
+  # A target from another checkout of branchout reopens the tool's own
+  # classes in the tool's process, so the run would mix two versions.
+  def test_a_target_that_loads_another_copy_of_branchout_is_refused
+    Dir.mktmpdir do |dir|
+      FileUtils.cp_r(File.join(ROOT, "lib"), dir)
+      path = write_inputs(dir, { "inputs" => [[1.5]] })
+      _stdout, stderr, status = run_cli(
+        "explore", File.join(dir, "lib/branchout/canon.rb"), "Branchout::Canon.format_float",
+        "--require", File.join(dir, "lib/branchout.rb"), "--strategy", "inputs", "--random", "0", "--inputs", path
+      )
+      refute status.success?
+      assert_equal "branchout: #{File.join(dir, "lib/branchout.rb")} loads another copy of branchout, which replaces " \
+                   "the running one's classes. Run that copy's own bin/branchout instead.\n", stderr
+    end
+  end
+
+  # A file of the running branchout was loaded before coverage started, so
+  # it is loaded again to be measured.
+  def test_branchout_explores_its_own_files
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [[["ab", "cd"], 1], [["ab", "cd"], 9]] })
+      stdout, stderr, status = run_cli(
+        "explore", "lib/branchout/emitters/support.rb", "Branchout::Emitters::Support.clip",
+        "--strategy", "inputs", "--random", "0", "--inputs", path
+      )
+      assert status.success?, stderr
+      assert_includes stdout, "arms_covered: 3"
+      assert_empty stderr
+    end
+  end
+
   # Two inputs that are the same value run once. The person who wrote both
   # learns it, because inputs_ran alone does not say why it is lower.
   def test_a_repeated_input_runs_once_and_says_so

@@ -161,7 +161,7 @@ ln -s /path/to/branchout/skills/branchout .agents/skills/branchout
 ## Limits
 
 - The target runs. Its stdout and stderr, at load time and in each call, are discarded. Files, globals, and the network are not sandboxed.
-- The target loads into branchout's own process. A target that defines constants under `Branchout` replaces the tool's classes.
+- The target loads into branchout's own process. A target or `--require` file that loads another checkout of branchout is refused, because it would replace the tool's classes. To explore branchout's own code, run that checkout's `bin/branchout`; it loads its own file again so that coverage measures it.
 - The entry must be defined in the target file, under its constant or under a superclass declared in the same file. An inherited entry follows the subclass's overrides, as Ruby does.
 - A method that depends on time, randomness, or I/O will not produce a stable report.
 - A path is a set of arms, not an order. `&&` and `||` are not arms. `while` and `until` record a body arm; a condition that ran but did not enter the body is recovered from the line count.

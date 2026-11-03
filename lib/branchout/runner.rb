@@ -62,14 +62,18 @@ module Branchout
 
     def boot
       CoverageSession.install
+      load_file = loader_refusing_another_branchout
+      # A file of the running branchout, such as its own lib, loaded before
+      # coverage started, so it is loaded again to be measured.
+      preloaded = $LOADED_FEATURES.include?(File.realpath(@target.path))
       begin
         quietly do
           measure do
             @requires.each do |path|
               $LOAD_PATH.unshift(File.dirname(path)) unless $LOAD_PATH.include?(File.dirname(path))
-              require path
+              load_file.(path)
             end
-            require @target.path
+            preloaded ? load(@target.path) : load_file.(@target.path)
           end
         end
       rescue LoadError, SyntaxError => e
@@ -79,6 +83,25 @@ module Branchout
       resolve
       Coverage.result(stop: false, clear: true)
       @template = extract(Coverage.result(stop: false, clear: false))
+    end
+
+    # Another checkout's lib/branchout reopens the running tool's classes,
+    # so the run would mix two versions. The check is a closure built before
+    # anything loads, because the copy can redefine every method and constant.
+    def loader_refusing_another_branchout
+      lib = File.expand_path("..", __dir__)
+      own = Dir[File.join(lib, "**/*.rb")].map { |file| file.delete_prefix(lib) }
+      lambda do |path|
+        loaded = $LOADED_FEATURES.length
+        require path
+        copy = $LOADED_FEATURES[loaded..].any? do |feature|
+          !feature.start_with?("#{lib}/") && own.any? { |name| feature.end_with?(name) }
+        end
+        next unless copy
+
+        raise Error, "#{Target.display_path(path)} loads another copy of branchout, which replaces the running one's classes. " \
+                     "Run that copy's own bin/branchout instead."
+      end
     end
 
     def resolve

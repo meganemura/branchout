@@ -324,6 +324,42 @@ class EmitterTest < Minitest::Test
     assert_empty support.cover_comment(pin, "  ")
   end
 
+  # A receiver built in statements appears in both formats, before the
+  # entry call, for a returned value and for a raised error.
+  def test_setup_statements_come_before_the_entry_in_both_formats
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path)
+                   .new(false, "Shop::Cart", :total, "Shop::Cart#total", "lib/cart.rb", File.join(ROOT, "lib/cart.rb"))
+    setup = [Branchout::Input::SetupCall.new("add", Branchout::Input.new(args: ["apple"], kwargs: { "qty" => 2 }))]
+    input = Branchout::Input.new(args: [], receiver: Branchout::Input.new(args: ["EUR"]), setup: setup)
+    error = Branchout::Runner::ExceptionInfo.new(class_name: "KeyError", message: "m", stable_message: false)
+    pins = [nil, error].map { |raised| Branchout::Engine::Pin.new(input: input, value: 7, error: raised, arm_ids: []) }
+    arrange = "cart = Shop::Cart.new(+\"EUR\")\n"
+    pins.each do |pin|
+      result = Branchout::Engine::Result.new(pins: [pin], requires: [], private_calls: [])
+      minitest = Branchout::Emitters.render("minitest", result, target, File.join(ROOT, "test/cart_test.rb"))
+      rspec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/cart_spec.rb"))
+      if pin.error
+        assert_includes minitest, "    error = assert_raises(KeyError) do\n      #{arrange}      cart.add(+\"apple\", qty: 2)\n      cart.total()\n    end\n"
+        assert_includes rspec, "    expect {\n      #{arrange}      cart.add(+\"apple\", qty: 2)\n      cart.total()\n    }.to raise_error(KeyError)\n"
+      else
+        assert_includes minitest, "    #{arrange}    cart.add(+\"apple\", qty: 2)\n    assert_equal 7, cart.total()\n"
+        assert_includes rspec, "    #{arrange}    cart.add(+\"apple\", qty: 2)\n    expect(cart.total()).to eq(7)\n"
+      end
+    end
+    name = Branchout::Emitters::Support.test_names(pins.take(1)).first
+    assert_match(/\Atest_new_eur_add_apple_qty_2_returns_7_\h{6}\z/, name)
+  end
+
+  def test_names_and_descriptions_of_keywords_nil_and_long_values
+    pin = ->(input, value) { Branchout::Engine::Pin.new(input: input, value: value, error: nil, arm_ids: []) }
+    keywords = pin.(Branchout::Input.new(args: [1], kwargs: { "k" => 2 }), nil)
+    assert_match(/\Atest_1_k_2_returns_nil_\h{6}\z/, Branchout::Emitters::Support.test_names([keywords]).first)
+    fits = "a" * 58
+    too_long = "a" * 59
+    assert_equal "[1] returns #{fits.inspect}", Branchout::Emitters::Support.description(pin.(Branchout::Input.new(args: [1]), fits))
+    assert_equal "[1] returns #{too_long.inspect[0, 57]}...", Branchout::Emitters::Support.description(pin.(Branchout::Input.new(args: [1]), too_long))
+  end
+
   def test_an_empty_run_emits_a_skip_and_requires_load_first
     target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path)
                    .new(true, "Foo", :bar, "Foo.bar", "lib/foo.rb", File.join(ROOT, "lib/foo.rb"))

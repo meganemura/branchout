@@ -161,6 +161,8 @@ ln -s /path/to/branchout/skills/branchout .agents/skills/branchout
 ## Limits
 
 - The target runs. Its stdout and stderr are discarded. Files, globals, and the network are not sandboxed.
+- The target loads into branchout's own process. A target that defines constants under `Branchout` replaces the tool's classes.
+- The entry must be defined under its constant in the target file. An inherited method is not found; target the class that defines it.
 - A method that depends on time, randomness, or I/O will not produce a stable report.
 - A path is a set of arms, not an order. `&&` and `||` are not arms. `while` and `until` record a body arm; a condition that ran but did not enter the body is recovered from the line count.
 - A modifier `unless` can put `then` and `else` at the same location. The arm name in the id distinguishes them.

@@ -153,6 +153,8 @@ A test that passes on base and fails on head is a changed return value or except
 ## Pitfalls
 
 - The target really runs. Files, globals, and the network are not sandboxed.
+- The target loads into branchout's own process. A target that defines constants under `Branchout`, such as another checkout of branchout, replaces the tool's own classes, and the run uses the target's code. Run that checkout's own `bin/branchout` instead.
+- The entry must be defined in the target file under that constant. A method a subclass inherits, such as `BrokenLoans#borrow` from `Loans`, is "cannot find"; target the class that defines it, and reach the subclass's override through `setup` or a test of its own.
 - A method that depends on time, randomness, or I/O will not stay stable across runs.
 - A path is a set of arms, not an order. Two orders that take the same arms look the same. A modifier `unless` can put `then` and `else` at the same `loc`; the arm name in the id distinguishes them.
 - Only a bare call, a `self.` call, and a call on a bare `new(...)` in the same file are followed. `def self.apply(doc) = new(doc).apply` reaches `initialize` and `#apply`. `send`, another receiver, and other files are out of scope. When the entry reaches no arm, `explore` warns on stderr; target the method that branches.

@@ -66,6 +66,23 @@ module Branchout
         end
       end
 
+      def literal?(value)
+        case value
+        when nil, true, false, Integer, String, Symbol then true
+        when Float then value.finite?
+        when Array then value.all? { |item| literal?(item) }
+        when Hash then value.all? { |key, item| literal?(key) && literal?(item) }
+        else false
+        end
+      end
+
+      # A value with no Ruby literal, such as a Set or a Struct, is pinned by
+      # its class. An anonymous class has no stable name, so its nearest
+      # named superclass stands in.
+      def class_literal(value)
+        value.class.ancestors.find { |mod| mod.is_a?(Class) && mod.name }.name
+      end
+
       def keyword_literal(key)
         text = key.to_s
         return text if text.match?(/\A[A-Za-z_][A-Za-z0-9_]*\z/)

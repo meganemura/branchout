@@ -42,8 +42,10 @@ module Branchout
           if pin.error.stable_message
             lines << "    assert_equal #{pin.error.message.inspect}, error.message"
           end
-        else
+        elsif Support.literal?(pin.value)
           lines << "    assert_equal #{Support.ruby_literal(pin.value)}, #{call}"
+        else
+          lines << "    assert_kind_of #{Support.class_literal(pin.value)}, #{call}"
         end
         lines << "  end"
         lines

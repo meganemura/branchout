@@ -41,8 +41,10 @@ module Branchout
           else
             lines << "    expect { #{call} }.to raise_error(#{pin.error.class_name})"
           end
-        else
+        elsif Support.literal?(pin.value)
           lines << "    expect(#{call}).to eq(#{Support.ruby_literal(pin.value)})"
+        else
+          lines << "    expect(#{call}).to be_a(#{Support.class_literal(pin.value)})"
         end
         lines << "  end"
         lines

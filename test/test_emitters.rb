@@ -72,6 +72,26 @@ class EmitterTest < Minitest::Test
     end
   end
 
+  def test_a_value_with_no_literal_is_pinned_by_its_class
+    Dir.mktmpdir do |dir|
+      inputs = File.join(dir, "inputs.json")
+      File.write(inputs, JSON.generate({ "inputs" => [[1]] }))
+      test = File.join(dir, "shape_test.rb")
+      spec = File.join(dir, "shape_spec.rb")
+      [test, spec].each do |destination|
+        _out, err, status = run_cli(
+          "explore", "test/fixtures/shape.rb", "FixtureShape.build",
+          "--inputs", inputs, "--strategy", "inputs", "--random", "0", "--emit-tests", destination
+        )
+        assert status.success?, err
+      end
+      assert_includes File.read(test), "assert_kind_of FixtureShape::Point, FixtureShape.build(1)"
+      assert_includes File.read(spec), "expect(FixtureShape.build(1)).to be_a(FixtureShape::Point)"
+      _out, err, status = Open3.capture3(RbConfig.ruby, test)
+      assert status.success?, err
+    end
+  end
+
   def test_explicit_format_overrides_extension
     Dir.mktmpdir do |dir|
       inputs = File.join(dir, "inputs.json")

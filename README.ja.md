@@ -116,7 +116,7 @@ ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \
   --format rspec
 ```
 
-この実行は 4 腕のうち 4 腕を覆い、`[24,12]` で `ZeroDivisionError`（`divided by 0`）を記録する。出力ファイルは戻り値、または例外クラスとメッセージを固定する。minitest のパスは `--format minitest` で、`ruby` で実行する。RSpec には `rspec` gem が要る。
+この実行は 4 腕のうち 4 腕を覆い、`[24,12]` で `ZeroDivisionError`（`divided by 0`）を記録する。出力ファイルは戻り値、または例外クラスとメッセージを固定する。`Set` や `Struct` のように Ruby のリテラルで書けない戻り値は、クラスだけを固定する。minitest のパスは `--format minitest` で、`ruby` で実行する。RSpec には `rspec` gem が要る。
 
 ## フロンティアの作り方
 

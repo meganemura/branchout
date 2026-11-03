@@ -82,7 +82,7 @@ In one round, add inputs only for arms that are reached now and for faults you c
 
 ## Emit tests
 
-When you stop, emit characterization tests. Each one pins a discovered input's return value, or the exception class and message.
+When you stop, emit characterization tests. Each one pins a discovered input's return value, or the exception class and message. A return value with no Ruby literal, such as a `Set` or a `Struct`, is pinned by its class only.
 
 ```sh
 branchout explore TARGET.rb Const.method \

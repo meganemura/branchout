@@ -43,11 +43,12 @@ class MutatorTest < Minitest::Test
     File.write(path, JSON.generate({
       "meta" => { "note" => "kept by the agent" },
       "types" => ["int", "int"],
-      "inputs" => [[0, 1], { "args" => [2, 3], "kwargs" => {} }]
+      "inputs" => [[0, 1], { "args" => [2, 3], "kwargs" => {}, "note" => "the boundary the refund rule reads" }]
     }))
     inputs, types = Branchout::InputFile.load(path)
     assert_equal ["int", "int"], types
     assert_equal [[0, 1], [2, 3]], inputs.map(&:args)
+    assert_equal Branchout::Input.new(args: [2, 3]).canonical, inputs[1].canonical
   ensure
     File.delete(path) if path && File.file?(path)
   end
@@ -104,7 +105,7 @@ class MutatorTest < Minitest::Test
     "{\"inputs\": 1}" => "inputs must be an array",
     "{\"inputs\": [], \"types\": \"int\"}" => "types must be an array",
     "{\"inputs\": [], \"types\": [\"char\"]}" => "has an unknown type (int, float, string, array, hash, bool)",
-    "{\"inputs\": [{\"args\": [], \"note\": 1}]}" => "inputs[0] has unknown keys: note",
+    "{\"inputs\": [{\"args\": [], \"arg\": 1}]}" => "inputs[0] has unknown keys: arg",
     "{\"inputs\": [{\"kwargs\": {}}]}" => "inputs[0] is missing args",
     "{\"inputs\": [1]}" => "inputs[0] must be an array or an object",
     "{\"inputs\": [{\"args\": 1}]}" => "input args must be an array",

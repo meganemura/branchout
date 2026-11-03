@@ -101,7 +101,7 @@ An inputs file starts as one seed:
 }
 ```
 
-An entry may be a bare array. Keywords go in `kwargs`, constructor arguments go in `new`, and calls that build the receiver's state go in `setup`. If type inference is wrong, set `"types"` to one of `int`, `float`, `string`, `array`, `hash`, or `bool` per positional parameter. A default value of `[]`, `{}`, `true`, or `false` gives its type, and `bool` makes mutation and random sampling try both `false` and `true`. Other top-level keys, such as `meta`, are ignored. Append entries. Do not delete or reorder them.
+An entry may be a bare array. Keywords go in `kwargs`, constructor arguments go in `new`, and calls that build the receiver's state go in `setup`. If type inference is wrong, set `"types"` to one of `int`, `float`, `string`, `array`, `hash`, or `bool` per positional parameter. A default value of `[]`, `{}`, `true`, or `false` gives its type, and `bool` makes mutation and random sampling try both `false` and `true`. Other top-level keys, such as `meta`, are ignored, and so is a `note` on an entry, which keeps the reason for that input beside it. Append entries. Do not delete or reorder them.
 
 ```sh
 ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \

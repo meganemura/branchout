@@ -34,7 +34,7 @@ module Branchout
 
     METHOD_NAME = /\A(?:[A-Za-z_][A-Za-z0-9_]*[?!=]?|<<|>>|\[\]=?|[-+*\/%&|^<>]|\*\*|<=>|==|!=|<=|>=|=~)\z/
 
-    def parse_entry(entry, label, keys = %w[args kwargs new setup])
+    def parse_entry(entry, label, keys = %w[args kwargs new setup note])
       case entry
       when Array
         Input.new(args: entry)

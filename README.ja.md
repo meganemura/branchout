@@ -119,6 +119,7 @@ ruby bin/branchout baselines examples/magic_value.rb MagicValue.classify \
 既定値が `[]`、`{}`、`true`、`false` の引数はその型になる。
 `bool` の引数には、変異とランダムサンプリングが `false` と `true` の両方を試す。
 `meta` のような他のトップレベルキーは無視する。
+各エントリの `note` も無視するので、その入力を選んだ理由をすぐ横に書ける。
 エントリは末尾へ足す。
 消したり並べ替えたりしない。
 

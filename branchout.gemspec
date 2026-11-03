@@ -12,8 +12,9 @@ Gem::Specification.new do |spec|
     Branchout does not collect or solve symbolic path constraints.
   TEXT
   spec.authors = ["branchout"]
+  spec.license = "MIT"
   spec.required_ruby_version = ">= 3.3"
-  spec.files = Dir["lib/**/*", "bin/*", "README.md", "README.ja.md", "AGENTS.md", "examples/**/*"]
+  spec.files = Dir["lib/**/*", "bin/*", "README.md", "README.ja.md", "AGENTS.md", "LICENSE", "examples/**/*"]
   spec.bindir = "bin"
   spec.executables = ["branchout"]
   spec.require_paths = ["lib"]

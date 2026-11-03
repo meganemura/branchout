@@ -185,4 +185,4 @@ bundle exec rspec spec/generated
 
 ## ライセンス
 
-ライセンスはまだ決めていない。
+MIT

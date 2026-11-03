@@ -662,6 +662,52 @@ class EmitterTest < Minitest::Test
     end
   end
 
+  # The subject and the receiver keep clear of RSpec's own names, a fact
+  # names a keyword or an unnamed argument, a long value is cut, and two
+  # examples whose text would be the same get their input's digest.
+  def test_rspec_names_subjects_receivers_and_facts
+    target_for = lambda do |const, method, singleton: false|
+      Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+            .new(singleton, const, method, "#{const}##{method}", "lib/x.rb", File.join(ROOT, "lib/x.rb"),
+                 [], [Struct.new(:name).new(:x)])
+    end
+    pin = ->(input, value = 1, arms = []) { Branchout::Engine::Pin.new(input: input, value: value, error: nil, arm_ids: arms) }
+    render = lambda do |target, pins, pin_keys: []|
+      result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+      Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb"), pin_keys: pin_keys)
+    end
+    bare = pin.(Branchout::Input.new(args: []), 1, ["if@1:0/then@1:4"])
+    source = render.(target_for.("Example", :describe), [bare])
+    assert_includes source, "    subject { object.describe }\n\n    let(:object) { Example.new }\n"
+    assert_includes source, "      # covers: if@1:0/then@1:4\n      expect(subject).to eq(1)\n"
+    assert_includes render.(target_for.("End", :total), [bare]), "    subject(:total) { object.total }\n"
+    assert_includes render.(target_for.("Total", :total), [bare]), "    subject { total.total }\n"
+    assert_includes render.(target_for.("Box", :limit=), [bare]), "    subject { box.send(:limit=) }\n"
+    assert_includes render.(target_for.("Box", :end), [bare]), "    subject { box.end }\n"
+
+    fits = "a" * 28
+    long = ->(tail) { pin.(Branchout::Input.new(args: ["#{"a" * 40}#{tail}", 5, 6], kwargs: { "k" => 2 })) }
+    pins = [pin.(Branchout::Input.new(args: [fits, 5, 7], kwargs: { "k" => 3 })), long.("x"), long.("y")]
+    source = render.(target_for.("Box", :put, singleton: true), pins)
+    assert_includes source, "it #{"returns 1 when x is #{fits.inspect}, argument 3 is 7 and k is 3".inspect} do"
+    # Two strings cut to the same 30 characters share a context, and the
+    # digest tells their examples apart.
+    assert_includes source, "context #{"when x is \"#{"a" * 26}..., argument 3 is 6 and k is 2".inspect} do"
+    pins.drop(1).each do |item|
+      assert_includes source, "it \"returns 1 (input #{Digest::SHA256.hexdigest(item.input.canonical)[0, 6]})\" do"
+    end
+    refute_includes source, "subject"
+
+    struct = Struct.new(:a)
+    shaped = [pin.(Branchout::Input.new(args: [1]), { total: 1, tax: 0 }), pin.(Branchout::Input.new(args: [2]), [struct.new(1)]),
+              pin.(Branchout::Input.new(args: [3]), { "s" => Set[1] }), pin.(Branchout::Input.new(args: [4]), Set[1])]
+    source = render.(target_for.("Box", :put, singleton: true), shaped, pin_keys: %w[tax])
+    assert_includes source, "expect(Box.put(1)).to include({tax: 0})\n"
+    assert_includes source, "expect(Box.put(2)).to match([a_kind_of(Struct).and(have_attributes(a: 1))])\n"
+    assert_includes source, "expect(Box.put(3)).to match({\"s\" => a_kind_of(Set)})\n"
+    assert_includes source, "expect(Box.put(4)).to be_a(Set)\n"
+  end
+
   def test_an_empty_run_emits_a_skip_and_requires_load_first
     target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path)
                    .new(true, "Foo", :bar, "Foo.bar", "lib/foo.rb", File.join(ROOT, "lib/foo.rb"))

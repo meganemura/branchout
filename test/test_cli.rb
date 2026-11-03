@@ -318,6 +318,20 @@ class CLITest < Minitest::Test
     end
   end
 
+  # new(text).tap(&:read) calls read on the instance too.
+  def test_a_class_method_is_followed_through_tap_on_new
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [["a=1"]] })
+      stdout, stderr, status = run_cli(
+        "explore", "test/fixtures/delegate.rb", "FixtureParser.parse",
+        "--strategy", "inputs", "--random", "0", "--inputs", path
+      )
+      assert status.success?, stderr
+      assert_includes stdout, "arms_covered: 1\narms_total: 2"
+      assert_includes stdout, "FRONTIER\nid: if@35:12/else@35:42"
+    end
+  end
+
   def test_an_entry_with_no_arms_warns
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [[1]] })

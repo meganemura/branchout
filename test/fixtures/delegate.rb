@@ -21,3 +21,17 @@ class FixtureDocument
     @doc.start_with?("#") ? :heading : :text
   end
 end
+
+class FixtureParser
+  attr_reader :kind
+
+  def self.parse(text) = new(text).tap(&:read)
+
+  def initialize(text)
+    @text = text
+  end
+
+  def read
+    @kind = @text.include?("=") ? :pair : :word
+  end
+end

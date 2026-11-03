@@ -115,7 +115,7 @@ That run covers 4 of 4 arms and records `ZeroDivisionError` (`divided by 0`) for
 
 ## How it builds the frontier
 
-branchout loads the `--require` files and then the target after `Coverage.setup(lines: true, branches: true)` and discards the counts from loading. For each input it resumes coverage, calls the method, suspends coverage, and reads `Coverage.result`. It keeps the entry method and same-file callees reached by a bare call or `self.`. A class method that builds its own instance, as in `def self.apply(doc) = new(doc).apply`, is followed into `initialize` and the instance method it calls.
+branchout loads the `--require` files and then the target after `Coverage.setup(lines: true, branches: true)` and discards the counts from loading. For each input it resumes coverage, calls the method, suspends coverage, and reads `Coverage.result`. It keeps the entry method and same-file callees reached by a bare call or `self.`. A class method that builds its own instance, as in `def self.apply(doc) = new(doc).apply`, is followed into `initialize` and the instance method it calls, also through `tap(&:parse)` or `then(&:parse)`.
 
 An arm id is `kind@line:column/arm@line:column`, from the Coverage branch key. Columns are 0-based. `cond` is the Prism predicate. For a `when` or `in` arm it is that line. If the locations do not match, the source line is used.
 

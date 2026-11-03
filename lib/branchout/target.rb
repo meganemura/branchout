@@ -311,17 +311,25 @@ module Branchout
     end
 
     # Methods a class method calls on an instance it builds itself, as in
-    # new(doc).apply.
+    # new(doc).apply, or new(path).tap(&:parse).
     def calls_on_new(node, acc = [])
       return acc unless node.is_a?(Prism::Node)
       return acc if node.type == :def_node
 
       if node.type == :call_node && node.receiver&.type == :call_node
         maker = node.receiver
-        acc << node.name if maker.name == :new && (maker.receiver.nil? || maker.receiver.type == :self_node)
+        acc << called_on_receiver(node) if maker.name == :new && (maker.receiver.nil? || maker.receiver.type == :self_node)
       end
       node.compact_child_nodes.each { |child| calls_on_new(child, acc) }
       acc
+    end
+
+    # tap(&:parse) and then(&:parse) call parse on the receiver.
+    def called_on_receiver(call)
+      block = call.block
+      return call.name unless %i[tap then].include?(call.name) && block&.type == :block_argument_node
+
+      block.expression&.type == :symbol_node ? block.expression.unescaped.to_sym : call.name
     end
 
     def walk_evidence(node, evidence)

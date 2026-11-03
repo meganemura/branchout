@@ -151,6 +151,7 @@ minitest のパスは `--format minitest` で、`ruby` で実行する。RSpec �
 
 `--require` のファイルと対象ファイルは `Coverage.setup(lines: true, branches: true)` のあとで読み、ロード時のカウントは捨てる。入力ごとに coverage を resume し、メソッドを呼び、suspend して `Coverage.result` を読む。残すのは入口メソッドと、同じファイル内で裸呼び出しまたは `self.` から届く callee だけである。
 `def self.apply(doc) = new(doc).apply` のように自分のインスタンスを作るクラスメソッドは、`initialize` と、そのインスタンスで呼ぶメソッドまで追う。
+`new(path).tap(&:parse)` や `then(&:parse)` で呼ぶメソッドも追う。
 
 腕の id は Coverage の分岐キーから作る `kind@行:列/arm@行:列` である。列は 0 始まり。`cond` は Prism の述語で、`when` または `in` の腕ではその行である。位置が一致しないときはソースの行を使う。
 

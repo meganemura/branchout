@@ -64,14 +64,34 @@ inputs の形:
 
 ## コーディングエージェントと使う
 
-探索手順は [Agent Skill](skills/branchout/SKILL.md)（英語）にある。他プロジェクトのエージェントはこのリポジトリの `AGENTS.md` を読まない。`skills/branchout` をエージェントの skills ディレクトリへコピーするか、シンボリックリンクする。
+[`skills` CLI](https://github.com/vercel-labs/skills)（Node.js 22.20 以降）で [branchout スキル](skills/branchout/SKILL.md)（英語）を入れる。このリポジトリは private なので、GitHub へのアクセスが要る。
+
+```sh
+npx skills add meganemura/branchout
+```
+
+```sh
+npx skills add meganemura/branchout --skill branchout
+```
+
+```sh
+npx skills add meganemura/branchout -g
+```
+
+```sh
+npx skills add meganemura/branchout -a cursor
+```
+
+`--skill` はこのスキルだけ、`-g` は全プロジェクト向け、`-a` は対象エージェントを指定する。
+
+コピーまたはシンボリックリンクでも入れられる。
 
 ```sh
 mkdir -p .agents/skills
 ln -s /path/to/branchout/skills/branchout .agents/skills/branchout
 ```
 
-`.claude/skills/` と `.cursor/skills/` でも同じ。スキル名は `branchout`。
+`.claude/skills/` と `.cursor/skills/` でも同じ。
 
 ## エージェントのループ
 

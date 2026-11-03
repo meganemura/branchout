@@ -62,14 +62,34 @@ If `types` is omitted, each parameter is inferred as int, float, string, array, 
 
 ## Using with coding agents
 
-The explore loop is an [Agent Skill](skills/branchout/SKILL.md). Agents working in another project do not read this repository's `AGENTS.md`. Install the skill by copying or symlinking `skills/branchout` into the agent's skills directory:
+Install the [branchout skill](skills/branchout/SKILL.md) with the [`skills`](https://github.com/vercel-labs/skills) CLI (Node.js 22.20 or later). This repository is private, so these commands need GitHub access.
+
+```sh
+npx skills add meganemura/branchout
+```
+
+```sh
+npx skills add meganemura/branchout --skill branchout
+```
+
+```sh
+npx skills add meganemura/branchout -g
+```
+
+```sh
+npx skills add meganemura/branchout -a cursor
+```
+
+`--skill` selects this skill, `-g` installs it for every project, and `-a` targets one agent.
+
+To copy or symlink it instead:
 
 ```sh
 mkdir -p .agents/skills
 ln -s /path/to/branchout/skills/branchout .agents/skills/branchout
 ```
 
-`.claude/skills/` and `.cursor/skills/` work the same way. The skill name is `branchout`.
+`.claude/skills/` and `.cursor/skills/` work the same way.
 
 ## Agent loop
 

@@ -730,6 +730,26 @@ class EmitterTest < Minitest::Test
     assert_includes render.(target_for.(:x), [[7], [0]]), '"returns 1 when x is 7"'
   end
 
+  # A text over 80 characters keeps only the facts that tell it from its
+  # siblings, then names them by their deepest key, so a deep document
+  # reads "when status is "timeout"" and not its whole tree.
+  def test_a_long_rspec_text_says_only_the_part_that_differs
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Assessor", :apply, "Assessor.apply", "lib/x.rb", File.join(ROOT, "lib/x.rb"), [], [Struct.new(:name).new(:doc)])
+    doc = lambda do |status|
+      { "methods" => [{ "id" => "m01", "bare_name" => "a", "file" => "lib/a.rb", "start_line" => 1, "end_line" => 3 }],
+        "tests" => [{ "id" => "t1", "classification" => "candidate", "head" => { "last_run" => { "result" => { "status" => status } } } }] }
+    end
+    pins = [{ "methods" => [], "tests" => [] }, doc.("failed"), doc.("timed out after 30 seconds")].map do |arg|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [arg]), value: 1, error: nil, arm_ids: [])
+    end
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+    texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *((?:it|context) .*) do$/).flatten
+    assert_equal ['it "returns 1 when methods is [] and tests is []"', 'context "when methods[0].id is \"m01\""',
+                  'it "returns 1 when tests[0].head.last_run.result.status is \"failed\""',
+                  'it "returns 1 when status is \"timed out after 30 seconds\""'], texts
+  end
+
   def test_rspec_names_subjects_receivers_and_facts
     target_for = lambda do |const, method, singleton: false|
       Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
@@ -755,11 +775,12 @@ class EmitterTest < Minitest::Test
     pins = [pin.(Branchout::Input.new(args: [fits, 5, 7], kwargs: { "k" => 3 })), long.("x"), long.("y")]
     source = render.(target_for.("Box", :put, singleton: true), pins)
     assert_includes source, "it #{"returns 1 when x is #{fits.inspect}, argument 3 is 7 and k is 3".inspect} do"
-    # Two strings cut to the same 30 characters share a context, and the
-    # digest tells their examples apart.
-    assert_includes source, "context #{"when x is \"#{"a" * 26}..., argument 3 is 6 and k is 2".inspect} do"
+    # Two strings cut to the same 30 characters are two facts, and the
+    # digest tells their examples apart within 80 characters.
     pins.drop(1).each do |item|
-      assert_includes source, "it \"returns 1 (input #{Digest::SHA256.hexdigest(item.input.canonical)[0, 6]})\" do"
+      text = source[/^    it "(.*\(input #{Digest::SHA256.hexdigest(item.input.canonical)[0, 6]}\))" do$/, 1]
+      assert text, source
+      assert_operator "\"#{text}\"".undump.length, :<=, 80
     end
     refute_includes source, "subject"
 

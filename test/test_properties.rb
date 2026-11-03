@@ -157,8 +157,9 @@ class PropertyTest < Minitest::Test
     end
   end
 
-  # An emitted spec parses, and no two examples of one group share a
-  # description, so rspec --format documentation tells every input apart.
+  # An emitted spec parses, no two examples or contexts of one group share
+  # a text, and no text is over 80 characters, so rspec --format
+  # documentation tells every input apart in lines a reader can scan.
   def test_an_emitted_spec_parses_and_tells_its_examples_apart
     param = Struct.new(:name)
     Hegel.test do |tc|
@@ -176,18 +177,22 @@ class PropertyTest < Minitest::Test
       parsed = Prism.parse(source)
       assert parsed.success?, source
       groups = []
+      examples = 0
       walk = lambda do |node, group|
         if node.is_a?(Prism::CallNode) && node.name == :it
           group << node.arguments.arguments.first.unescaped
+          examples += 1
         elsif node.is_a?(Prism::CallNode) && %i[describe context].include?(node.name) && node.block
+          group << node.arguments.arguments.first.unescaped if node.name == :context
           groups << (inner = [])
           return walk.(node.block, inner)
         end
         node.compact_child_nodes.each { |child| walk.(child, group) }
       end
       walk.(parsed.value, [])
-      assert_equal pins.length, groups.sum(&:length), source
-      groups.each { |descriptions| assert_equal descriptions.uniq, descriptions, source }
+      assert_equal pins.length, examples, source
+      groups.each { |texts| assert_equal texts.uniq, texts, source }
+      groups.flatten.each { |text| assert_operator text.length, :<=, 80, text }
     end
   end
 

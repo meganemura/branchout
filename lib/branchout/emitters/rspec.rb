@@ -10,7 +10,13 @@ module Branchout
     # steps share a context that holds them, so an example is left with the
     # outcome and the facts of its own.
     module RSpec
-      Step = Data.define(:kind, :label, :code)
+      # A fact runs no code; its +leaf+ is the [path, value] it names, so
+      # two values whose labels are cut alike stay two facts.
+      Step = Data.define(:kind, :label, :code, :leaf) do
+        def initialize(kind:, label:, code: nil, leaf: nil) = super
+      end
+      # The longest description or context text.
+      LIMIT = 80
       CALLS = %i[before inline].freeze
       # The steps whose code runs in a context, so an input that still has
       # one gets a context of its own.
@@ -57,6 +63,7 @@ module Branchout
           @subject = subject_name if pins.all? { |pin| pin.input.args.empty? && pin.input.kwargs.empty? }
           @one_argument = pins.all? { |pin| pin.input.args.length == 1 && pin.input.kwargs.empty? }
           @outcomes = Support.outcomes(pins, pin_keys)
+          @short_outcomes = Support.outcomes(pins, pin_keys, short: true)
           entries = pins.map { |pin| [pin, steps_of(pin)] }
           shared = entries.map { |_, steps| steps.select { |step| step.kind == :fact } }.reduce(:&)
           entries = entries.map { |pin, steps| [pin, steps - shared] }
@@ -86,16 +93,13 @@ module Branchout
             befores.each { |step| out << "#{indent}  #{step.code}" }
             out << "#{indent}end"
           end
-          descriptions = node.members.grep(Example).to_h { |example| [example, description(example)] }
-          repeated = descriptions.values.tally
+          texts = member_texts(node.members)
           node.members.each do |member|
             out << "" unless out.empty?
             if member.is_a?(Example)
-              text = descriptions[member]
-              text += " (input #{Digest::SHA256.hexdigest(member.pin.input.canonical)[0, 6]})" if repeated[text] > 1
-              out.concat(example_lines(member, text, indent))
+              out.concat(example_lines(member, texts[member], indent))
             else
-              out << "#{indent}context #{label(member.steps).inspect} do"
+              out << "#{indent}context #{texts[member].inspect} do"
               out.concat(node_lines(member, "#{indent}  "))
               out << "#{indent}end"
             end
@@ -146,17 +150,65 @@ module Branchout
           "eq(#{Support.ruby_literal(value)})"
         end
 
-        def description(example)
-          rest = label(example.facts)
-          rest.empty? ? @outcomes[example.pin] : "#{@outcomes[example.pin]} #{rest}"
+        # The text of each member of one group, at most LIMIT characters. A
+        # member whose text is longer says only the facts that tell it from
+        # its siblings, then names them by their deepest key, then is cut.
+        # Texts that would still be the same end in their first input's
+        # digest.
+        def member_texts(members)
+          texts = members.to_h do |member|
+            others = members.reject { |other| other.equal?(member) }.flat_map { |other| pins_of(other) }
+            steps = member.is_a?(Example) ? member.facts : member.steps
+            text = member_text(member, steps)
+            text = member_text(member, telling(steps, others)) if text.length > LIMIT
+            text = member_text(member, telling(steps, others), short: true) if text.length > LIMIT
+            [member, text.length > LIMIT ? "#{text[0, LIMIT - 3]}..." : text]
+          end
+          repeated = texts.values.tally
+          texts.to_h do |member, text|
+            next [member, text] if repeated[text] == 1
+
+            digest = " (input #{Digest::SHA256.hexdigest(pins_of(member).first.input.canonical)[0, 6]})"
+            [member, text.length + digest.length > LIMIT ? "#{text[0, LIMIT - digest.length - 3]}...#{digest}" : "#{text}#{digest}"]
+          end
+        end
+
+        # +steps+ without the facts that tell no sibling apart: the fewest
+        # facts, in their order, that each sibling input in +others+ lacks
+        # one of. A context keeps at least one fact.
+        def telling(steps, others)
+          facts = steps.select { |step| step.kind == :fact }
+          left = others.reject { |pin| (facts - steps_of(pin)).empty? }
+          chosen = []
+          until left.empty?
+            best = facts.max_by { |fact| [left.count { |pin| !steps_of(pin).include?(fact) }, -facts.index(fact)] }
+            break if best.nil? || chosen.include?(best)
+
+            chosen << best
+            left.reject! { |pin| !steps_of(pin).include?(best) }
+          end
+          chosen = facts.first(1) if chosen.empty? && steps.none? { |step| step.kind != :fact }
+          steps.reject { |step| step.kind == :fact && !chosen.include?(step) }
+        end
+
+        def member_text(member, steps, short: false)
+          text = label(steps, short: short)
+          return text unless member.is_a?(Example)
+
+          outcome = (short ? @short_outcomes : @outcomes)[member.pin]
+          text.empty? ? outcome : "#{outcome} #{text}"
+        end
+
+        def pins_of(member)
+          member.is_a?(Example) ? [member.pin] : member.members.flat_map { |inner| pins_of(inner) }
         end
 
         # "with new(10) after add("apple", 3) when price is 5": the receiver,
         # the calls, then the facts.
-        def label(steps)
+        def label(steps, short: false)
           receiver = steps.select { |step| step.kind == :let }.map(&:label)
           calls = steps.select { |step| CALLS.include?(step.kind) }.map(&:label)
-          facts = steps.select { |step| step.kind == :fact }.map(&:label)
+          facts = steps.select { |step| step.kind == :fact }.map { |step| fact_label(step.leaf, short: short) }
           parts = receiver
           parts += ["after #{series(calls)}"] unless calls.empty?
           parts += ["when #{series(facts)}"] unless facts.empty?
@@ -227,12 +279,21 @@ module Branchout
           leaves = []
           input.args.each_with_index { |arg, index| Support.collect_leaves(arg, [names[index] || "argument #{index + 1}"], leaves) }
           input.kwargs.each { |key, value| Support.collect_leaves(value, [key], leaves) }
-          leaves.map do |(root, *path), value|
-            name = path.empty? || !@one_argument ? Support.path_text(path, root) : Support.path_text(path)
-            text = Support.ruby_literal(value)
-            text = "#{text[0, 27]}..." if text.length > 30
-            Step.new(:fact, "#{name} is #{text}", nil)
-          end
+          leaves.map { |leaf| Step.new(:fact, fact_label(leaf), nil, leaf) }
+        end
+
+        # +short+ names the leaf from its deepest key (status), as a
+        # minitest name does, for a text that is still too long.
+        def fact_label(leaf, short: false)
+          (root, *path), value = leaf
+          deepest = path.rindex { |step| step.is_a?(String) }
+          name = if short && deepest then Support.path_text(path.drop(deepest))
+                 elsif path.empty? || !@one_argument then Support.path_text(path, root)
+                 else Support.path_text(path)
+                 end
+          text = Support.ruby_literal(value)
+          text = "#{text[0, 27]}..." if text.length > 30
+          "#{name} is #{text}"
         end
 
         def parameter_names

@@ -278,10 +278,11 @@ module Branchout
       # What each pin's test pins, as RSpec says it: "raises KeyError",
       # "returns :miss". A Hash says the scalar entries that differ between
       # the Hashes of +pins+, so siblings say how their results differ.
-      def outcomes(pins, pin_keys = [])
+      # +short+ names a leaf by its deepest key (discarded: 1).
+      def outcomes(pins, pin_keys = [], short: false)
         pinned = pins.map { |pin| pinned_pin(pin, pin_keys) }
         differences = hash_differences(pinned.map { |pin| pin.value unless pin.error })
-        pins.each_index.to_h { |index| [pins[index], outcome_text(pinned[index], differences[index])] }
+        pins.each_index.to_h { |index| [pins[index], outcome_text(pinned[index], differences[index], short: short)] }
       end
 
       # The entries of a returned Hash whose keys +pin_keys+ names, by
@@ -298,7 +299,7 @@ module Branchout
         pin.error ? pin : pin.dup.tap { |copy| copy.value = pinned_value(pin.value, pin_keys) }
       end
 
-      def outcome_text(pin, differing)
+      def outcome_text(pin, differing, short: false)
         return "raises #{pin.error.class_name}" if pin.error
         unless literal?(pin.value)
           return "returns an Array of #{pin.value.length}" if pin.value.is_a?(Array)
@@ -308,7 +309,10 @@ module Branchout
 
         value = pin.value
         unless differing.empty?
-          return "returns #{differing.map { |path, item| "#{path_text(path)}: #{ruby_literal(item)}" }.join(", ")}"
+          entries = differing.map do |path, item|
+            "#{path_text(short ? path.drop(path.rindex { |step| step.is_a?(String) }) : path)}: #{ruby_literal(item)}"
+          end
+          return "returns #{entries.join(", ")}"
         end
 
         text = ruby_literal(value)

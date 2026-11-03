@@ -202,6 +202,62 @@ class CLITest < Minitest::Test
     end
   end
 
+  def test_setup_calls_build_the_receiver_state_before_the_entry
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [
+        { "args" => [], "setup" => [{ "method" => "add", "args" => ["apple", 3] }] },
+        { "args" => [], "new" => ["EUR"], "setup" => [
+          { "method" => "add", "args" => ["apple", 5] },
+          { "method" => "add", "args" => ["pear", 5], "kwargs" => { "price" => 50 } }
+        ] },
+        { "args" => [], "setup" => [{ "method" => "add", "args" => ["apple", 0] }] }
+      ] })
+      test = File.join(dir, "cart_test.rb")
+      spec = File.join(dir, "cart_spec.rb")
+      stdout = nil
+      [test, spec].each do |out|
+        stdout, stderr, status = run_cli(
+          "explore", "test/fixtures/cart.rb", "FixtureCart#volume_discount_cents",
+          "--strategy", "inputs", "--random", "0", "--inputs", path, "--emit-tests", out
+        )
+        assert status.success?, stderr
+      end
+      # The setup's own call to size takes the empty arm; only the entry's
+      # calls count, so that arm stays on the frontier.
+      assert_includes stdout, "arms_covered: 4\narms_total: 6"
+      assert_includes stdout, "id: if@28:4/then@28:20\nloc: test/fixtures/cart.rb:28:20\ncond: @items.empty?\nsense: cond-true\nparent: reached"
+      assert_includes stdout, "class: ArgumentError\nloc: test/fixtures/cart.rb:10\n" \
+                              'input: {"args":[],"kwargs":{},"setup":[{"args":["apple",0],"kwargs":{},"method":"add"}]}' \
+                              "\nmessage: quantity must be positive"
+
+      source = File.read(test)
+      assert_includes source, "    fixture_cart = FixtureCart.new\n    fixture_cart.add(+\"apple\", 3)\n" \
+                              "    assert_equal 100, fixture_cart.volume_discount_cents()\n"
+      assert_includes source, "    fixture_cart = FixtureCart.new(+\"EUR\")\n    fixture_cart.add(+\"apple\", 5)\n" \
+                              "    fixture_cart.add(+\"pear\", 5, price: 50)\n" \
+                              "    assert_equal 500, fixture_cart.volume_discount_cents()\n"
+      assert_includes source, "    error = assert_raises(ArgumentError) do\n      fixture_cart = FixtureCart.new\n" \
+                              "      fixture_cart.add(+\"apple\", 0)\n      fixture_cart.volume_discount_cents()\n    end\n"
+      _out, err, status = Open3.capture3(RbConfig.ruby, test)
+      assert status.success?, err
+      assert_includes File.read(spec), "    expect {\n      fixture_cart = FixtureCart.new\n" \
+                                       "      fixture_cart.add(+\"apple\", 0)\n      fixture_cart.volume_discount_cents()\n" \
+                                       "    }.to raise_error(ArgumentError, \"quantity must be positive\")\n"
+    end
+  end
+
+  def test_setup_is_refused_for_a_class_method
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [{ "args" => [1], "setup" => [{ "method" => "add", "args" => [] }] }] })
+      _stdout, stderr, status = run_cli(
+        "explore", "test/fixtures/magic.rb", "FixtureMagic.classify",
+        "--strategy", "inputs", "--random", "0", "--inputs", path
+      )
+      refute status.success?
+      assert_includes stderr, "FixtureMagic.classify is not an instance method, so its inputs take no \"setup\""
+    end
+  end
+
   def test_new_is_refused_for_a_class_method
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [{ "args" => [1], "new" => [] }] })

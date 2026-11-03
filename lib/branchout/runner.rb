@@ -41,7 +41,7 @@ module Branchout
       check_receiver(input)
       value = nil
       error = nil
-      measure do
+      begin
         value = invoke(input)
       rescue Exception => e # rubocop:disable Lint/RescueException
         error = ExceptionInfo.from(
@@ -96,6 +96,7 @@ module Branchout
     def check_receiver(input)
       if @target.singleton
         raise Error, "#{@target.entry} is not an instance method, so its inputs take no \"new\"" if input.receiver
+        raise Error, "#{@target.entry} is not an instance method, so its inputs take no \"setup\"" unless input.setup.empty?
       elsif input.receiver.nil? && @required_new_arguments.positive?
         raise Error, "#{@target.const_name}#initialize requires #{@required_new_arguments} arguments; " \
                      "give them in \"new\" on each input and pass --strategy inputs"
@@ -110,12 +111,10 @@ module Branchout
       args, kwargs = fresh_arguments(input)
       run = proc do
         if @target.singleton
-          @method.call(*args, **kwargs)
+          measure { @method.call(*args, **kwargs) }
         else
-          # Each call gets a new receiver, as an emitted test does, so one
-          # input cannot change the state the next input sees.
-          new_args, new_kwargs = input.receiver ? fresh_arguments(input.receiver) : [[], {}]
-          @method.bind_call(@const.new(*new_args, **new_kwargs), *args, **kwargs)
+          receiver = prepared_receiver(input)
+          measure { @method.bind_call(receiver, *args, **kwargs) }
         end
       end
       if @timeout
@@ -126,6 +125,19 @@ module Branchout
     ensure
       $stdout = previous_out if defined?(previous_out) && previous_out
       $stderr = previous_err if defined?(previous_err) && previous_err
+    end
+
+    # Each input gets a new receiver, as an emitted test does, so one input
+    # cannot change the state the next input sees. new and the setup calls
+    # run outside coverage: the arms they take are not the entry's.
+    def prepared_receiver(input)
+      new_args, new_kwargs = input.receiver ? fresh_arguments(input.receiver) : [[], {}]
+      receiver = @const.new(*new_args, **new_kwargs)
+      input.setup.each do |call|
+        call_args, call_kwargs = fresh_arguments(call.arguments)
+        receiver.public_send(call.method_name, *call_args, **call_kwargs)
+      end
+      receiver
     end
 
     # Each call gets its own mutable copy, as a literal in an emitted test

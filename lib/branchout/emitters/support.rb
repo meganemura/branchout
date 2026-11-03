@@ -26,7 +26,9 @@ module Branchout
         relative.start_with?(".") ? relative : "./#{relative}"
       end
 
-      def render_call(target, input)
+      # The statements that build the receiver, and the entry call. With no
+      # setup calls the receiver is built inline and there is no statement.
+      def arrange(target, input)
         receiver = if target.singleton
           target.const_name
         elsif input.receiver
@@ -34,8 +36,31 @@ module Branchout
         else
           "#{target.const_name}.new"
         end
-        "#{receiver}.#{target.method_name}(#{argument_list(input)})"
+        call = ->(on) { "#{on}.#{target.method_name}(#{argument_list(input)})" }
+        return [[], call.(receiver)] if input.setup.empty?
+
+        name = receiver_name(target)
+        statements = ["#{name} = #{receiver}"]
+        input.setup.each do |setup_call|
+          statements << "#{name}.#{setup_call.method_name}(#{argument_list(setup_call.arguments)})"
+        end
+        [statements, call.(name)]
       end
+
+      # The class name in snake case, as a reader would name the object.
+      def receiver_name(target)
+        name = target.const_name.split("::").last
+                     .gsub(/([A-Z]+)([A-Z][a-z])/, '\1_\2')
+                     .gsub(/([a-z\d])([A-Z])/, '\1_\2')
+                     .downcase
+        RESERVED_NAMES.include?(name) ? "subject" : name
+      end
+
+      RESERVED_NAMES = %w[
+        alias and begin break case class def defined do else elsif end ensure false for if in
+        module next nil not or redo rescue retry return self super then true undef unless until
+        when while yield error
+      ].freeze
 
       def argument_list(input)
         args = input.args.map { |value| ruby_literal(value, mutable: true) }

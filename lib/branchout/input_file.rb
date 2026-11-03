@@ -32,21 +32,42 @@ module Branchout
       [inputs, types]
     end
 
-    def parse_entry(entry, label)
+    METHOD_NAME = /\A(?:[A-Za-z_][A-Za-z0-9_]*[?!=]?|<<|>>|\[\]=?|[-+*\/%&|^<>]|\*\*|<=>|==|!=|<=|>=|=~)\z/
+
+    def parse_entry(entry, label, keys = %w[args kwargs new setup])
       case entry
       when Array
         Input.new(args: entry)
       when Hash
-        unknown = entry.keys - %w[args kwargs new]
+        unknown = entry.keys - keys
         raise Error, "#{label} has unknown keys: #{unknown.join(", ")}" unless unknown.empty?
         raise Error, "#{label} is missing args" unless entry.key?("args")
 
-        receiver = parse_entry(entry["new"], "#{label} new") if entry.key?("new")
+        receiver = parse_entry(entry["new"], "#{label} new", %w[args kwargs new]) if entry.key?("new")
         raise Error, "#{label} new cannot have its own new" if receiver&.receiver
 
-        Input.new(args: entry["args"], kwargs: entry["kwargs"] || {}, receiver: receiver)
+        setup = parse_setup(entry.fetch("setup", []), "#{label} setup")
+        Input.new(args: entry["args"], kwargs: entry["kwargs"] || {}, receiver: receiver, setup: setup)
       else
         raise Error, "#{label} must be an array or an object"
+      end
+    end
+
+    def parse_setup(steps, label)
+      raise Error, "#{label} must be an array" unless steps.is_a?(Array)
+
+      steps.each_with_index.map do |step, index|
+        step_label = "#{label}[#{index}]"
+        raise Error, "#{step_label} must be an object" unless step.is_a?(Hash)
+
+        unknown = step.keys - %w[method args kwargs]
+        raise Error, "#{step_label} has unknown keys: #{unknown.join(", ")}" unless unknown.empty?
+        raise Error, "#{step_label} is missing method" unless step.key?("method")
+
+        name = step["method"]
+        raise Error, "#{step_label} method #{name.inspect} is not a method name" unless name.is_a?(String) && METHOD_NAME.match?(name)
+
+        Input::SetupCall.new(name, Input.new(args: step.fetch("args", []), kwargs: step["kwargs"] || {}))
       end
     end
   end

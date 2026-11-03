@@ -35,16 +35,27 @@ module Branchout
       def example_lines(target, pin, index)
         lines = ["  it #{format("%03d", index).inspect} do"]
         lines.concat(Support.cover_comment(pin, "    "))
-        call = Support.render_call(target, pin.input)
+        arrange, call = Support.arrange(target, pin.input)
         if pin.error
-          if pin.error.name
-            lines << "    expect { #{call} }.to raise_error(#{pin.error.class_name}) { |error| expect(error.name).to eq(#{pin.error.name.inspect}) }"
+          matcher = if pin.error.name
+            "raise_error(#{pin.error.class_name}) { |error| expect(error.name).to eq(#{pin.error.name.inspect}) }"
           elsif pin.error.stable_message
-            lines << "    expect { #{call} }.to raise_error(#{pin.error.class_name}, #{pin.error.message.inspect})"
+            "raise_error(#{pin.error.class_name}, #{pin.error.message.inspect})"
           else
-            lines << "    expect { #{call} }.to raise_error(#{pin.error.class_name})"
+            "raise_error(#{pin.error.class_name})"
           end
-        elsif Support.literal?(pin.value)
+          if arrange.empty?
+            lines << "    expect { #{call} }.to #{matcher}"
+          else
+            lines << "    expect {"
+            (arrange + [call]).each { |line| lines << "      #{line}" }
+            lines << "    }.to #{matcher}"
+          end
+          return lines << "  end"
+        end
+
+        arrange.each { |line| lines << "    #{line}" }
+        if Support.literal?(pin.value)
           lines << "    expect(#{call}).to eq(#{Support.ruby_literal(pin.value)})"
         else
           lines << "    expect(#{call}).to be_a(#{Support.class_literal(pin.value)})"

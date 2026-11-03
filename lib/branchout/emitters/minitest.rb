@@ -35,17 +35,21 @@ module Branchout
       def example_lines(target, pin, index)
         lines = ["  def test_#{format("%03d", index)}"]
         lines.concat(Support.cover_comment(pin, "    "))
-        call = Support.render_call(target, pin.input)
+        arrange, call = Support.arrange(target, pin.input)
         if pin.error
           lines << "    error = assert_raises(#{pin.error.class_name}) do"
-          lines << "      #{call}"
+          (arrange + [call]).each { |line| lines << "      #{line}" }
           lines << "    end"
           if pin.error.name
             lines << "    assert_equal #{pin.error.name.inspect}, error.name"
           elsif pin.error.stable_message
             lines << "    assert_equal #{pin.error.message.inspect}, error.message"
           end
-        elsif pin.value.nil?
+          return lines << "  end"
+        end
+
+        arrange.each { |line| lines << "    #{line}" }
+        if pin.value.nil?
           # Minitest 6 fails assert_equal with an expected nil.
           lines << "    assert_nil #{call}"
         elsif pin.value.is_a?(Hash) && Support.literal?(pin.value)

@@ -159,7 +159,17 @@ class EmitterTest < Minitest::Test
                  support.ruby_literal({ "b" => true, c: "x", "a" => [nil, false] }, mutable: true)
     target = Struct.new(:singleton, :const_name, :method_name, :entry).new(true, "Foo::Bar", :baz?, "Foo::Bar.baz?")
     input = Branchout::Input.new(args: [1], kwargs: { "z" => 1, "a b" => "s" })
-    assert_equal 'Foo::Bar.baz?(1, "a b": +"s", z: 1)', support.render_call(target, input)
+    assert_equal [[], 'Foo::Bar.baz?(1, "a b": +"s", z: 1)'], support.arrange(target, input)
+    target.singleton = false
+    setup = [Branchout::Input::SetupCall.new("<<", Branchout::Input.new(args: ["x"]))]
+    assert_equal [["bar = Foo::Bar.new(2)", 'bar.<<(+"x")'], "bar.baz?()"],
+                 support.arrange(target, Branchout::Input.new(args: [], receiver: Branchout::Input.new(args: [2]), setup: setup))
+    { "HTTPClient" => "http_client", "Class" => "subject", "Error" => "subject", "X" => "x" }.each do |const, name|
+      target.const_name = const
+      assert_equal name, support.receiver_name(target), const
+    end
+    target.const_name = "Foo::Bar"
+    target.singleton = true
     assert_equal "FooBarBazPCharacterizationTest", support.class_name_for(target)
     target.method_name = :reset!
     assert_equal "FooBarResetBCharacterizationTest", support.class_name_for(target)

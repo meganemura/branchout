@@ -64,6 +64,10 @@ EXCEPTIONS
 `Const#method` では、入力ごとに `Const.new` で新しいレシーバーを作る。
 `initialize` が引数を取るときは、各入力の `new` に入力と同じ形で書く。
 `{"args": [5], "new": [10]}` は `Const.new(10).method(5)` を呼ぶ。
+メソッドが読む状態が `new` のあとの呼び出しで決まるときは、その呼び出しを順に `setup` へ書く。
+`{"args": [], "setup": [{"method": "add", "args": ["apple", 3]}]}` は、新しいレシーバーで `add("apple", 3)` を呼んでからメソッドを呼ぶ。
+各ステップは `method`、`args`、`kwargs` を取る。
+カバレッジが数えるのはメソッドの呼び出しだけで、`new` と `setup` は数えない。
 `--entry ENTRY` は位置引数の代わりになる。
 
 探索中は `--strategy inputs --random 0` とし、`--seed` は固定する。新しく覆われた腕は、足した入力だけから来る。探索手順は [skills/branchout/SKILL.md](skills/branchout/SKILL.md) にある。
@@ -109,7 +113,7 @@ ruby bin/branchout baselines examples/magic_value.rb MagicValue.classify \
 ```
 
 エントリは配列だけでもよい。
-キーワードは `kwargs` に、コンストラクタ引数は `new` に書く。
+キーワードは `kwargs` に、コンストラクタ引数は `new` に、レシーバーの状態を作る呼び出しは `setup` に書く。
 型推論が違うときは、`"types"` に位置引数 1 つにつき `int`、`float`、`string`、`array`、`hash`、`bool` のいずれかを置く。
 既定値が `[]`、`{}`、`true`、`false` の引数はその型になる。
 `bool` の引数には、変異とランダムサンプリングが `false` と `true` の両方を試す。

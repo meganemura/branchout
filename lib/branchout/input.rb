@@ -2,11 +2,20 @@
 
 module Branchout
   class Input
-    # +receiver+ is the Input whose arguments go to new for a Const#method
-    # entry, or nil to call new with none.
-    attr_reader :args, :kwargs, :receiver
+    # One call made on the receiver after new and before the entry.
+    # +arguments+ is an Input with no receiver and no setup of its own.
+    SetupCall = Struct.new(:method_name, :arguments) do
+      def to_h
+        arguments.to_h.merge("method" => method_name)
+      end
+    end
 
-    def initialize(args:, kwargs: {}, receiver: nil)
+    # +receiver+ is the Input whose arguments go to new for a Const#method
+    # entry, or nil to call new with none. +setup+ lists the SetupCalls
+    # that build the receiver's state.
+    attr_reader :args, :kwargs, :receiver, :setup
+
+    def initialize(args:, kwargs: {}, receiver: nil, setup: [])
       @args = deep_freeze(normalize(args))
       unless @args.is_a?(Array)
         raise Error, "input args must be an array"
@@ -21,12 +30,14 @@ module Branchout
         out[key.to_s] = normalize(value)
       })
       @receiver = receiver
+      @setup = setup.map { |call| SetupCall.new(-call.method_name.to_s, call.arguments).freeze }.freeze
       freeze
     end
 
     def to_h
       hash = {"args" => args, "kwargs" => kwargs}
       hash["new"] = receiver.to_h if receiver
+      hash["setup"] = setup.map(&:to_h) unless setup.empty?
       hash
     end
 
@@ -37,14 +48,16 @@ module Branchout
     # Short form used in the text report. An input with only args prints as
     # the args array so an agent can paste it back into inputs.json.
     def text
-      kwargs.empty? && receiver.nil? ? Canon.json(args) : Canon.json(to_h)
+      kwargs.empty? && receiver.nil? && setup.empty? ? Canon.json(args) : Canon.json(to_h)
     end
 
-    # Smaller is a simpler witness: absolute numeric size, then string length.
+    # Smaller is a simpler witness: absolute numeric size, then string
+    # length, and each setup call counts one.
     def weight
       args.sum { |value| self.class.weight_of(value) } +
         kwargs.values.sum { |value| self.class.weight_of(value) } +
-        (receiver ? receiver.weight : 0)
+        (receiver ? receiver.weight : 0) +
+        setup.sum { |call| 1 + call.arguments.weight }
     end
 
     def self.weight_of(value)

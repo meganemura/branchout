@@ -107,8 +107,29 @@ class MutatorTest < Minitest::Test
     "{\"inputs\": [{\"kwargs\": {}}]}" => "inputs[0] is missing args",
     "{\"inputs\": [1]}" => "inputs[0] must be an array or an object",
     "{\"inputs\": [{\"args\": 1}]}" => "input args must be an array",
-    "{\"inputs\": [{\"args\": [], \"kwargs\": 1}]}" => "input kwargs must be an object"
+    "{\"inputs\": [{\"args\": [], \"kwargs\": 1}]}" => "input kwargs must be an object",
+    "{\"inputs\": [{\"args\": [], \"setup\": {}}]}" => "inputs[0] setup must be an array",
+    "{\"inputs\": [{\"args\": [], \"setup\": [[]]}]}" => "inputs[0] setup[0] must be an object",
+    "{\"inputs\": [{\"args\": [], \"setup\": [{\"args\": []}]}]}" => "inputs[0] setup[0] is missing method",
+    "{\"inputs\": [{\"args\": [], \"setup\": [{\"method\": \"a b\"}]}]}" => "inputs[0] setup[0] method \"a b\" is not a method name",
+    "{\"inputs\": [{\"args\": [], \"setup\": [{\"method\": \"a\", \"new\": []}]}]}" => "inputs[0] setup[0] has unknown keys: new",
+    "{\"inputs\": [{\"args\": [], \"new\": {\"args\": [], \"setup\": []}}]}" => "inputs[0] new has unknown keys: setup"
   }.freeze
+
+  def test_input_file_reads_setup_steps
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "inputs.json")
+      File.write(path, JSON.generate({ "inputs" => [
+        { "args" => [], "setup" => [{ "method" => "add", "args" => [1], "kwargs" => { "price" => 2 } }, { "method" => "<<" }, { "method" => "empty?" }] },
+        { "args" => [], "setup" => [] }
+      ] }))
+      inputs, _types = Branchout::InputFile.load(path)
+      assert_equal '{"args":[],"kwargs":{},"setup":[{"args":[1],"kwargs":{"price":2},"method":"add"},' \
+                   '{"args":[],"kwargs":{},"method":"<<"},{"args":[],"kwargs":{},"method":"empty?"}]}', inputs.first.canonical
+      assert_equal "[]", inputs.last.text
+      assert_equal 6, inputs.first.weight
+    end
+  end
 
   def test_each_bad_inputs_file_names_the_problem
     Dir.mktmpdir do |dir|

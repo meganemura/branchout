@@ -48,6 +48,7 @@ Start from one seed. [inputs.example.json](inputs.example.json) shows every acce
 
 - An entry is `{"args": [...]}` or a bare array. Keywords go in `kwargs`: `{"args": [0], "kwargs": {"flag": true}}`.
 - For `Const#method`, constructor arguments go in `new`, in the same shape as an entry: `{"args": [5], "new": [10]}` calls `Const.new(10).method(5)`. Inputs differ by `new` too, so a method with no parameters is explored by varying `new`. `mutate` and `random` cannot fill `new`, so keep `--strategy inputs` for such a class.
+- When the method reads state that later calls build, such as `cart.add(...)` before `cart.total`, list those calls in `setup`, in order: `{"args": [], "setup": [{"method": "add", "args": ["apple", 3]}]}`. Each step has `method` and optional `args` and `kwargs`. Coverage counts only the entry call. An exception raised in a setup call is still reported, with `loc` on that line. The emitted test names the receiver after the class (`cart = Shop::Cart.new`) and repeats the calls.
 - Seeds: `[0]` int, `[0.0]` float, `[""]` string, `[[]]` array, `[{}]` hash, `[false]` bool.
 - `"types"` values are `int`, `float`, `string`, `array`, `hash`, or `bool`. A default of `[]`, `{}`, `true`, or `false` already gives the type. The array length must match the positional parameters. Extra top-level keys such as `meta` are ignored.
 - Values may be null, booleans, numbers, strings, arrays, and objects. `-0.0` is stored as `0.0`.
@@ -74,11 +75,11 @@ Stdout is the contract. Sections are `COVERED`, `FRONTIER`, and `EXCEPTIONS`. Id
 - `loc` is `file:line:column`. Open that line. `cond` is the predicate, or the `when` / `in` line. Longer text is cut at 160 characters.
 - `sense` selects the arm: `cond-true` (`if` then, `unless` else), `cond-false` (`if` else, `unless` then), `arm-matched` (that `when` or `in`), `arm-else` (case else), `body-entered` (`while` or `until` body), `receiver-present` / `receiver-nil` (`&.`). Anything else is `taken`.
 - `parent: reached` means some input executed the decision. Flip these first. `parent: not-reached` means the parent has not run and `nearest` is `null`. Reach the parent first.
-- `nearest` reached the decision with the fewest taken arms, then the smallest weight (absolute numeric size, plus string and container length), then the smallest canonical JSON. With no keywords and no `new` it prints as the args array (`[0,1]`), which pastes into `args`. With keywords or `new` it prints as `{"args":[...],"kwargs":{...}}`, plus `"new"` when set, which pastes back as an entry.
+- `nearest` reached the decision with the fewest taken arms, then the smallest weight (absolute numeric size, plus string and container length), then the smallest canonical JSON. With no keywords and no `new` it prints as the args array (`[0,1]`), which pastes into `args`. With keywords, `new`, or `setup` it prints as `{"args":[...],"kwargs":{...}}`, plus `"new"` and `"setup"` when set, which pastes back as an entry.
 - `path` is the sorted set of arms `nearest` took. Order is not recorded. An empty set prints `(none)`; a missing path prints `null`.
 - `COVERED` uses `input` for the witness of that arm. `EXCEPTIONS` lists `class`, `loc`, `input`, and `message`. An empty frontier can still have exceptions, and a covered method can still raise.
 
-`--json` is the same report (`version`, counts, `covered`, `frontier`, `exceptions`). Each frontier object has `id`, `loc`, `cond`, `sense`, `parent`, `nearest` (`{"args","kwargs"}`, plus `"new"` when set, or null), and `path`.
+`--json` is the same report (`version`, counts, `covered`, `frontier`, `exceptions`). Each frontier object has `id`, `loc`, `cond`, `sense`, `parent`, `nearest` (`{"args","kwargs"}`, plus `"new"` and `"setup"` when set, or null), and `path`.
 
 ## Rounds
 
@@ -153,7 +154,6 @@ A test that passes on base and fails on head is a changed return value or except
 - A method that depends on time, randomness, or I/O will not stay stable across runs.
 - A path is a set of arms, not an order. Two orders that take the same arms look the same. A modifier `unless` can put `then` and `else` at the same `loc`; the arm name in the id distinguishes them.
 - Only a bare call, a `self.` call, and a call on a bare `new(...)` in the same file are followed. `def self.apply(doc) = new(doc).apply` reaches `initialize` and `#apply`. `send`, another receiver, and other files are out of scope. When the entry reaches no arm, `explore` warns on stderr; target the method that branches.
-- `new` passes constructor arguments only. A receiver whose state comes from later calls, such as `cart.add(...)`, cannot be set up. Target a method that takes that state as arguments.
 - Emitted tests pin other exception messages exactly. A message that differs between Ruby versions fails on a Ruby other than the one that emitted it.
 - `Timeout.timeout` does not stop every block. If the timeout backtrace has no target line, `loc` is the method definition line.
 - An unsatisfiable condition stays on the frontier. Stop trying it.

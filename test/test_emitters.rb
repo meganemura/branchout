@@ -362,6 +362,25 @@ class EmitterTest < Minitest::Test
                  support.test_names(pins)
   end
 
+  # A leaf that is a String in one sibling and not in another keeps all of
+  # its words.
+  def test_a_string_beside_a_number_keeps_its_start
+    pins = [1, "1 a"].map do |value|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [{ "x" => { "v" => value } }]), value: :ok, error: nil, arm_ids: [])
+    end
+    assert_equal %w[test_v_1_returns_ok test_v_1_a_returns_ok], Branchout::Emitters::Support.test_names(pins)
+  end
+
+  def test_requires_by_name_come_from_each_require_directory
+    support = Branchout::Emitters::Support
+    lines = support.require_lines(["/w/repo/lib/shop.rb"], "/w/repo/lib/shop/cart.rb", "/tmp/out/cart_test.rb", by_name: true)
+    assert_equal ['require "shop"', 'require "shop/cart"'], lines
+    lines = support.require_lines(["/w/repo/lib/shop.rb"], "/w/other/cart.rb", "/w/repo/test/cart_test.rb", by_name: true)
+    assert_equal ['require "shop"', 'require_relative "../../other/cart.rb"'], lines
+    lines = support.require_lines(["/w/repo/lib/shop.rb"], "/w/repo/lib/shop/cart.rb", "/w/repo/test/cart_test.rb")
+    assert_equal ['require_relative "../lib/shop.rb"', 'require_relative "../lib/shop/cart.rb"'], lines
+  end
+
   def test_clip_keeps_a_word_that_fills_the_limit
     support = Branchout::Emitters::Support
     assert_equal "abcd", support.clip(["abcd"], 4)

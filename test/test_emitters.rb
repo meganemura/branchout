@@ -362,6 +362,18 @@ class EmitterTest < Minitest::Test
                  Branchout::Emitters::Support.test_names(pins)
   end
 
+  # A scalar deep in a Hash argument reaches the name: 7 % 0, -7 % 3, and
+  # 7 % 3 as quint IR differ only in two nested ints.
+  def test_a_scalar_inside_a_nested_hash_names_its_sibling
+    modulo = ->(a, b) { { "kind" => "app", "opcode" => "imod", "args" => [{ "kind" => "int", "value" => a }, { "kind" => "int", "value" => b }] } }
+    pins = [[7, 0], [-7, 3], [7, 3]].map do |a, b|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [modulo.(a, b)], receiver: Branchout::Input.new(args: [[], []])),
+                                 value: :ok, error: nil, arm_ids: [])
+    end
+    assert_equal %w[test_value_7__value_0_returns_ok test_value_neg7__value_3_returns_ok test_value_7__value_3_returns_ok],
+                 Branchout::Emitters::Support.test_names(pins)
+  end
+
   # Strings that share their start are named by the words from where they
   # part.
   def test_sibling_strings_are_named_from_where_they_differ

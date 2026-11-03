@@ -135,8 +135,10 @@ module Branchout
         raise Error, "#{@target.entry} is not an instance method, so its inputs take no \"new\"" if input.receiver
         raise Error, "#{@target.entry} is not an instance method, so its inputs take no \"setup\"" unless input.setup.empty?
       elsif input.receiver.nil? && @required_new_arguments.positive?
+        private_new = " #{@target.const_name}.new is private, so explore and the emitted tests call it through send." if @private_calls.include?(:new)
         raise Error, "#{@target.const_name}#initialize requires #{@required_new_arguments} arguments; " \
-                     "give them in \"new\" on each input. mutate and random fill \"new\" only when #{@target.display_path} defines initialize"
+                     "give them in \"new\" on each input.#{private_new} " \
+                     "mutate and random fill \"new\" only when #{@target.display_path} defines initialize"
       end
     end
 

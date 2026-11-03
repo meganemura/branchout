@@ -209,6 +209,20 @@ class EmitterTest < Minitest::Test
     end
   end
 
+  # A private new is not a dead end: its arguments still go in "new".
+  def test_a_private_new_without_arguments_says_they_go_in_new
+    Dir.mktmpdir do |dir|
+      inputs = File.join(dir, "inputs.json")
+      File.write(inputs, JSON.generate({ "inputs" => [[3]] }))
+      _out, err, status = run_cli(
+        "explore", "test/fixtures/vault.rb", "FixtureVault#check", "--inputs", inputs, "--strategy", "inputs", "--random", "0"
+      )
+      refute status.success?
+      assert_includes err, "FixtureVault#initialize requires 1 arguments; give them in \"new\" on each input. " \
+                           "FixtureVault.new is private, so explore and the emitted tests call it through send."
+    end
+  end
+
   def test_a_nil_return_value_emits_assert_nil
     Dir.mktmpdir do |dir|
       inputs = File.join(dir, "inputs.json")
@@ -364,6 +378,15 @@ class EmitterTest < Minitest::Test
     too_long = "a" * 59
     assert_equal "[1] returns #{fits.inspect}", Branchout::Emitters::Support.description(pin.(Branchout::Input.new(args: [1]), fits))
     assert_equal "[1] returns #{too_long.inspect[0, 57]}...", Branchout::Emitters::Support.description(pin.(Branchout::Input.new(args: [1]), too_long))
+  end
+
+  # A test written outside the target's tree requires it by absolute path,
+  # not by a climb to / that breaks once either file moves.
+  def test_a_require_shares_a_directory_or_is_absolute
+    support = Branchout::Emitters::Support
+    assert_equal "../lib/a.rb", support.relative_require("/w/repo/test/a_test.rb", "/w/repo/lib/a.rb")
+    assert_equal "./a.rb", support.relative_require("/w/repo/a_test.rb", "/w/repo/a.rb")
+    assert_equal "/home/u/repo/lib/a.rb", support.relative_require("/tmp/out/a_test.rb", "/home/u/repo/lib/a.rb")
   end
 
   def test_an_empty_run_emits_a_skip_and_requires_load_first

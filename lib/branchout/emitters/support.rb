@@ -20,9 +20,13 @@ module Branchout
         ]
       end
 
+      # Paths that share only / give the absolute path: a climb to / breaks
+      # as soon as either file moves, and require_relative accepts it.
       def relative_require(destination, target_path)
         from = Pathname.new(File.expand_path(File.dirname(destination)))
         to = Pathname.new(File.expand_path(target_path))
+        return to.to_s if from.each_filename.first != to.each_filename.first
+
         relative = to.relative_path_from(from).to_s.tr("\\", "/")
         relative.start_with?(".") ? relative : "./#{relative}"
       end

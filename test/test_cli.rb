@@ -437,6 +437,44 @@ class CLITest < Minitest::Test
     end
   end
 
+  # A library's entry file needs no --require for --require-by-name, a
+  # method of a private constant is reached through const_get, and a
+  # message over several lines is pinned as it was raised, so the emitted
+  # tests pass on the code they came from.
+  def test_emitted_tests_pass_for_a_private_constant_with_a_multiline_message
+    Dir.mktmpdir do |dir|
+      lib = File.join(dir, "lib")
+      FileUtils.mkdir_p(lib)
+      target = File.join(lib, "agree.rb")
+      File.write(target, <<~RUBY)
+        module Agree
+          module Check
+            def self.check!(n)
+              raise ArgumentError, "differs\\n  n: \#{n}" if n.positive?
+
+              n
+            end
+          end
+          private_constant :Check
+        end
+      RUBY
+      path = write_inputs(dir, { "inputs" => [[1], [0]] })
+      %w[agree_test.rb agree_spec.rb].each do |name|
+        out = File.join(dir, name)
+        _out, err, status = run_cli("explore", target, "Agree::Check.check!", "--strategy", "inputs", "--random", "0",
+                                    "--inputs", path, "--emit-tests", out, "--require-by-name")
+        assert status.success?, err
+        source = File.read(out)
+        assert_includes source, "require \"agree\"\n"
+        assert_includes source, "Agree.const_get(:Check).check!(1)"
+        assert_includes source, '"differs\n  n: 1"'
+        command = name.end_with?("_spec.rb") ? [RbConfig.ruby, "-I", lib, "-rrspec/autorun", "-e", "", out] : [RbConfig.ruby, "-I", lib, out]
+        output, err, status = Open3.capture3(*command)
+        assert status.success?, "#{source}\n#{output}\n#{err}"
+      end
+    end
+  end
+
   # --pin-keys pins chosen keys of a returned Hash, so a key added later
   # fails no test.
   def test_pin_keys_pins_only_the_chosen_keys_of_a_hash

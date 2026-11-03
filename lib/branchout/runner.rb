@@ -23,7 +23,9 @@ module Branchout
     Execution = Struct.new(:input, :value, :error, :lines, :branches, :path_ids, :origin, keyword_init: true)
     # +name+ is the missing name of a NameError, which is stable where its
     # message is not: Ruby 3.4 reworded both NameError and NoMethodError.
-    ExceptionInfo = Struct.new(:class_name, :message, :loc, :stable_message, :name, keyword_init: true)
+    # +message+ has its whitespace folded for reports; a test pins
+    # +exact_message+, the message as raised, when that is stable.
+    ExceptionInfo = Struct.new(:class_name, :message, :loc, :stable_message, :name, :exact_message, keyword_init: true)
 
     # +private_calls+ names the entry and new when they are private or
     # protected, so a test has to call them through send.
@@ -256,7 +258,7 @@ module Branchout
       end
       name = exception.is_a?(Timeout::Error) ? "Timeout::Error" : exception.class.name
       missing = exception.name if exception.is_a?(NameError) && exception.name.is_a?(Symbol)
-      new(class_name: name, message: clean, loc: loc, stable_message: stable, name: missing)
+      new(class_name: name, message: clean, loc: loc, stable_message: stable, name: missing, exact_message: (raw if stable))
     end
 
     def self.locate(exception, display_path, real_path)

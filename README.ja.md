@@ -134,6 +134,7 @@ ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \
 ```
 
 この実行は 4 腕のうち 4 腕を覆い、`[24,12]` で `ZeroDivisionError`（`divided by 0`）を記録する。出力ファイルは戻り値、または例外クラスとメッセージを固定する。
+複数行のメッセージは、発生したときのまま固定する。
 `NameError` と `NoMethodError` は、クラスと見つからなかった名前（`error.name`）で固定する。
 Ruby 3.4 でメッセージの文言が変わったためである。
 `Set` のように Ruby のリテラルで書けない戻り値は、クラスだけを固定する。

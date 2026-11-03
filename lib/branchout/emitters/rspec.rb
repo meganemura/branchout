@@ -135,7 +135,7 @@ module Branchout
           if error.name
             "raise_error(#{error.class_name}) { |error| expect(error.name).to eq(#{error.name.inspect}) }"
           elsif error.stable_message
-            "raise_error(#{error.class_name}, #{error.message.inspect})"
+            "raise_error(#{error.class_name}, #{(error.exact_message || error.message).inspect})"
           else
             "raise_error(#{error.class_name})"
           end

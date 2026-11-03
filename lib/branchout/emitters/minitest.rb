@@ -38,7 +38,7 @@ module Branchout
           if pin.error.name
             lines << "    assert_equal #{pin.error.name.inspect}, error.name"
           elsif pin.error.stable_message
-            lines << "    assert_equal #{pin.error.message.inspect}, error.message"
+            lines << "    assert_equal #{(pin.error.exact_message || pin.error.message).inspect}, error.message"
           end
           return lines << "  end"
         end

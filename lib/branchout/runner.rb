@@ -89,17 +89,22 @@ module Branchout
     end
 
     # Another checkout's lib/branchout reopens the running tool's classes,
-    # so the run would mix two versions. The check is a closure built before
-    # anything loads, because the copy can redefine every method and constant.
+    # so the run would mix two versions. A copy is a file outside the
+    # running lib that opens the Branchout namespace; a project file that
+    # only shares a file name with one of branchout's is not. The check is a
+    # closure built before anything loads, because the copy can redefine
+    # every method and constant.
     def loader_refusing_another_branchout
-      lib = File.expand_path("..", __dir__)
-      own = Dir[File.join(lib, "**/*.rb")].map { |file| file.delete_prefix(lib) }
+      lib = "#{File.expand_path("..", __dir__)}/"
       lambda do |path|
-        loaded = $LOADED_FEATURES.length
-        require path
-        copy = $LOADED_FEATURES[loaded..].any? do |feature|
-          !feature.start_with?("#{lib}/") && own.any? { |name| feature.end_with?(name) }
+        copy = false
+        opened = TracePoint.new(:class) do |event|
+          next if event.path.start_with?(lib)
+
+          name = Module.instance_method(:name).bind_call(event.self).to_s
+          copy ||= name == "Branchout" || name.start_with?("Branchout::")
         end
+        opened.enable { require path }
         next unless copy
 
         raise Error, "#{Target.display_path(path)} loads another copy of branchout, which replaces the running one's classes. " \

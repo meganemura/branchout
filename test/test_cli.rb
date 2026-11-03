@@ -372,6 +372,23 @@ class CLITest < Minitest::Test
     end
   end
 
+  # Only a file that opens the Branchout namespace is a copy. A project file
+  # that shares a path with one of branchout's own files is not.
+  def test_a_project_file_named_like_a_branchout_file_is_explored
+    Dir.mktmpdir do |dir|
+      FileUtils.mkdir_p(File.join(dir, "lib/branchout"))
+      File.write(File.join(dir, "lib/branchout.rb"), "require \"branchout/report\"\n")
+      File.write(File.join(dir, "lib/branchout/report.rb"), "module Shop\n  def self.f(x) = x > 0 ? :pos : :neg\nend\n")
+      path = write_inputs(dir, { "inputs" => [[1]] })
+      stdout, stderr, status = run_cli(
+        "explore", File.join(dir, "lib/branchout/report.rb"), "Shop.f",
+        "--require", File.join(dir, "lib/branchout.rb"), "--strategy", "inputs", "--random", "0", "--inputs", path
+      )
+      assert status.success?, stderr
+      assert_includes stdout, "arms_covered: 1"
+    end
+  end
+
   # A file of the running branchout was loaded before coverage started, so
   # it is loaded again to be measured.
   def test_branchout_explores_its_own_files

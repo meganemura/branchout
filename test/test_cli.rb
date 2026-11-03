@@ -386,7 +386,9 @@ class CLITest < Minitest::Test
       assert_includes stdout, "arms_covered: 2"
       assert_includes stdout, "EXCEPTIONS\n(none)"
       source = File.read(test)
-      assert_match(/loader\.rb"\nrequire_relative ".*loaded\.rb"/, source)
+      # loader.rb requires the target, so the test requires loader.rb alone.
+      assert_match(/^require_relative ".*loader\.rb"\n\n/, source)
+      refute_match(/loaded\.rb/, source.lines.grep(/require/).join)
       _out, err, status = Open3.capture3(RbConfig.ruby, test)
       assert status.success?, err
     end
@@ -452,7 +454,7 @@ class CLITest < Minitest::Test
           "--strategy", "inputs", "--random", "0", "--inputs", path, "--emit-tests", test, "--require-by-name"
         )
         assert status.success?, err
-        assert_includes File.read(test), "\nrequire \"shop\"\nrequire \"shop/cart\"\n"
+        assert_includes File.read(test), "\nrequire \"shop\"\n\n"
         refute_includes File.read(test), "require_relative"
       end
 

@@ -27,7 +27,9 @@ module Branchout
 
     # +private_calls+ names the entry and new when they are private or
     # protected, so a test has to call them through send.
-    attr_reader :template, :private_calls
+    # +target_required+ is true when a --require file already loads the
+    # target, so a test needs no require of its own for it.
+    attr_reader :template, :private_calls, :target_required
 
     # +requires+ are files the target needs loaded first, such as its
     # library's entry file. They load after coverage starts, so the target
@@ -73,6 +75,7 @@ module Branchout
               $LOAD_PATH.unshift(File.dirname(path)) unless $LOAD_PATH.include?(File.dirname(path))
               load_file.(path)
             end
+            @target_required = !preloaded && $LOADED_FEATURES.include?(File.realpath(@target.path))
             preloaded ? load(@target.path) : load_file.(@target.path)
           end
         end

@@ -51,7 +51,7 @@ module Branchout
       # -I names. A target outside every such directory keeps its path.
       def require_lines(requires, target_path, destination, by_name: false)
         roots = requires.map { |path| "#{File.dirname(File.expand_path(path))}/" }
-        [*requires, target_path].map do |path|
+        [*requires, *target_path].map do |path|
           absolute = File.expand_path(path)
           root = by_name && roots.find { |dir| absolute.start_with?(dir) }
           next "require #{absolute.delete_prefix(root).delete_suffix(".rb").inspect}" if root

@@ -29,7 +29,7 @@ module Branchout
       def render(result, target, destination, require_by_name: false)
         lines = Support.header(target, "specs", destination)
         lines << ""
-        lines.concat(Support.require_lines(result.requires, target.path, destination, by_name: require_by_name))
+        lines.concat(Support.require_lines(result.requires, (target.path unless result.target_required), destination, by_name: require_by_name))
         lines << ""
         lines << "RSpec.describe #{target.const_name} do"
         lines << "  describe #{"#{target.singleton ? "." : "#"}#{target.method_name}".inspect} do"

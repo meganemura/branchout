@@ -7,7 +7,7 @@ module Branchout
     Result = Struct.new(
       :command, :target, :entry, :seed, :strategies, :random, :mutate_cap, :timeout,
       :inputs_ran, :mutate_ran, :random_ran, :executions,
-      :covered, :frontier, :exceptions, :pins, :requires, :private_calls, :repeated_inputs,
+      :covered, :frontier, :exceptions, :pins, :requires, :target_required, :private_calls, :repeated_inputs,
       keyword_init: true
     )
 
@@ -119,6 +119,7 @@ module Branchout
         exceptions: findings,
         pins: pins,
         requires: @requires,
+        target_required: runner.target_required,
         private_calls: runner.private_calls,
         repeated_inputs: repeated_inputs
       )

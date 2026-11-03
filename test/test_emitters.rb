@@ -238,6 +238,36 @@ class EmitterTest < Minitest::Test
     assert_equal "FooBarBazPCharacterizationTest", support.class_name_for(target)
     target.method_name = :reset!
     assert_equal "FooBarResetBCharacterizationTest", support.class_name_for(target)
+    target.const_name = "JitCatch::Render"
+    target.method_name = :run_text
+    assert_equal "JitCatchRenderRunTextCharacterizationTest", support.class_name_for(target)
+  end
+
+  # A blank argument still shows in the name, and the outcome is cut at a
+  # word boundary, with a Hash outcome named by its keys.
+  def test_names_keep_blank_arguments_and_cut_at_word_boundaries
+    pin = ->(args, value, error = nil) {
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: args), value: value, error: error, arm_ids: [])
+    }
+    receipt = { discount: 50, discount_cents: 0, due_cents: 999, lines: [{ qty: 1 }] }
+    error = Branchout::Runner::ExceptionInfo.new(class_name: "ArgumentError")
+    names = Branchout::Emitters::Support.test_names([
+      pin.(["   ", 1], nil, error),
+      pin.([""], :ok),
+      pin.([50], receipt),
+      pin.([1], "raised ArgumentError: bad quantity"),
+      pin.([2], [[1, 2], [3]]),
+      pin.([3], {})
+    ])
+    expected = [
+      /\Atest_blank_1_raises_argument_error_\h{6}\z/,
+      /\Atest_empty_returns_ok_\h{6}\z/,
+      /\Atest_50_returns_hash_discount_discount_\h{6}\z/,
+      /\Atest_1_returns_raised_argumenterror_\h{6}\z/,
+      /\Atest_2_returns_array_of_2_\h{6}\z/,
+      /\Atest_3_returns_empty_hash_\h{6}\z/
+    ]
+    expected.zip(names).each { |pattern, name| assert_match pattern, name }
   end
 
   def test_explicit_format_overrides_extension

@@ -128,7 +128,7 @@ module Branchout
       def class_name_for(target)
         const_part = target.const_name.gsub("::", "")
         method_part = target.method_name.to_s.gsub("?", "P").gsub("!", "B").gsub("=", "E")
-        method_part = method_part.sub(/\A[a-z]/) { |char| char.upcase }
+        method_part = method_part.split("_").map { |word| word.sub(/\A[a-z]/, &:upcase) }.join
         "#{const_part}#{method_part}CharacterizationTest"
       end
 
@@ -168,17 +168,31 @@ module Branchout
 
       def outcome_words(pin)
         return ["raises", *snake_words(pin.error.class_name)] if pin.error
-        return ["returns", *value_words(pin.value)] if literal?(pin.value)
+        return ["returns", *snake_words(class_literal(pin.value))] unless literal?(pin.value)
 
-        ["returns", *snake_words(class_literal(pin.value))]
+        ["returns", *shape_words(pin.value)]
+      end
+
+      # A Hash is named by its keys and an Array of collections by its size,
+      # so the start of a long value does not fill the name.
+      def shape_words(value)
+        case value
+        when {}, [] then ["empty", value.is_a?(Hash) ? "hash" : "array"]
+        when Hash then ["hash", *value.keys.map(&:to_s)]
+        when Array
+          value.any? { |item| item.is_a?(Hash) || item.is_a?(Array) } ? ["array", "of", value.length.to_s] : value_words(value)
+        else value_words(value)
+        end
       end
 
       def value_words(value)
         case value
         when Array then value.flat_map { |item| value_words(item) }
-        when Hash then value.sort_by { |key, _| key.to_s }.flat_map { |key, item| [key.to_s, *value_words(item)] }
+        when Hash then value.flat_map { |key, item| [key.to_s, *value_words(item)] }
         when nil then ["nil"]
         when "" then ["empty"]
+        when /\A\s+\z/ then ["blank"]
+        when /\A[^A-Za-z0-9]+\z/ then ["text"]
         when Numeric then [value.to_s.sub(/\A-/, "neg")]
         else [value.to_s]
         end
@@ -188,10 +202,17 @@ module Branchout
         [class_name.gsub("::", "_").gsub(/([a-z\d])([A-Z])/, '\1_\2')]
       end
 
-      # Joins words into identifier characters, cut to at most +limit+.
+      # Joins words into identifier characters, at most +limit+ long, cut
+      # between words. Only a first word longer than +limit+ is cut inside.
       def clip(words, limit)
-        text = words.join("_").downcase.gsub(/[^a-z0-9]+/, "_").gsub(/\A_+|_+\z/, "")
-        text[0, limit].sub(/_+\z/, "")
+        tokens = words.join("_").downcase.split(/[^a-z0-9]+/).reject(&:empty?)
+        return tokens.first.to_s[0, limit] if tokens.first.to_s.length > limit
+
+        tokens.each_with_object([]) { |token, kept|
+          break kept if (kept + [token]).join("_").length > limit
+
+          kept << token
+        }.join("_")
       end
 
       def cover_comment(pin, indent)

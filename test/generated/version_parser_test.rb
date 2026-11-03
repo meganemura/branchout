@@ -13,7 +13,7 @@ class VersionParserParseCharacterizationTest < Minitest::Test
     assert_equal :blank, VersionParser.parse(+"")
   end
 
-  def test_returns_pre_91c392
+  def test_text_returns_pre_91c392
     # covers: if@11:6/else@14:8, if@5:4/else@7:4, if@7:4/then@8:6, if@9:6/else@11:6
     assert_equal :pre, VersionParser.parse(+"-")
   end

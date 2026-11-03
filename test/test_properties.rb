@@ -80,6 +80,37 @@ class PropertyTest < Minitest::Test
     end
   end
 
+  # Every word of a name is a whole word of the input or the outcome: the
+  # cut falls between words, and a blank argument leaves the word blank.
+  def test_emitted_test_names_cut_between_words
+    vocabulary = %w[apple discount cents due lines qty sku raised ok]
+    shapes = %w[test returns raises hash array of empty blank nil true false foo bar error]
+    word = one_of(sampled_from(vocabulary), sampled_from(["", " ", "  "]), integers(min_value: -99, max_value: 999))
+    value = recursive(word, max_leaves: 6) do |inner|
+      one_of(arrays(inner, max_size: 3), hashes(sampled_from(vocabulary), inner, max_size: 3))
+    end
+    Hegel.test do |tc|
+      args = tc.draw(arrays(word, min_size: 1, max_size: 6))
+      error = tc.draw(booleans) ? Branchout::Runner::ExceptionInfo.new(class_name: "Foo::BarError") : nil
+      pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: args), value: tc.draw(value), error: error, arm_ids: [])
+      name = Branchout::Emitters::Support.test_names([pin]).first
+      *words, digest = name.split("_")
+      assert_match(/\A\h{6}\z/, digest)
+      words.each { |part| assert(vocabulary.include?(part) || shapes.include?(part) || part.match?(/\A(neg)?\d+\z/), name) }
+      first = args.first
+      expected = first.is_a?(Integer) ? first.to_s.sub("-", "neg") : { "" => "empty", " " => "blank", "  " => "blank" }.fetch(first, first)
+      assert_equal expected, words[1], name
+    end
+  end
+
+  def test_an_emitted_class_name_is_a_constant
+    Hegel.test do |tc|
+      method_name = tc.draw(from_regex("[a-z_][a-z0-9_]{0,12}[?!=]?", fullmatch: true))
+      target = Struct.new(:const_name, :method_name).new("Foo::Bar", method_name.to_sym)
+      assert_match(/\AFooBar[A-Za-z0-9]*CharacterizationTest\z/, Branchout::Emitters::Support.class_name_for(target))
+    end
+  end
+
   def test_keyword_order_does_not_change_an_input
     Hegel.test do |tc|
       kwargs = tc.draw(hashes(text(min_size: 1, max_size: 3), integers, max_size: 4))

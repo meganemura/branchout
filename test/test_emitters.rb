@@ -374,6 +374,24 @@ class EmitterTest < Minitest::Test
                  Branchout::Emitters::Support.test_names(pins)
   end
 
+  # --pin-keys keeps the named entries of a Hash, by name, and leaves any
+  # other value whole; the outcome then says only those entries.
+  def test_pinned_values_and_their_outcomes
+    support = Branchout::Emitters::Support
+    value = { total: 6, tax: 1, "id" => "r" }
+    assert_equal({ total: 6, "id" => "r" }, support.pinned_value(value, %w[total id missing]))
+    assert_same value, support.pinned_value(value, [])
+    assert_same value, support.pinned_value(value, %w[missing])
+    assert_equal 5, support.pinned_value(5, %w[total])
+    assert_equal [1], support.pinned_value([1], %w[total])
+    pins = [[1, value], [2, { total: 2, tax: 0, "id" => "r" }]].map do |arg, result|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [arg]), value: result, error: nil, arm_ids: [])
+    end
+    assert_equal ["returns total: 6, tax: 1", "returns total: 2, tax: 0"], support.outcomes(pins).values
+    assert_equal ["returns tax: 1", "returns tax: 0"], support.outcomes(pins, %w[tax]).values
+    assert_equal %w[test_1_returns__tax_1 test_2_returns__tax_0], support.test_names(pins, %w[tax])
+  end
+
   # Strings that share their start are named by the words from where they
   # part.
   def test_sibling_strings_are_named_from_where_they_differ
@@ -424,6 +442,7 @@ class EmitterTest < Minitest::Test
     assert_equal "ab", support.clip(%w[ab cd], 4)
     key = Branchout::Emitters::Support::Key
     assert_equal "returns__due_cents_0", support.clip(["returns", key.new("due_cents"), "0", key.new("discount_cents"), "1000"], 30)
+    assert_equal "returns__due_cents_0", support.clip(["returns", key.new("due_cents"), "0", key.new("discount_cents"), "1000"], 36)
     assert_equal "hash__lines__discount", support.clip(["hash", key.new("lines"), key.new("discount"), key.new("due_cents")], 25)
   end
 
@@ -632,6 +651,12 @@ class EmitterTest < Minitest::Test
         assert status.success?, err
         assert_includes File.read(out), "\n# target: #{shown}\n"
       end
+      # Under the working directory the header names the target as the report does.
+      out = File.join(project, "lib/magic_test.rb")
+      _out, err, status = Open3.capture3(RbConfig.ruby, BIN, "explore", "magic.rb", "FixtureMagic.classify", "--inputs", inputs,
+                                         "--strategy", "inputs", "--random", "0", "--emit-tests", out, chdir: File.join(project, "lib"))
+      assert status.success?, err
+      assert_includes File.read(out), "\n# target: magic.rb\n"
     end
   end
 

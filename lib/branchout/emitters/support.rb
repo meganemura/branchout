@@ -192,7 +192,7 @@ module Branchout
       # collision a counter.
       def test_names(pins, pin_keys = [])
         pinned = pins.map { |pin| pinned_pin(pin, pin_keys) }
-        differences = hash_differences(pinned.map { |pin| pin.error ? nil : pin.value })
+        differences = hash_differences(pinned.map { |pin| pin.value unless pin.error })
         outcomes = pinned.zip(differences).map { |pin, differing| outcome_words(pin, differing) }
         names = pins.each_with_index.map { |pin, index| name_of(input_words(pin.input), outcomes[index]) }
         names.each_index.group_by { |index| names[index] }.each_value do |siblings|
@@ -279,7 +279,7 @@ module Branchout
       # the Hashes of +pins+, so siblings say how their results differ.
       def outcomes(pins, pin_keys = [])
         pinned = pins.map { |pin| pinned_pin(pin, pin_keys) }
-        differences = hash_differences(pinned.map { |pin| pin.error ? nil : pin.value })
+        differences = hash_differences(pinned.map { |pin| pin.value unless pin.error })
         pins.each_index.to_h { |index| [pins[index], outcome_text(pinned[index], differences[index])] }
       end
 

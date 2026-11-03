@@ -356,6 +356,20 @@ class CLITest < Minitest::Test
     end
   end
 
+  # A library's entry file often requires its siblings by load path, as
+  # lib/name.rb does with require "name/part".
+  def test_a_required_file_can_require_from_its_own_directory
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [[[1]], [[1, 2]]] })
+      stdout, stderr, status = run_cli(
+        "explore", "test/fixtures/shelf/count.rb", "FixtureShelf.full?", "--require", "test/fixtures/shelf.rb",
+        "--strategy", "inputs", "--random", "0", "--inputs", path
+      )
+      assert status.success?, stderr
+      assert_includes stdout, "arms_covered: 2"
+    end
+  end
+
   def test_division_is_recorded
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [{ "args" => [24, 12] }] })

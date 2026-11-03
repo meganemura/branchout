@@ -31,7 +31,8 @@ module Branchout
 
     # +requires+ are files the target needs loaded first, such as its
     # library's entry file. They load after coverage starts, so the target
-    # is measured even when one of them requires it.
+    # is measured even when one of them requires it. Each one's directory
+    # joins the load path.
     def initialize(target, timeout:, requires: [])
       @target = target
       @timeout = timeout
@@ -64,7 +65,10 @@ module Branchout
       begin
         quietly do
           measure do
-            @requires.each { |path| require path }
+            @requires.each do |path|
+              $LOAD_PATH.unshift(File.dirname(path)) unless $LOAD_PATH.include?(File.dirname(path))
+              require path
+            end
             require @target.path
           end
         end

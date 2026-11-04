@@ -192,12 +192,12 @@ module Branchout
         [Dir.tmpdir, Dir.home].flat_map { |dir| ["#{dir}/", "#{File.realpath(dir)}/"] }.uniq
       end
 
-      # The Strings of +input+ that name a file or directory of this
-      # machine: one that exists under the home or the temporary directory.
+      # The Strings of +input+ that are a path of this machine: one under
+      # the home or the temporary directory, whether it exists or not.
       # /dev/null, or /tmp itself, is the same on every machine.
       def machine_paths(input)
         strings(input).select do |value|
-          File.absolute_path?(value) && File.exist?(value) && machine_homes.any? { |home| value.start_with?(home) }
+          File.absolute_path?(value) && machine_homes.any? { |home| value.start_with?(home) }
         end
       end
 

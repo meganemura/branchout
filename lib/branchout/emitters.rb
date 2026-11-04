@@ -35,10 +35,14 @@ module Branchout
         message = pin.error.exact_message || pin.error.message if pin.error&.stable_message
         Support.machine_paths_in([Support.pinned_value(pin.value, Support.keys_for(pin, pin_keys)), message])
       end
-      passed.map do |path|
+      existing, missing = passed.partition { |path| File.exist?(path) }
+      existing.map do |path|
         "branchout: the emitted test passes #{path}, a file of this machine outside the test's project, so the test passes " \
           "only here. Put the file under the project, and the test names it from its own directory."
-      end + (pinned.uniq - passed).map do |path|
+      end + (missing - pinned).map do |path|
+        "branchout: the emitted test passes #{path}, a path of this machine outside the test's project that does not exist, " \
+          "so the test holds this machine's directories. Put the path under the project, and the test names it from its own directory."
+      end + (pinned.uniq - existing).map do |path|
         "branchout: the emitted test pins #{path}, a path of this machine outside the test's project, in a returned value " \
           "or an error message, so the test passes only here. Give #{target.entry} a path under the project."
       end

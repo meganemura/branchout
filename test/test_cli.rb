@@ -809,7 +809,8 @@ class CLITest < Minitest::Test
       RUBY
       outside = File.join(dir, "elsewhere.csv")
       File.write(outside, "4\n")
-      paths = [File.join(app, "spec/fixtures/rates.csv"), File.join(app, "spec/fixtures/none.csv"), outside]
+      missing = File.join(dir, "gone/rates.csv")
+      paths = [File.join(app, "spec/fixtures/rates.csv"), File.join(app, "spec/fixtures/none.csv"), outside, missing]
       inputs = write_inputs(dir, { "inputs" => paths.map { |path| [path] } })
       %w[spec/sheet_test.rb spec/sheet_spec.rb].each do |name|
         out = File.join(app, name)
@@ -822,7 +823,10 @@ class CLITest < Minitest::Test
         assert_includes source, "Sheet.rate(#{outside.inspect})"
         refute_includes source, app
         assert_equal "branchout: the emitted test passes #{outside}, a file of this machine outside the test's project, so the " \
-                     "test passes only here. Put the file under the project, and the test names it from its own directory.\n", err
+                     "test passes only here. Put the file under the project, and the test names it from its own directory.\n" \
+                     "branchout: the emitted test passes #{missing}, a path of this machine outside the test's project that does " \
+                     "not exist, so the test holds this machine's directories. Put the path under the project, and the test " \
+                     "names it from its own directory.\n", err
       end
 
       moved = File.join(dir, "moved")

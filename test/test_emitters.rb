@@ -1526,9 +1526,9 @@ class NameEdgeTest < Minitest::Test
     end
   end
 
-  # Only an absolute path that exists under the temporary or the home
-  # directory is this machine's alone.
-  def test_machine_paths_are_existing_files_under_tmp_or_home
+  # Only an absolute path under the temporary or the home directory is
+  # this machine's alone, whether it exists or not.
+  def test_machine_paths_are_paths_under_tmp_or_home
     Dir.mktmpdir do |dir|
       file = File.join(dir, "a.csv")
       File.write(file, "")
@@ -1537,7 +1537,7 @@ class NameEdgeTest < Minitest::Test
                                    receiver: Branchout::Input.new(args: [], kwargs: { "k" => "#{file}" }),
                                    setup: [Branchout::Input::SetupCall.new("s", Branchout::Input.new(args: [dir]))])
       Dir.chdir(dir) do
-        assert_equal [file, file, file, file, dir], Branchout::Emitters::Support.machine_paths(input)
+        assert_equal [file, file, file, File.join(dir, "none.csv"), file, dir], Branchout::Emitters::Support.machine_paths(input)
       end
       pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [file]), value: 1, error: nil, covers: [])
       result = Branchout::Engine::Result.new(pins: [pin, pin], requires: [], load_paths: [], private_calls: [])

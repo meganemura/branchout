@@ -1231,6 +1231,14 @@ class RenderTest < Minitest::Test
                     "    it \"returns an Array of 2\" do\n"
   end
 
+  # A Hash in an Array is matched key by key, an object in it by its class.
+  def test_a_hash_with_an_object_in_an_array_is_matched_by_shape
+    pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: []), value: [{ id: 1, box: Object.new }], error: nil, arm_ids: [])
+    result = Branchout::Engine::Result.new(pins: [pin], requires: [], load_paths: [], private_calls: [])
+    assert_includes Branchout::Emitters.render("rspec", result, box_all, File.join(EmitterTest::ROOT, "spec/x_spec.rb")),
+                    "expect(all).to match([{id: 1, box: a_kind_of(Object)}])\n"
+  end
+
   # A receiver the input's Ruby builds is written as that Ruby, under the
   # name the input's arguments read it by.
   def test_a_built_receiver_is_written_as_its_ruby

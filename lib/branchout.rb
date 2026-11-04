@@ -5,6 +5,11 @@ require "pathname"
 require "stringio"
 require "timeout"
 
+# Loaded on first use, so a suite may require branchout before its test
+# framework: RubyGems activates the newest prism for a require with no
+# version, and minitest 6 then fails to activate with prism 1.
+autoload :Prism, "prism"
+
 module Branchout
   VERSION = "0.1.0"
   Error = Class.new(StandardError)

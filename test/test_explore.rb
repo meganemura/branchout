@@ -75,6 +75,16 @@ class ExploreTest < Minitest::Test
     end
   end
 
+  # minitest 6 needs prism 1, and RubyGems activates the newest prism for
+  # a require with no version, so branchout must not load prism until it
+  # parses.
+  def test_a_suite_may_require_branchout_before_its_test_framework
+    stdout, stderr, status = Open3.capture3(RbConfig.ruby, "-Ilib", "-e", 'require "branchout"; require "minitest"; print :loaded',
+                                            chdir: ROOT)
+    assert status.success?, stderr
+    assert_equal "loaded", stdout
+  end
+
   def test_a_target_loaded_before_coverage_is_refused_not_loaded_again
     stdout, _stderr, status = run_suite("#{SUITE}/early_test.rb", "PANTRY_FIRST" => "1")
     refute status.success?

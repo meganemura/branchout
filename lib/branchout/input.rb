@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "prism"
-
 module Branchout
   # Ruby source that an input passes in place of a JSON value: a record, an
   # exception, or a block, which JSON cannot write. An inputs file spells it

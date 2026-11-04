@@ -1135,6 +1135,45 @@ class CLITest < Minitest::Test
     end
   end
 
+  # An app's HTTP client raises a subclass of Timeout::Error, such as
+  # Net::ReadTimeout, from a line of the target. It is not explore's own
+  # timeout, so it keeps its class and the line that raised it.
+  def test_a_timeout_the_target_raises_keeps_its_class_and_line
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "fetch.rb")
+      File.write(target, <<~RUBY)
+        require "timeout"
+
+        class Fetch
+          ReadTimeout = Class.new(Timeout::Error)
+
+          def self.call(slow)
+            return :ok unless slow
+
+            raise ReadTimeout, "read timed out"
+          end
+        end
+      RUBY
+      path = write_inputs(dir, { "inputs" => [[true]] })
+      stdout, stderr, status = run_cli("explore", target, "Fetch.call", "--strategy", "inputs", "--random", "0", "--inputs", path)
+      assert status.success?, stderr
+      assert_includes stdout, "class: Fetch::ReadTimeout\nloc: #{target}:9\n"
+    end
+  end
+
+  # An input's Ruby that raises before the call has no line in the target.
+  def test_an_error_raised_before_the_call_has_no_line
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [[{ "ruby" => "raise ArgumentError, 'no row'" }]] })
+      stdout, stderr, status = run_cli(
+        "explore", "test/fixtures/spin.rb", "FixtureSpin.forever",
+        "--strategy", "inputs", "--random", "0", "--inputs", path
+      )
+      assert status.success?, stderr
+      assert_includes stdout, "class: ArgumentError\nloc: null\n"
+    end
+  end
+
   def test_case_condition_text
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [{ "args" => ["a", 0] }] })

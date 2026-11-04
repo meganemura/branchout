@@ -406,9 +406,8 @@ module Branchout
       if loc.nil? && fallback_line && exception.is_a?(Timeout::Error)
         loc = "#{display_path}:#{fallback_line}"
       end
-      name = exception.is_a?(Timeout::Error) ? "Timeout::Error" : exception.class.name
       missing = exception.name if exception.is_a?(NameError) && exception.name.is_a?(Symbol)
-      new(class_name: name, message: clean, loc: loc, stable_message: stable, name: missing, exact_message: (raw if stable),
+      new(class_name: exception.class.name, message: clean, loc: loc, stable_message: stable, name: missing, exact_message: (raw if stable),
           message_pattern: (pattern if whole))
     end
 

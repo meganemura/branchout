@@ -142,6 +142,24 @@ module Branchout
       text.length > 160 ? "#{text[0, 157]}..." : text
     end
 
+    # An arm as a reviewer reads it: the keyword as written (elsif, a
+    # modifier unless, ? for a ternary), the condition, and the arm. A case
+    # arm's condition already names it (when 1, case x else).
+    def arm_text(branch_type, bline, bcol, arm_type, aline, acol)
+      cond = condition_text(branch_type, bline, bcol, arm_type, aline, acol)
+      case branch_type
+      when :case then cond
+      when :"&." then "#{cond} -> &. receiver #{arm_type == :then ? "present" : "nil"}"
+      else
+        node = @conditions[[bline, bcol]]
+        keyword = if node.nil? then branch_type.to_s
+                  elsif node.respond_to?(:if_keyword) then node.if_keyword
+                  else node.keyword
+                  end
+        keyword ? "#{keyword} #{cond} -> #{arm_type}" : "#{cond} ? -> #{arm_type}"
+      end
+    end
+
     def self.display_path(path)
       absolute = File.expand_path(path)
       root = "#{File.expand_path(Dir.pwd)}/"

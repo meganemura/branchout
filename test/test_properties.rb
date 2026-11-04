@@ -100,7 +100,7 @@ class PropertyTest < Minitest::Test
     Hegel.test do |tc|
       pins = tc.draw(arrays(booleans, min_size: 1, max_size: 6)).map do |raises|
         error = raises ? Branchout::Runner::ExceptionInfo.new(class_name: "Foo::BarError") : nil
-        Branchout::Engine::Pin.new(input: draw_input(tc), value: tc.draw(json_values), error: error, arm_ids: [])
+        Branchout::Engine::Pin.new(input: draw_input(tc), value: tc.draw(json_values), error: error, covers: [])
       end
       pins = pins.uniq { |pin| pin.input.canonical }
       names = Branchout::Emitters::Support.test_names(pins)
@@ -118,7 +118,7 @@ class PropertyTest < Minitest::Test
       statuses = tc.draw(arrays(sampled_from(%w[fail pass timeout error skip]), min_size: 2, max_size: 5, unique: true))
       pins = statuses.map do |status|
         doc = { "tests" => [{ "id" => "t1", "head" => { "status" => status } }] }
-        Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [doc]), value: 1, error: nil, arm_ids: [])
+        Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [doc]), value: 1, error: nil, covers: [])
       end
       names = Branchout::Emitters::Support.test_names(pins)
       assert_equal statuses.map { |status| "test_status_#{status}_returns_1" }, names
@@ -137,7 +137,7 @@ class PropertyTest < Minitest::Test
     Hegel.test do |tc|
       args = tc.draw(arrays(word, min_size: 1, max_size: 6))
       error = tc.draw(booleans) ? Branchout::Runner::ExceptionInfo.new(class_name: "Foo::BarError") : nil
-      pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: args), value: tc.draw(value), error: error, arm_ids: [])
+      pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: args), value: tc.draw(value), error: error, covers: [])
       name = Branchout::Emitters::Support.test_names([pin]).first
       words = name.split(/_+/)
       words.each { |part| assert(vocabulary.include?(part) || shapes.include?(part) || part.match?(/\A(neg)?\d+\z/), name) }
@@ -152,7 +152,7 @@ class PropertyTest < Minitest::Test
     keys = sampled_from(%w[due line_items discount_cents a_b_c qty])
     Hegel.test do |tc|
       value = tc.draw(hashes(keys, integers(min_value: 0, max_value: 9), min_size: 1, max_size: 5))
-      pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1]), value: value, error: nil, arm_ids: [])
+      pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1]), value: value, error: nil, covers: [])
       name = Branchout::Emitters::Support.test_names([pin]).first
       named = name.delete_prefix("test_1_returns_hash__").split("__")
       refute_empty named, name
@@ -167,7 +167,7 @@ class PropertyTest < Minitest::Test
     Hegel.test do |tc|
       values = tc.draw(arrays(hashes(keys, integers(min_value: 0, max_value: 3), min_size: 1, max_size: 4), min_size: 1, max_size: 5))
       pins = values.each_with_index.map do |value, index|
-        Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [index]), value: value, error: nil, arm_ids: [])
+        Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [index]), value: value, error: nil, covers: [])
       end
       names = Branchout::Emitters::Support.test_names(pins)
       outcomes = Branchout::Emitters::Support.outcomes(pins).values
@@ -191,7 +191,7 @@ class PropertyTest < Minitest::Test
                           [], [param.new(:a), param.new(:b)])
       pins = tc.draw(arrays(booleans, min_size: 1, max_size: 6)).map do |raises|
         error = raises ? Branchout::Runner::ExceptionInfo.new(class_name: "Foo::BarError") : nil
-        Branchout::Engine::Pin.new(input: draw_input(tc, receiver: !singleton), value: tc.draw(json_values), error: error, arm_ids: [])
+        Branchout::Engine::Pin.new(input: draw_input(tc, receiver: !singleton), value: tc.draw(json_values), error: error, covers: [])
       end
       pins = pins.uniq { |pin| pin.input.canonical }
       result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])

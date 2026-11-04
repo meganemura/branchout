@@ -202,7 +202,7 @@ For an RSpec project, emit `--format rspec` to a `*_spec.rb` file in TESTS_DIR. 
 
 When `initialize` takes other arguments on head than on base, an input's `new` fits one side only, and every row of the other side fails with an arity `ArgumentError` (jitcatch discards it as `signature_change`). Emit on the side whose constructor the test should pin: on base, to catch a change in what the method returns for the objects base callers build. Split the inputs that need the new constructor into a second inputs file, emit it on head, and expect its rows to be `fail_on_base`; they pin the new behavior, not a regression.
 
-A test that passes on base and fails on head is a changed return value or exception for that input. The test name says the input and what it pinned, such as `test_24_12_raises_zero_division_error`. Read the `# covers:` line above the assertion to see which arms the input took.
+A test that passes on base and fails on head is a changed return value or exception for that input. The test name says the input and what it pinned, such as `test_24_12_raises_zero_division_error`. The `# covers:` list above the assertion names each arm the input took by its line, its condition as written, and the arm, such as `line 20: unless rate.is_a?(Numeric) -> else`.
 
 ## Pitfalls
 

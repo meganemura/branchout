@@ -9,32 +9,52 @@ require_relative "../../examples/version_parser.rb"
 
 class VersionParserParseCharacterizationTest < Minitest::Test
   def test_empty_returns_blank
-    # covers: if@5:4/then@6:6
+    # covers:
+    #   line 5: if text.empty? -> then
     assert_equal :blank, VersionParser.parse("")
   end
 
   def test_text_returns_pre
-    # covers: if@11:6/else@14:8, if@5:4/else@7:4, if@7:4/then@8:6, if@9:6/else@11:6
+    # covers:
+    #   line 5: if text.empty? -> else
+    #   line 7: elsif text.include?("-") -> then
+    #   line 9: if tag.start_with?("rc") -> else
+    #   line 11: elsif tag.start_with?("beta") -> else
     assert_equal :pre, VersionParser.parse("-")
   end
 
   def test_0_returns_other
-    # covers: if@16:4/else@19:6, if@5:4/else@7:4, if@7:4/else@16:4, unless@25:4/then@25:4
+    # covers:
+    #   line 5: if text.empty? -> else
+    #   line 7: elsif text.include?("-") -> else
+    #   line 16: elsif release?(text) -> else
+    #   line 25: unless parts.length == 3 -> then
     assert_equal :other, VersionParser.parse("0")
   end
 
   def test_0_beta1_returns_beta
-    # covers: if@11:6/then@12:8, if@5:4/else@7:4, if@7:4/then@8:6, if@9:6/else@11:6
+    # covers:
+    #   line 5: if text.empty? -> else
+    #   line 7: elsif text.include?("-") -> then
+    #   line 9: if tag.start_with?("rc") -> else
+    #   line 11: elsif tag.start_with?("beta") -> then
     assert_equal :beta, VersionParser.parse("0-beta1")
   end
 
   def test_0_rc1_returns_rc
-    # covers: if@5:4/else@7:4, if@7:4/then@8:6, if@9:6/then@10:8
+    # covers:
+    #   line 5: if text.empty? -> else
+    #   line 7: elsif text.include?("-") -> then
+    #   line 9: if tag.start_with?("rc") -> then
     assert_equal :rc, VersionParser.parse("0-rc1")
   end
 
   def test_0_0_0_returns_release
-    # covers: if@16:4/then@17:6, if@5:4/else@7:4, if@7:4/else@16:4, unless@25:4/else@25:4
+    # covers:
+    #   line 5: if text.empty? -> else
+    #   line 7: elsif text.include?("-") -> else
+    #   line 16: elsif release?(text) -> then
+    #   line 25: unless parts.length == 3 -> else
     assert_equal :release, VersionParser.parse("0.0.0")
   end
 end

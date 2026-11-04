@@ -18,8 +18,10 @@ module Branchout
       keyword_init: true
     )
 
+    # +covers+ lists the arms the input took, in source order.
     # +thawed+ marks an input that ran with unfrozen Strings (Runner::Execution).
-    Pin = Struct.new(:input, :value, :error, :arm_ids, :thawed, keyword_init: true)
+    Pin = Struct.new(:input, :value, :error, :covers, :thawed, keyword_init: true)
+    Cover = Struct.new(:line, :column, :text, keyword_init: true)
     Finding = Struct.new(:class_name, :message, :loc, :input, :stable_message, keyword_init: true)
 
     def self.explore(target:, entry:, user_inputs: [], type_overrides: nil, seed: 0, strategies: STRATEGY_ORDER,
@@ -91,7 +93,7 @@ module Branchout
       covered = arms.select(&:covered).sort_by(&:id)
       frontier = arms.reject(&:covered).sort_by(&:id)
       findings = collect_findings(executions)
-      pins = collect_pins(executions, covered, findings)
+      pins = collect_pins(target, executions, covered, findings)
 
       Result.new(
         command: @command,
@@ -182,7 +184,7 @@ module Branchout
       }
     end
 
-    def collect_pins(executions, covered, findings)
+    def collect_pins(target, executions, covered, findings)
       by_input = executions.to_h { |execution| [execution.input.canonical, execution] }
       keys = executions.select { |execution| execution.origin == :inputs }.map { |execution| execution.input.canonical } |
              covered.map { |arm| arm.input.canonical } | findings.map { |finding| finding.input.canonical }
@@ -192,20 +194,24 @@ module Branchout
           input: execution.input,
           value: execution.value,
           error: execution.error,
-          arm_ids: covered_ids(execution),
+          covers: covers_of(target, execution),
           thawed: execution.thawed
         )
       end
     end
 
-    def covered_ids(execution)
-      ids = []
-      execution.branches.each do |branch_key, arms|
-        arms.each do |arm_key, count|
-          ids << format_id(branch_key, arm_key) if count.to_i.positive?
+    # Each arm sits on the line of its condition, which is where a reviewer
+    # reads it.
+    def covers_of(target, execution)
+      covers = execution.branches.flat_map do |branch_key, arms|
+        arms.filter_map do |arm_key, count|
+          next unless count.to_i.positive?
+
+          Cover.new(line: branch_key[2], column: branch_key[3],
+                    text: target.arm_text(branch_key[0], branch_key[2], branch_key[3], arm_key[0], arm_key[2], arm_key[3]))
         end
       end
-      ids.sort
+      covers.sort_by { |cover| [cover.line, cover.column, cover.text] }
     end
 
     def best_execution(executions)

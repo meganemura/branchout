@@ -713,9 +713,9 @@ module Branchout
       end
 
       def cover_comment(pin, indent)
-        return [] if pin.arm_ids.empty?
+        return [] if pin.covers.empty?
 
-        ["#{indent}# covers: #{pin.arm_ids.join(", ")}"]
+        ["#{indent}# covers:", *pin.covers.map { |cover| "#{indent}#   line #{cover.line}: #{cover.text}" }]
       end
 
       # Says why the Strings of a thawed input carry a +, which a reader of

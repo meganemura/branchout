@@ -9,12 +9,14 @@ require_relative "../../examples/magic_value.rb"
 RSpec.describe MagicValue do
   describe ".classify" do
     it "returns :ordinary when x is 0" do
-      # covers: if@5:4/else@8:6
+      # covers:
+      #   line 5: if x == 114514 -> else
       expect(MagicValue.classify(0)).to eq(:ordinary)
     end
 
     it "returns :magic when x is 114514" do
-      # covers: if@5:4/then@6:6
+      # covers:
+      #   line 5: if x == 114514 -> then
       expect(MagicValue.classify(114514)).to eq(:magic)
     end
   end

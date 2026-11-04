@@ -9,27 +9,39 @@ require_relative "../../examples/arithmetic.rb"
 
 class ArithmeticClassifyCharacterizationTest < Minitest::Test
   def test_0_0_0_returns_miss
-    # covers: if@18:4/else@21:6, if@8:4/else@18:4
+    # covers:
+    #   line 8: if (x * 3 + 7) % 1000 == 421 -> else
+    #   line 18: elsif x == 114514 && x == 0 -> else
     assert_equal :miss, Arithmetic.classify(0, 0, 0)
   end
 
   def test_114514_0_0_returns_miss
-    # covers: if@18:4/else@21:6, if@8:4/else@18:4
+    # covers:
+    #   line 8: if (x * 3 + 7) % 1000 == 421 -> else
+    #   line 18: elsif x == 114514 && x == 0 -> else
     assert_equal :miss, Arithmetic.classify(114514, 0, 0)
   end
 
   def test_138_0_0_returns_x_only
-    # covers: if@8:4/then@9:6, if@9:6/else@16:8
+    # covers:
+    #   line 8: if (x * 3 + 7) % 1000 == 421 -> then
+    #   line 9: if y == x + 5 -> else
     assert_equal :x_only, Arithmetic.classify(138, 0, 0)
   end
 
   def test_138_143_0_returns_need_z
-    # covers: if@10:8/else@13:10, if@8:4/then@9:6, if@9:6/then@10:8
+    # covers:
+    #   line 8: if (x * 3 + 7) % 1000 == 421 -> then
+    #   line 9: if y == x + 5 -> then
+    #   line 10: if z == 7 -> else
     assert_equal :need_z, Arithmetic.classify(138, 143, 0)
   end
 
   def test_138_143_7_returns_hit
-    # covers: if@10:8/then@11:10, if@8:4/then@9:6, if@9:6/then@10:8
+    # covers:
+    #   line 8: if (x * 3 + 7) % 1000 == 421 -> then
+    #   line 9: if y == x + 5 -> then
+    #   line 10: if z == 7 -> then
     assert_equal :hit, Arithmetic.classify(138, 143, 7)
   end
 end

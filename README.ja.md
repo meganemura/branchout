@@ -151,6 +151,8 @@ ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \
 
 この実行は 4 腕のうち 4 腕を覆い、`[24,12]` で `ZeroDivisionError`（`divided by 0`）を記録する。出力ファイルは戻り値、または例外クラスとメッセージを固定する。
 複数行のメッセージは、発生したときのまま固定する。
+各テストの先頭にある `# covers:` の一覧は、その入力が通った腕を 1 行に 1 つずつ示す。
+各行は、条件の行番号、書かれたままの条件、通った腕である（`line 20: unless rate.is_a?(Numeric) -> else`、`line 9: elsif tag.start_with?("beta") -> then`）。
 `NameError` と `NoMethodError` は、クラスと見つからなかった名前（`error.name`）で固定する。
 Ruby 3.4 でメッセージの文言が変わったためである。
 バックトレースのフレーム（`lib/x.rb:3:in 'Box.run'`）を含むメッセージは正規表現で照合し、フレームのラベルだけはどちらの書式でも通す。

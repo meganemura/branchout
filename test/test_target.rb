@@ -466,6 +466,17 @@ class TargetTest < Minitest::Test
     end
   end
 
+  def test_arm_text_of_a_case_and_a_safe_navigation
+    target = Branchout::Target.parse(File.join(@root, "test/fixtures/conds.rb"), "FixtureConds.pick")
+    assert_equal "when 1, 2 then :low", target.arm_text(:case, 5, 4, :when, 6, 19)
+    assert_equal "case x else", target.arm_text(:case, 5, 4, :else, 10, 6)
+    parse_source("module T\n  def self.f(x) =\n    x&.size\nend\n", "T.f") do |target|
+      assert_equal "x&.size -> &. receiver present", target.arm_text(:"&.", 3, 4, :then, 3, 4)
+      assert_equal "x&.size -> &. receiver nil", target.arm_text(:"&.", 3, 4, :else, 3, 4)
+      assert_equal "if x&.size -> then", target.arm_text(:if, 3, 4, :then, 3, 4)
+    end
+  end
+
   def test_condition_text_without_a_decision_node_is_the_source_line
     parse_source("module T\n  def self.f(x) =\n    x&.size\nend\n", "T.f") do |target|
       assert_equal "x&.size", target.condition_text(:"&.", 3, 4, :then, 3, 4)

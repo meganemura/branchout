@@ -9,32 +9,52 @@ require_relative "../../examples/version_parser.rb"
 RSpec.describe VersionParser do
   describe ".parse" do
     it 'returns :blank when text is ""' do
-      # covers: if@5:4/then@6:6
+      # covers:
+      #   line 5: if text.empty? -> then
       expect(VersionParser.parse("")).to eq(:blank)
     end
 
     it 'returns :pre when text is "-"' do
-      # covers: if@11:6/else@14:8, if@5:4/else@7:4, if@7:4/then@8:6, if@9:6/else@11:6
+      # covers:
+      #   line 5: if text.empty? -> else
+      #   line 7: elsif text.include?("-") -> then
+      #   line 9: if tag.start_with?("rc") -> else
+      #   line 11: elsif tag.start_with?("beta") -> else
       expect(VersionParser.parse("-")).to eq(:pre)
     end
 
     it 'returns :other when text is "0"' do
-      # covers: if@16:4/else@19:6, if@5:4/else@7:4, if@7:4/else@16:4, unless@25:4/then@25:4
+      # covers:
+      #   line 5: if text.empty? -> else
+      #   line 7: elsif text.include?("-") -> else
+      #   line 16: elsif release?(text) -> else
+      #   line 25: unless parts.length == 3 -> then
       expect(VersionParser.parse("0")).to eq(:other)
     end
 
     it 'returns :beta when text is "0-beta1"' do
-      # covers: if@11:6/then@12:8, if@5:4/else@7:4, if@7:4/then@8:6, if@9:6/else@11:6
+      # covers:
+      #   line 5: if text.empty? -> else
+      #   line 7: elsif text.include?("-") -> then
+      #   line 9: if tag.start_with?("rc") -> else
+      #   line 11: elsif tag.start_with?("beta") -> then
       expect(VersionParser.parse("0-beta1")).to eq(:beta)
     end
 
     it 'returns :rc when text is "0-rc1"' do
-      # covers: if@5:4/else@7:4, if@7:4/then@8:6, if@9:6/then@10:8
+      # covers:
+      #   line 5: if text.empty? -> else
+      #   line 7: elsif text.include?("-") -> then
+      #   line 9: if tag.start_with?("rc") -> then
       expect(VersionParser.parse("0-rc1")).to eq(:rc)
     end
 
     it 'returns :release when text is "0.0.0"' do
-      # covers: if@16:4/then@17:6, if@5:4/else@7:4, if@7:4/else@16:4, unless@25:4/else@25:4
+      # covers:
+      #   line 5: if text.empty? -> else
+      #   line 7: elsif text.include?("-") -> else
+      #   line 16: elsif release?(text) -> then
+      #   line 25: unless parts.length == 3 -> else
       expect(VersionParser.parse("0.0.0")).to eq(:release)
     end
   end

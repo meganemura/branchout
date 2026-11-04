@@ -9,12 +9,14 @@ require_relative "../../examples/magic_value.rb"
 
 class MagicValueClassifyCharacterizationTest < Minitest::Test
   def test_0_returns_ordinary
-    # covers: if@5:4/else@8:6
+    # covers:
+    #   line 5: if x == 114514 -> else
     assert_equal :ordinary, MagicValue.classify(0)
   end
 
   def test_114514_returns_magic
-    # covers: if@5:4/then@6:6
+    # covers:
+    #   line 5: if x == 114514 -> then
     assert_equal :magic, MagicValue.classify(114514)
   end
 end

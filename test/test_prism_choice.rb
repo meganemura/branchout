@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require "minitest/autorun"
+require "open3"
+require "rbconfig"
 require "branchout/prism_choice"
 
 class PrismChoiceTest < Minitest::Test
@@ -33,6 +35,25 @@ class PrismChoiceTest < Minitest::Test
   def test_takes_none_when_the_gems_disagree
     specs = [spec("minitest", "6.0.6", prism: "~> 1.5"), spec("other", "1.0", prism: ">= 2")]
     assert_nil Branchout::PrismChoice.accepted(versions("1.9.0", "2.1.0"), specs)
+  end
+
+  # A bundle names its own prism, and a gem call outside it raises.
+  def test_activates_nothing_inside_a_bundle
+    out, err, status = activate_in_ruby("module Bundler; end", 'print Gem.loaded_specs.key?("prism")')
+    assert status.success?, err
+    assert_equal "false", out
+  end
+
+  # A second gem call for another version would raise.
+  def test_keeps_a_prism_that_is_already_loaded
+    out, err, status = activate_in_ruby('require "prism"; loaded = Prism::VERSION', "print loaded == Prism::VERSION")
+    assert status.success?, err
+    assert_equal "true", out
+  end
+
+  def activate_in_ruby(before, after)
+    code = "#{before}; require 'branchout/prism_choice'; Branchout::PrismChoice.activate; #{after}"
+    Open3.capture3(RbConfig.ruby, "-I#{File.expand_path("../lib", __dir__)}", "-e", code)
   end
 
   def test_a_development_dependency_does_not_count

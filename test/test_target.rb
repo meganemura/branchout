@@ -2,9 +2,9 @@
 
 require "minitest/autorun"
 require "json"
-require "open3"
 require "tmpdir"
 require "branchout"
+require_relative "support/cli"
 
 class TargetTest < Minitest::Test
   def setup
@@ -178,8 +178,8 @@ class TargetTest < Minitest::Test
       inputs = File.join(dir, "inputs.json")
       File.write(inputs, '{"inputs": [[0]]}')
       expected.each do |name, conds|
-        stdout, stderr, status = Open3.capture3(
-          RbConfig.ruby, File.join(@root, "bin/branchout"), "explore", "test/fixtures/conds.rb", "FixtureConds.#{name}",
+        stdout, stderr, status = CLIProcess.run(
+          "explore", "test/fixtures/conds.rb", "FixtureConds.#{name}",
           "--inputs", inputs, "--strategy", "inputs", "--random", "0", "--json", chdir: @root
         )
         assert status.success?, stderr

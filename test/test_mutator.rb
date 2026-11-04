@@ -3,8 +3,8 @@
 require "minitest/autorun"
 require "json"
 require "tmpdir"
-require "open3"
 require "branchout"
+require_relative "support/cli"
 
 class MutatorTest < Minitest::Test
   def setup
@@ -243,8 +243,8 @@ class MutatorTest < Minitest::Test
 
   def test_mutate_covers_an_account_with_no_inputs_file
     Dir.mktmpdir do |dir|
-      stdout, stderr, status = Open3.capture3(
-        RbConfig.ruby, File.join(@root, "bin/branchout"), "explore", "test/fixtures/account.rb", "FixtureAccount#withdraw",
+      stdout, stderr, status = CLIProcess.run(
+        "explore", "test/fixtures/account.rb", "FixtureAccount#withdraw",
         "--strategy", "mutate,random", "--seed", "1", chdir: @root
       )
       assert status.success?, stderr

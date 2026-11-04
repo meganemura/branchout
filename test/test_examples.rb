@@ -2,8 +2,8 @@
 
 require "minitest/autorun"
 require "fileutils"
-require "open3"
 require "tmpdir"
+require_relative "support/cli"
 
 class ExampleReportTest < Minitest::Test
   ROOT = File.expand_path("..", __dir__)
@@ -15,11 +15,11 @@ class ExampleReportTest < Minitest::Test
     ["hidden_bug", "examples/hidden_bug.rb", "HiddenBug.scale"]
   ].freeze
 
-  # The run happens in a copy of the checkout, so the emitted tests get the
+  # The run happens in a copy of examples/, so the emitted tests get the
   # same relative paths as the committed ones and the checkout is not written.
   def test_committed_records_match_a_fresh_run
     Dir.mktmpdir do |dir|
-      %w[bin lib examples].each { |name| FileUtils.cp_r(File.join(ROOT, name), dir) }
+      FileUtils.cp_r(File.join(ROOT, "examples"), dir)
       DEMOS.each do |name, target, entry|
         records = {
           "reports/#{name}.json" => "--json-out",
@@ -29,8 +29,8 @@ class ExampleReportTest < Minitest::Test
         }
         common = ["--inputs", "examples/inputs/#{name}.json", "--seed", "1"]
         records.each do |path, flag|
-          stdout, stderr, status = Open3.capture3(
-            RbConfig.ruby, "bin/branchout", "explore", target, entry,
+          stdout, stderr, status = CLIProcess.run(
+            "explore", target, entry,
             *common, "--strategy", "inputs", "--random", "0", flag, path,
             chdir: dir
           )
@@ -39,8 +39,8 @@ class ExampleReportTest < Minitest::Test
           assert_equal File.read(File.join(ROOT, path)), File.read(File.join(dir, path)), path
         end
 
-        stdout, stderr, status = Open3.capture3(
-          RbConfig.ruby, "bin/branchout", "baselines", target, entry, *common, "--random", "40",
+        stdout, stderr, status = CLIProcess.run(
+          "baselines", target, entry, *common, "--random", "40",
           chdir: dir
         )
         assert status.success?, stderr

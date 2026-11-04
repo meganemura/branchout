@@ -5,13 +5,14 @@ require "json"
 require "open3"
 require "fileutils"
 require "branchout"
+require_relative "support/cli"
 
 class CLITest < Minitest::Test
   ROOT = File.expand_path("..", __dir__)
   BIN = File.join(ROOT, "bin/branchout")
 
   def run_cli(*args)
-    Open3.capture3(RbConfig.ruby, BIN, *args.map(&:to_s), chdir: ROOT)
+    CLIProcess.run(*args, chdir: ROOT)
   end
 
   def write_inputs(dir, body)

@@ -4,6 +4,7 @@ require "minitest/autorun"
 require "json"
 require "open3"
 require "branchout"
+require_relative "support/cli"
 
 class EmitterTest < Minitest::Test
   ROOT = File.expand_path("..", __dir__)
@@ -633,7 +634,7 @@ class EmitterTest < Minitest::Test
   end
 
   def run_cli(*args)
-    Open3.capture3(RbConfig.ruby, BIN, *args.map(&:to_s), chdir: ROOT)
+    CLIProcess.run(*args, chdir: ROOT)
   end
 
   def test_literal_values_class_pins_and_cover_comments
@@ -835,7 +836,7 @@ class EmitterTest < Minitest::Test
       end
       # Under the working directory the header names the target as the report does.
       out = File.join(project, "lib/magic_test.rb")
-      _out, err, status = Open3.capture3(RbConfig.ruby, BIN, "explore", "magic.rb", "FixtureMagic.classify", "--inputs", inputs,
+      _out, err, status = CLIProcess.run("explore", "magic.rb", "FixtureMagic.classify", "--inputs", inputs,
                                          "--strategy", "inputs", "--random", "0", "--emit-tests", out, chdir: File.join(project, "lib"))
       assert status.success?, err
       assert_includes File.read(out), "\n# target: magic.rb\n"

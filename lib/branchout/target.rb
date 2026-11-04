@@ -142,21 +142,22 @@ module Branchout
       text.length > 160 ? "#{text[0, 157]}..." : text
     end
 
-    # An arm as a reviewer reads it: the keyword as written (elsif, a
-    # modifier unless, ? for a ternary), the condition, and the arm. A case
-    # arm's condition already names it (when 1, case x else).
-    def arm_text(branch_type, bline, bcol, arm_type, aline, acol)
+    # An arm as a reviewer reads it, as its line and text: the keyword as
+    # written (elsif, a modifier unless), the condition, and the arm. A case
+    # arm sits on its when, in, or else line, and its condition already names
+    # it (when 1, case x else). A ternary is written whole.
+    def covered_arm(branch_type, bline, bcol, arm_type, aline, acol)
       cond = condition_text(branch_type, bline, bcol, arm_type, aline, acol)
+      node = @conditions[[bline, bcol]]
       case branch_type
-      when :case then cond
-      when :"&." then "#{cond} -> &. receiver #{arm_type == :then ? "present" : "nil"}"
+      when :case then [case_arm_line(node, arm_type, aline, acol) || bline, cond]
+      when :"&." then [bline, "#{cond} -> &. receiver #{arm_type == :then ? "present" : "nil"}"]
       else
-        node = @conditions[[bline, bcol]]
         keyword = if node.nil? then branch_type.to_s
                   elsif node.respond_to?(:if_keyword) then node.if_keyword
                   else node.keyword
                   end
-        keyword ? "#{keyword} #{cond} -> #{arm_type}" : "#{cond} ? -> #{arm_type}"
+        [bline, "#{keyword ? "#{keyword} #{cond}" : squash(node.slice)} -> #{arm_type}"]
       end
     end
 
@@ -281,12 +282,24 @@ module Branchout
         squash(node.predicate&.slice)
       when :case_node, :case_match_node
         if arm_type == :when || arm_type == :in
-          found = node.conditions.find { |when_node| arm_matches?(when_node, aline, acol) }
+          found = case_arm(node, aline, acol)
           found ? squash(found.slice.lines.first) : nil
         else
           node.predicate ? "case #{squash(node.predicate.slice)} else" : "case else"
         end
       end
+    end
+
+    def case_arm(node, aline, acol)
+      node.conditions.find { |when_node| arm_matches?(when_node, aline, acol) }
+    end
+
+    # Coverage places a case arm at its body, not at its keyword.
+    def case_arm_line(node, arm_type, aline, acol)
+      return unless node
+
+      arm = arm_type == :else ? node.else_clause : case_arm(node, aline, acol)
+      arm&.location&.start_line
     end
 
     # Coverage places a when or in arm at its body, or, when the body is

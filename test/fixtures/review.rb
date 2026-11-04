@@ -17,4 +17,14 @@ module FixtureReview
     n -= 1 while n > 3
     n
   end
+
+  def self.grade(score)
+    case score
+    when 0..4
+      :low
+    when 5 then :mid
+    else
+      :high
+    end
+  end
 end

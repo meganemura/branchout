@@ -153,6 +153,8 @@ ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \
 複数行のメッセージは、発生したときのまま固定する。
 各テストの先頭にある `# covers:` の一覧は、その入力が通った腕を 1 行に 1 つずつ示す。
 各行は、条件の行番号、書かれたままの条件、通った腕である（`line 20: unless rate.is_a?(Numeric) -> else`、`line 9: elsif tag.start_with?("beta") -> then`）。
+三項演算子は式全体を書く（`line 10: label ? :noted : :plain -> then`）。
+`case` の腕は、その腕を示す `when`、`in`、`else` の行に置く（`line 6: when 1, 2 then :low`）。
 `NameError` と `NoMethodError` は、クラスと見つからなかった名前（`error.name`）で固定する。
 Ruby 3.4 でメッセージの文言が変わったためである。
 バックトレースのフレーム（`lib/x.rb:3:in 'Box.run'`）を含むメッセージは正規表現で照合し、フレームのラベルだけはどちらの書式でも通す。

@@ -200,15 +200,13 @@ module Branchout
       end
     end
 
-    # Each arm sits on the line of its condition, which is where a reviewer
-    # reads it.
     def covers_of(target, execution)
       covers = execution.branches.flat_map do |branch_key, arms|
         arms.filter_map do |arm_key, count|
           next unless count.to_i.positive?
 
-          Cover.new(line: branch_key[2], column: branch_key[3],
-                    text: target.arm_text(branch_key[0], branch_key[2], branch_key[3], arm_key[0], arm_key[2], arm_key[3]))
+          line, text = target.covered_arm(branch_key[0], branch_key[2], branch_key[3], arm_key[0], arm_key[2], arm_key[3])
+          Cover.new(line: line, column: branch_key[3], text: text)
         end
       end
       covers.sort_by { |cover| [cover.line, cover.column, cover.text] }

@@ -124,7 +124,7 @@ class EmitterTest < Minitest::Test
         #   line 6: label = note&.strip -> &. receiver present
         #   line 7: if rate > 10 -> else
         #   line 9: elsif rate.zero? -> then
-        #   line 10: label ? -> then
+        #   line 10: label ? :zero_noted : :zero -> then
       TEXT
       assert_includes File.read(test), covers.gsub(/^/, "    ")
       assert_includes File.read(spec), covers.gsub(/^/, "      ")
@@ -139,6 +139,21 @@ class EmitterTest < Minitest::Test
       )
       assert status.success?, err
       assert_includes File.read(test), "    # covers:\n    #   line 17: while n > 3 -> body\n"
+    end
+    # A when arm sits on its own when line, and the else arm on its else.
+    Dir.mktmpdir do |dir|
+      inputs = File.join(dir, "inputs.json")
+      File.write(inputs, JSON.generate({ "inputs" => [[2], [5], [9]] }))
+      test = File.join(dir, "grade_test.rb")
+      _stdout, err, status = run_cli(
+        "explore", "test/fixtures/review.rb", "FixtureReview.grade",
+        "--inputs", inputs, "--strategy", "inputs", "--random", "0", "--emit-tests", test
+      )
+      assert status.success?, err
+      emitted = File.read(test)
+      assert_includes emitted, "    # covers:\n    #   line 23: when 0..4\n"
+      assert_includes emitted, "    # covers:\n    #   line 25: when 5 then :mid\n"
+      assert_includes emitted, "    # covers:\n    #   line 26: case score else\n"
     end
   end
 

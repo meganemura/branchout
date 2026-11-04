@@ -466,14 +466,22 @@ class TargetTest < Minitest::Test
     end
   end
 
-  def test_arm_text_of_a_case_and_a_safe_navigation
+  def test_covered_arm_of_a_case_and_a_safe_navigation
     target = Branchout::Target.parse(File.join(@root, "test/fixtures/conds.rb"), "FixtureConds.pick")
-    assert_equal "when 1, 2 then :low", target.arm_text(:case, 5, 4, :when, 6, 19)
-    assert_equal "case x else", target.arm_text(:case, 5, 4, :else, 10, 6)
+    assert_equal [6, "when 1, 2 then :low"], target.covered_arm(:case, 5, 4, :when, 6, 19)
+    assert_equal [7, "when 3"], target.covered_arm(:case, 5, 4, :when, 8, 6)
+    assert_equal [9, "case x else"], target.covered_arm(:case, 5, 4, :else, 10, 6)
+    shape = Branchout::Target.parse(File.join(@root, "test/fixtures/conds.rb"), "FixtureConds.shape")
+    assert_equal [16, "in Integer => n if n > 5 then :big"], shape.covered_arm(:case, 15, 4, :in, 16, 34)
+    bare = Branchout::Target.parse(File.join(@root, "test/fixtures/conds.rb"), "FixtureConds.bare")
+    assert_equal [23, "case else"], bare.covered_arm(:case, 23, 4, :else, 23, 4)
     parse_source("module T\n  def self.f(x) =\n    x&.size\nend\n", "T.f") do |target|
-      assert_equal "x&.size -> &. receiver present", target.arm_text(:"&.", 3, 4, :then, 3, 4)
-      assert_equal "x&.size -> &. receiver nil", target.arm_text(:"&.", 3, 4, :else, 3, 4)
-      assert_equal "if x&.size -> then", target.arm_text(:if, 3, 4, :then, 3, 4)
+      assert_equal [3, "x&.size -> &. receiver present"], target.covered_arm(:"&.", 3, 4, :then, 3, 4)
+      assert_equal [3, "x&.size -> &. receiver nil"], target.covered_arm(:"&.", 3, 4, :else, 3, 4)
+      assert_equal [3, "if x&.size -> then"], target.covered_arm(:if, 3, 4, :then, 3, 4)
+    end
+    parse_source("module T\n  def self.f(x)\n    x ? 1 : 2\n  end\nend\n", "T.f") do |target|
+      assert_equal [3, "x ? 1 : 2 -> else"], target.covered_arm(:if, 3, 4, :else, 3, 12)
     end
   end
 

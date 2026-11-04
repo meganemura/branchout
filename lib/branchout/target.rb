@@ -145,7 +145,7 @@ module Branchout
       node = @conditions[[bline, bcol]]
       text = condition_from(node, arm_type, aline, acol) if node
       text = squash(source_line(bline)) if text.nil? || text.empty?
-      text.length > 160 ? "#{text[0, 157]}..." : text
+      cut(text)
     end
 
     # An arm as a reviewer reads it, as its line and text: the keyword as
@@ -342,11 +342,10 @@ module Branchout
 
       if node.type == :or_node || node.type == :and_node || node.type.to_s.end_with?("_or_write_node", "_and_write_node")
         operator = node.operator_loc
-        text = squash(node.slice)
         line = operator.start_line
         column = operator.start_column
         acc << Operator.new(loc: "#{display_path}:#{line}:#{column}", line: line, column: column, op: operator.slice,
-                            text: text.length > 160 ? "#{text[0, 157]}..." : text)
+                            text: cut(squash(node.slice)))
       end
       node.compact_child_nodes.each { |child| operators_in(child, acc) }
       acc
@@ -607,6 +606,8 @@ module Branchout
     def source_line(line)
       source.lines[line - 1].to_s
     end
+
+    def cut(text) = text.length > 160 ? "#{text[0, 157]}..." : text
 
     def squash(text)
       text.to_s.gsub(/\s+/, " ").strip

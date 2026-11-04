@@ -19,6 +19,28 @@ class TargetTest < Minitest::Test
     assert_equal "x == 114514", target.condition_text(:if, 5, 4, :then, 6, 6)
   end
 
+  # An operator's text is cut past 160 characters, as a condition is, and a
+  # def nested in the method is not part of the counted code.
+  def test_operators_cut_their_text_and_skip_a_nested_def
+    Dir.mktmpdir do |dir|
+      whole = "a#{"x" * 75} || b#{"y" * 79}"
+      long = "#{whole}z"
+      path = File.join(dir, "ops.rb")
+      File.write(path, <<~RUBY)
+        module Ops
+          def self.pick(a, b)
+            def self.inner(c, d) = c || d
+            #{whole}
+            #{long}
+          end
+        end
+      RUBY
+      assert_equal 160, whole.length
+      texts = Branchout::Target.parse(path, "Ops.pick").operators.map(&:text)
+      assert_equal [whole, "#{long[0, 157]}..."], texts
+    end
+  end
+
   def test_call_graph_skips_uncalled_helpers
     target = Branchout::Target.parse(File.join(@root, "test/fixtures/call.rb"), "FixtureCall.entry")
     assert_equal [0, 10], target.literals.ints

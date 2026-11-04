@@ -630,7 +630,7 @@ class CLITest < Minitest::Test
       _out, err, status = run_cli(*args, "-I", File.join(repo, "app/models"))
       assert status.success?, err
       assert_equal "", err
-      assert_includes File.read(test), "\n# Load path: -I lib -I app/models\nrequire \"shop\"\nrequire \"cart\"\n"
+      assert_includes File.read(test), "\n# Load path: -I lib (in repo) -I app/models (in repo)\nrequire \"shop\"\nrequire \"cart\"\n"
       _out, err, status = Open3.capture3(RbConfig.ruby, "-I", File.join(repo, "lib"), "-I", File.join(repo, "app/models"), test)
       assert status.success?, err
 

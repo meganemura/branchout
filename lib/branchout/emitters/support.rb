@@ -74,8 +74,8 @@ module Branchout
       end
 
       # A directory as a person passes it to -I: from the working directory
-      # when it is under it, else from its project's root, so a committed
-      # test carries no machine's path where it can avoid one.
+      # when it is under it, else from its project's root, named after it,
+      # so a committed test carries no machine's path where it can avoid one.
       def shown_directory(dir)
         cwd = "#{Dir.pwd}/"
         return dir.delete_prefix(cwd) if dir.start_with?(cwd)
@@ -83,7 +83,7 @@ module Branchout
         root = project_root(dir)
         return dir unless root
 
-        root == dir ? "." : dir.delete_prefix("#{root}/")
+        "#{root == dir ? "." : dir.delete_prefix("#{root}/")} (in #{File.basename(root)})"
       end
 
       # The files of +requires+ and +target_path+ that --require-by-name

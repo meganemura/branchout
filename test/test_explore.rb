@@ -85,6 +85,28 @@ class ExploreTest < Minitest::Test
     assert_equal "loaded", stdout
   end
 
+  # These refusals come before explore touches Coverage, so they run here.
+  def test_an_entry_or_inputs_explore_cannot_use_is_refused
+    require "branchout"
+    {
+      ["Pantry", []] => "entry \"Pantry\" is not Const.method or Const#method",
+      ["Comparable#clamp", []] => "Comparable#clamp has no Ruby source file; pass target:",
+      ["NoSuchConst.run", []] => "cannot resolve NoSuchConst.run: uninitialized constant NoSuchConst",
+      ["ExploreTest#run_suite", {}] => "inputs must be a list or an inputs file path"
+    }.each do |(entry, inputs), message|
+      error = assert_raises(Branchout::Error) { Branchout.explore(entry, within: self, inputs: inputs) }
+      assert_equal message, error.message
+    end
+  end
+
+  def test_a_receiver_that_is_not_ruby_source_is_refused
+    require "branchout"
+    error = assert_raises(Branchout::Error) do
+      Branchout::InputFile.parse_entry({ "args" => [], "receiver" => { "ruby" => 3 } }, "inputs[0]")
+    end
+    assert_equal "inputs[0] receiver must be Ruby such as {\"ruby\": \"create(:loan)\"}", error.message
+  end
+
   # Bundler loads the gemspec, and so branchout, in every process of a
   # project that depends on branchout by path.
   def test_requiring_branchout_leaves_coverage_off

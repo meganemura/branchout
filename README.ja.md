@@ -275,6 +275,8 @@ ActiveRecord が読み込まれていれば、各入力はセーブポイント�
 minitest では、同じ呼び出しを `ActiveSupport::TestCase` のテストに書き、`BRANCHOUT=1 bin/rails test` で動かす。
 
 出力するテストは、スイートが読み込んだヘルパー（`rails_helper`、なければ `test_helper`、なければ `spec_helper`）を名前で require する。
+どれも読み込んでいないスイートは、`requires:` でヘルパーを指定する。
+指定しないと `emit_tests:` を断る。
 モデルはアプリが読み込むので require しない。
 minitest のテストは、探索したテストの基底クラス（`ActiveSupport::TestCase` など）を継承する。
 他のテストと同じく、`BRANCHOUT` なしで実行する。

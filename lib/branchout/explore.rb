@@ -57,6 +57,10 @@ module Branchout
     target ||= defining_file(entry)
     user_inputs, type_overrides = inputs.is_a?(String) ? InputFile.load(inputs) : [parse_inputs(inputs), nil]
     requires ||= [loaded_helper].compact
+    if emit_tests && requires.empty?
+      raise Error, "the suite loaded no #{HELPERS.join(", ")} from #{Dir.pwd}, so an emitted test would not load the app; " \
+                   "pass the helper file as requires:"
+    end
     host = Host.new(test: within, around: around || (defined?(ActiveRecord::Base) ? ROLL_BACK : RUN_ONLY),
                     test_class: within.class.superclass.name)
     result = Engine.explore(

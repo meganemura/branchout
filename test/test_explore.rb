@@ -89,6 +89,17 @@ class ExploreTest < Minitest::Test
     assert_includes stdout.gsub(/\s+/, " "), "Branchout::Error: #{refusal}"
   end
 
+  def test_a_suite_with_no_helper_explore_knows_must_name_one_to_emit
+    Dir.mktmpdir do |dir|
+      emit_to = File.join(dir, "t.rb")
+      stdout, _stderr, status = run_suite("#{SUITE}/bare_explore_test.rb", "EMIT_TO" => emit_to)
+      refute status.success?
+      assert_includes stdout.gsub(/\s+/, " "), "Branchout::Error: the suite loaded no rails_helper.rb, test_helper.rb, spec_helper.rb " \
+                                               "from #{ROOT}, so an emitted test would not load the app; pass the helper file as requires:"
+      refute File.exist?(emit_to)
+    end
+  end
+
   # minitest 6 needs prism 1, and RubyGems activates the newest prism for
   # a require with no version, so branchout must not load prism until it
   # parses.

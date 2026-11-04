@@ -812,6 +812,51 @@ class CLITest < Minitest::Test
     end
   end
 
+  # The tool built the receiver's Code before the target ran. Loading the
+  # target's file again would define Branchout::Code a second time, and the
+  # tool's Code would no longer be one.
+  def test_a_receiver_built_by_ruby_reaches_a_target_among_branchout_files
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [{ "receiver" => { "ruby" => "Branchout::Input.new(args: [1])" }, "args" => [] }] })
+      stdout, stderr, status = run_cli(
+        "explore", "lib/branchout/input.rb", "Branchout::Input#text",
+        "--strategy", "inputs", "--random", "0", "--inputs", path, "--json"
+      )
+      assert status.success?, stderr
+      report = JSON.parse(stdout)
+      assert_equal [], report["exceptions"]
+      assert_equal 1, report["arms_covered"]
+      assert_empty stderr
+    end
+  end
+
+  # Rails loads an initializer with Kernel#load, which leaves it out of
+  # $LOADED_FEATURES. Coverage counts it already, so it is not loaded again.
+  def test_a_target_a_require_file_loaded_with_load_runs_once
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "t.rb")
+      File.write(target, "$t_loads = ($t_loads || 0) + 1\nclass T\n  def self.f(x) = x ? $t_loads : 0\nend\n")
+      env = File.join(dir, "env.rb")
+      File.write(env, "load #{target.dump}\n")
+      path = write_inputs(dir, { "inputs" => [[true]] })
+      stdout, stderr, status = run_cli("explore", target, "T.f", "--require", env, "--strategy", "inputs", "--random", "0",
+                                       "--inputs", path, "--emit-tests", File.join(dir, "t_test.rb"))
+      assert status.success?, stderr
+      assert_includes stdout, "arms_covered: 1\narms_total: 2\n"
+      assert_includes File.read(File.join(dir, "t_test.rb")), "assert_equal 1, T.f(true)"
+    end
+  end
+
+  # A file that loaded with the tool, before coverage was set up, has no
+  # arms, and loading it again would define its classes a second time.
+  def test_a_target_loaded_before_coverage_is_refused
+    loaded = $LOADED_FEATURES.find { |file| file.end_with?("/did_you_mean/jaro_winkler.rb") }
+    _stdout, stderr, status = run_cli("explore", loaded, "DidYouMean::JaroWinkler.distance", "--strategy", "inputs", "--random", "0")
+    refute status.success?
+    assert_equal "branchout: #{loaded} loaded before explore set up coverage, so Coverage has no arms for it, " \
+                 "and loading it again would define its classes a second time.\n", stderr
+  end
+
   # A superclass or constant from another file is a NameError at load time.
   # The run stops with one line that names it and the flag that fixes it.
   def test_a_constant_missing_at_load_time_suggests_require

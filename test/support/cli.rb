@@ -22,7 +22,10 @@ module CLIProcess
 
   def run(*args, chdir:)
     args = args.map(&:to_s)
-    return Open3.capture3(RbConfig.ruby, BIN, *args, chdir: chdir) unless @server
+    # The server loaded branchout before coverage was set up, so a run that
+    # explores one of branchout's own files starts a Ruby of its own.
+    own_file = Dir.chdir(chdir) { Branchout::CoverageSession.names_own_file?(args) }
+    return Open3.capture3(RbConfig.ruby, BIN, *args, chdir: chdir) if !@server || own_file
 
     Dir.mktmpdir do |dir|
       out = File.join(dir, "out")

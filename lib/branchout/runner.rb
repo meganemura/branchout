@@ -75,9 +75,7 @@ module Branchout
     def boot
       CoverageSession.install
       load_file = loader_refusing_another_branchout
-      # A file of the running branchout, such as its own lib, loaded before
-      # coverage started, so it is loaded again to be measured.
-      preloaded = $LOADED_FEATURES.include?(File.realpath(@target.path))
+      loaded_with_tool = target_loaded?
       loading = @target.path
       begin
         quietly do
@@ -89,8 +87,11 @@ module Branchout
               load_file.(path)
             end
             loading = @target.path
-            @target_required = !preloaded && $LOADED_FEATURES.include?(File.realpath(@target.path))
-            preloaded ? load(@target.path) : load_file.(@target.path)
+            loaded = target_loaded?
+            @target_required = !loaded_with_tool && loaded
+            # Loading the file again would define its classes a second
+            # time, so an object built from the first ones is not one of them.
+            load_file.(@target.path) unless loaded
           end
         end
       rescue Error
@@ -104,6 +105,10 @@ module Branchout
         raised = e.backtrace_locations&.first
         at = " at #{Target.display_path(raised.path)}:#{raised.lineno}" if raised
         raise Error, "failed to load #{Target.display_path(loading)}: #{e.message.lines.first&.strip} (#{e.class}#{at})"
+      end
+      unless target_measured?
+        raise Error, "#{@target.display_path} loaded before explore set up coverage, so Coverage has no arms for it, " \
+                     "and loading it again would define its classes a second time."
       end
       resolve
       @not_counted = callees_in_other_files(Coverage.result(stop: false, clear: true))
@@ -129,6 +134,17 @@ module Branchout
       resolve
       @not_counted = callees_in_other_files(Coverage.result(stop: false, clear: true))
       @template = extract(Coverage.peek_result)
+    end
+
+    # Kernel#load, as Rails uses for an initializer, leaves the file out of
+    # $LOADED_FEATURES, but coverage holds every file loaded after setup.
+    def target_loaded?
+      $LOADED_FEATURES.include?(File.realpath(@target.path)) || target_measured?
+    end
+
+    def target_measured?
+      wanted = File.expand_path(@target.path)
+      Coverage.peek_result.any? { |file, _data| File.expand_path(file) == wanted }
     end
 
     # Another checkout's lib/branchout reopens the running tool's classes,

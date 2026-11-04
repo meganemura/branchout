@@ -298,6 +298,7 @@ CLI でも、`RAILS_ENV=test` と `--require config/environment.rb` でアプリ
 ## フロンティアの作り方
 
 `--require` のファイルと対象ファイルは `Coverage.setup(lines: true, branches: true)` のあとで読み、ロード時のカウントは捨てる。入力ごとに coverage を resume し、メソッドを呼び、suspend して `Coverage.result` を読む。残すのは入口メソッドと、同じファイル内で裸呼び出しまたは `self.` から届く callee だけである。
+`--require` のファイルが `require` か、Rails が initializer を読むときの `Kernel#load` で読み込み済みの対象は、もう一度は読まない。
 `def self.apply(doc) = new(doc).apply` のように自分のインスタンスを作るクラスメソッドは、`initialize` と、そのインスタンスで呼ぶメソッドまで追う。
 `new(path).tap(&:parse)` や `then(&:parse)` で呼ぶメソッドも追う。
 
@@ -362,7 +363,10 @@ ln -s /path/to/branchout/skills/branchout .agents/skills/branchout
 - 対象は branchout と同じプロセスに読み込まれる。
   別のチェックアウトの branchout を読み込む対象や `--require` のファイルは、ツール自身のクラスを置き換えるので拒否する。
   branchout 自身のコードを調べるときは、そのチェックアウトの `bin/branchout` を使う。
-  ツールが読み込み済みのファイルはもう一度読み込むので、coverage が測れる。
+  引数がツール自身のファイルを指すとき、ツールは自分を読み込む前に coverage を準備する。
+  そのため、そのファイルを読み込み直さずに coverage が測れる。
+  coverage の準備より前に読み込まれたファイル、たとえば Ruby 自身のライブラリは拒否する。
+  読み込み直すとクラスが二度定義され、最初のクラスで作ったオブジェクトがそのクラスのものでなくなるからである。
 - 入口は対象ファイルの中で、その定数か、同じファイルで宣言したスーパークラスの下に定義されていなければならない。
   継承した入口は、Ruby と同じくサブクラスの上書きを追う。
 - 時刻、乱数、I/O に依存するメソッドは、同じ入力でもレポートが揃わない。

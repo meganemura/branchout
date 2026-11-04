@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
 require "minitest/autorun"
+require "fileutils"
 require "json"
+require "tmpdir"
 require "branchout"
 
 if Gem::Version.new(RUBY_VERSION) < Gem::Version.new("3.4")
@@ -273,8 +275,12 @@ class PropertyTest < Minitest::Test
     end
   end
 
+  # test/generated requires examples/hidden_bug.rb before explore sets up
+  # coverage, so explore measures a copy that loads after it.
   def test_the_report_does_not_depend_on_input_order_or_repeats
-    target = File.join(ROOT, "examples/hidden_bug.rb")
+    dir = Dir.mktmpdir
+    target = File.join(dir, "hidden_bug.rb")
+    FileUtils.cp(File.join(ROOT, "examples/hidden_bug.rb"), target)
     Hegel.test do |tc|
       pairs = tc.draw(arrays(arrays(integers(min_value: -2, max_value: 30), min_size: 2, max_size: 2), min_size: 1, max_size: 6))
       reordered = tc.draw(permutations(pairs + pairs.first(1)))
@@ -288,5 +294,7 @@ class PropertyTest < Minitest::Test
       end
       assert_equal reports[0], reports[1]
     end
+  ensure
+    FileUtils.rm_rf(dir)
   end
 end

@@ -1,6 +1,13 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require_relative "../lib/branchout/coverage_session"
+
+if Branchout::CoverageSession.names_own_file?(ARGV)
+  # prism loads first so that its files stay out of coverage.
+  require "prism"
+  Branchout::CoverageSession.install
+end
 require_relative "../lib/branchout"
 
 exit Branchout::CLI.start(ARGV)

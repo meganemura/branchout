@@ -268,32 +268,19 @@ module Branchout
         squash(node.predicate&.slice)
       when :case_node, :case_match_node
         if arm_type == :when || arm_type == :in
-          found = when_nodes(node).find { |when_node| arm_matches?(when_node, aline, acol) }
+          found = node.conditions.find { |when_node| arm_matches?(when_node, aline, acol) }
           found ? squash(found.slice.lines.first) : nil
         else
-          predicate = node.respond_to?(:predicate) ? node.predicate : nil
-          predicate ? "case #{squash(predicate.slice)} else" : "case else"
+          node.predicate ? "case #{squash(node.predicate.slice)} else" : "case else"
         end
       end
     end
 
+    # Coverage places a when or in arm at its body, or at the keyword when
+    # the body is empty.
     def arm_matches?(when_node, aline, acol)
-      loc = when_node.location
-      return true if loc.start_line == aline && loc.start_column == acol
-
-      statements = when_node.respond_to?(:statements) ? when_node.statements : nil
-      return false unless statements
-
-      body = statements.location
-      body.start_line == aline && body.start_column == acol
-    end
-
-    def when_nodes(node)
-      children = node.respond_to?(:conditions) && node.conditions ? node.conditions.to_a : []
-      list = children.select { |child| child.is_a?(Prism::Node) && (child.type == :when_node || child.type == :in_node) }
-      return list unless list.empty?
-
-      node.compact_child_nodes.select { |child| child.type == :when_node || child.type == :in_node }
+      loc = when_node.statements&.location || when_node.location
+      loc.start_line == aline && loc.start_column == acol
     end
 
     def index_conditions(node)
@@ -426,7 +413,7 @@ module Branchout
       name = lvar_name(node.predicate)
       return unless name
 
-      when_nodes(node).each do |when_node|
+      node.conditions.each do |when_node|
         next unless when_node.respond_to?(:conditions)
 
         Array(when_node.conditions).each do |condition|

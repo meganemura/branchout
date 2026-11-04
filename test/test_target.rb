@@ -172,7 +172,8 @@ class TargetTest < Minitest::Test
       "long" => { "if@29:4/then@29:4" => "x == 1 && x != 22222222222222222222 && x != 33333333333333333333 && " \
                                          "x != 44444444444444444444 && x != 55555555555555555555 && " \
                                          "x != 66666666666666666666 && x ..." },
-      "loop" => { "while@35:4/body@35:4" => "x > 0" }
+      "loop" => { "while@35:4/body@35:4" => "x > 0" },
+      "empty_when" => { "case@40:4/when@41:4" => "when 1", "case@40:4/when@42:16" => "when 2 then :two" }
     }
     Dir.mktmpdir do |dir|
       inputs = File.join(dir, "inputs.json")

@@ -35,4 +35,11 @@ module FixtureConds
     x -= 1 while x > 0
     x
   end
+
+  def self.empty_when(x)
+    case x
+    when 1
+    when 2 then :two
+    end
+  end
 end

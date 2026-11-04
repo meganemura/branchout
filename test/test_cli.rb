@@ -550,8 +550,8 @@ class CLITest < Minitest::Test
       assert status.success?, err
       text = File.read(spec)
       assert_includes text, "    it \"returns an Array of 2\" do\n"
-      assert_includes text, "expect(Rules.list(2)).to match([a_kind_of(Rules::Rule).and(have_attributes(action: \"a0\", args: [0], tags: a_kind_of(Set))), " \
-                            "a_kind_of(Rules::Rule).and(have_attributes(action: \"a1\", args: [1], tags: a_kind_of(Set)))])\n"
+      assert_includes text, "expect(Rules.list(2)).to match([a_kind_of(Rules::Rule).and(have_attributes(action: \"a0\", args: [0], tags: Set[0])), " \
+                            "a_kind_of(Rules::Rule).and(have_attributes(action: \"a1\", args: [1], tags: Set[1]))])\n"
       _out, err, status = Open3.capture3(RbConfig.ruby, "-rrspec/autorun", "-e", "", spec)
       assert status.success?, err
       File.write(target, source.sub("[i]", "[i + 1]"))

@@ -169,6 +169,7 @@ module Branchout
         when String then mutable ? "+#{value.inspect}" : value.inspect
         when Symbol then value.inspect
         when Code then value.source
+        when Set then "Set[#{value.map { |item| ruby_literal(item, mutable: mutable) }.join(", ")}]"
         when Array
           "[#{value.map { |item| ruby_literal(item, mutable: mutable) }.join(", ")}]"
         when Hash
@@ -184,7 +185,7 @@ module Branchout
         case value
         when nil, true, false, Integer, String, Symbol then true
         when Float then value.finite?
-        when Array then value.all? { |item| literal?(item) }
+        when Array, Set then value.all? { |item| literal?(item) }
         when Hash then value.all? { |key, item| literal?(key) && literal?(item) }
         else false
         end
@@ -264,6 +265,9 @@ module Branchout
             # An input that has an empty collection above this leaf, or
             # items below it, does have the key; its own leaf names it.
             next [] if !map.key?(path) && map.keys.any? { |other| other.first(path.length) == path || path.first(other.length) == other }
+            # So does one that holds another shape under the leaf's last key.
+            held = path.rindex { |step| step.is_a?(String) }
+            next [] if !map.key?(path) && held && map.keys.any? { |other| other.first(held + 1) == path.first(held + 1) }
 
             key = telling_key(path, paths)
             rest = map[path].is_a?(String) ? tokens(map[path]).drop(shared[path]) : []
@@ -273,8 +277,26 @@ module Branchout
             else value_words(map[path])
             end
             key ? [key, *value] : value
+          end.then { |words| without_repeated_none(words) }
+        end
+      end
+
+      # A key that several leaves of an absent collection end in says
+      # "none" once.
+      def without_repeated_none(words)
+        out = []
+        index = 0
+        while index < words.length
+          if words[index].is_a?(Key) && words[index + 1] == "none"
+            pair = words[index, 2]
+            out.concat(pair) unless out.each_cons(2).include?(pair)
+            index += 2
+          else
+            out << words[index]
+            index += 1
           end
         end
+        out
       end
 
       # How many leading words all of +values+ share, when they are Strings.
@@ -365,9 +387,22 @@ module Branchout
         case value
         when Hash then "returns a Hash of #{value.keys.map(&:to_s).join(", ")}"
         when Array
-          value.any? { |item| collection?(item) } ? "returns an Array of #{value.length}" : "returns #{text[0, 37]}..."
+          if value.all? { |item| collection?(item) } then "returns an Array of #{value.length}"
+          elsif value.any? { |item| collection?(item) } then "returns [#{value.map { |item| item_text(item) }.join(", ")}]"
+          else "returns #{text[0, 37]}..."
+          end
         when String then "returns #{text[0, 37]}..."
         else "returns #{text}"
+        end
+      end
+
+      # An item of an Array that holds both scalars and collections: a
+      # scalar as written, and a collection by its keys or its size.
+      def item_text(item)
+        case item
+        when Hash then item.empty? ? "{}" : "a Hash of #{item.keys.map(&:to_s).join(", ")}"
+        when Array then item.empty? ? "[]" : "an Array of #{item.length}"
+        else ruby_literal(item)
         end
       end
 
@@ -493,7 +528,10 @@ module Branchout
         when {}, [] then ["empty", value.is_a?(Hash) ? "hash" : "array"]
         when Hash then ["hash", *value.keys.map { |key| Key.new(key.to_s) }]
         when Array
-          value.any? { |item| item.is_a?(Hash) || item.is_a?(Array) } ? ["array", "of", value.length.to_s] : value_words(value)
+          if value.all? { |item| collection?(item) } then ["array", "of", value.length.to_s]
+          elsif value.any? { |item| collection?(item) } then value.flat_map { |item| collection?(item) && !item.empty? ? shape_words(item) : value_words(item) }
+          else value_words(value)
+          end
         else value_words(value)
         end
       end
@@ -547,6 +585,8 @@ module Branchout
       def value_words(value)
         case value
         when Array then value.flat_map { |item| value_words(item) }
+        when Set then value.empty? ? %w[empty set] : ["set", *value.flat_map { |item| value_words(item) }]
+        when Integer then [number_word(value)]
         when nil then ["nil"]
         when "" then ["empty"]
         when /\A\s+\z/ then ["blank"]
@@ -555,6 +595,16 @@ module Branchout
         else [value.to_s]
         end
       end
+
+      # A number longer than LONG_NUMBER digits fills a name, so it keeps
+      # its first three digits and its power of ten: 123e46.
+      def number_word(value)
+        digits = value.abs.to_s
+        word = digits.length > LONG_NUMBER ? "#{digits[0, 3]}e#{digits.length - 3}" : digits
+        value.negative? ? "neg#{word}" : word
+      end
+
+      LONG_NUMBER = 15
 
       def snake_words(class_name)
         [class_name.gsub("::", "_").gsub(/([a-z\d])([A-Z])/, '\1_\2')]

@@ -305,7 +305,7 @@ class EmitterTest < Minitest::Test
     point = Struct.new(:x)
     long_word = "a" * 50
     names = Branchout::Emitters::Support.test_names([pin.([long_word], Set[1]), pin.([4], point.new(4))])
-    assert_match(/\Atest_#{"a" * 40}_returns_set\z/, names[0])
+    assert_match(/\Atest_#{"a" * 40}_returns_set_1\z/, names[0])
     assert_match(/\Atest_4_returns_struct\z/, names[1])
   end
 
@@ -684,7 +684,7 @@ class EmitterTest < Minitest::Test
     assert_equal "returns [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, ...", outcome.([1] * 20)
     assert_equal "returns an Array of 2", outcome.([[1] * 20, [2]])
     assert_equal "returns a Hash of #{(1..9).map { |n| "key#{n}" }.join(", ")}", outcome.((1..9).to_h { |n| [:"key#{n}", n] })
-    assert_equal "returns a Set", outcome.(Set[1])
+    assert_equal "returns Set[1]", outcome.(Set[1])
     assert_equal "returns an Object", outcome.(Object.new)
   end
 
@@ -1014,8 +1014,8 @@ class EmitterTest < Minitest::Test
     source = render.(target_for.("Box", :put, singleton: true), shaped, pin_keys: %w[tax])
     assert_includes source, "expect(Box.put(1)).to include({tax: 0})\n"
     assert_includes source, "expect(Box.put(2)).to match([a_kind_of(Struct).and(have_attributes(a: 1))])\n"
-    assert_includes source, "expect(Box.put(3)).to match({\"s\" => a_kind_of(Set)})\n"
-    assert_includes source, "expect(Box.put(4)).to be_a(Set)\n"
+    assert_includes source, "expect(Box.put(3)).to eq({\"s\" => Set[1]})\n"
+    assert_includes source, "expect(Box.put(4)).to eq(Set[1])\n"
     result = Branchout::Engine::Result.new(pins: shaped.first(1), requires: [], load_paths: [], private_calls: [])
     minitest = Branchout::Emitters.render("minitest", result, target_for.("Box", :put, singleton: true),
                                           File.join(ROOT, "test/x_test.rb"), pin_keys: %w[tax])
@@ -1040,5 +1040,46 @@ class EmitterTest < Minitest::Test
     assert_equal [0, 1], support.telling_path([0, 1], [[0, 1], [0, 2]])
     assert_nil support.telling_key([0], [[0], ["status"]])
     assert_equal ["returns", "1", support::Key.new("status"), "2"], support.outcome_entry_words([[[0], 1], [["status"], 2]])
+  end
+end
+
+class NameFactsTest < Minitest::Test
+  def pin(value, args = [1])
+    Branchout::Engine::Pin.new(input: Branchout::Input.new(args: args), value: value, error: nil, arm_ids: [])
+  end
+
+  def support = Branchout::Emitters::Support
+
+  # A [status, payload] pair says its scalar and the keys of its Hash, not
+  # only its size.
+  def test_an_array_of_a_scalar_and_a_hash_says_both
+    value = [:ok, { "id" => 1, "name" => "a name long enough to pass forty" }]
+    assert_equal "returns [:ok, a Hash of id, name]", support.outcomes([pin(value)]).values.first
+    assert_equal "test_1_returns_ok_hash__id__name", support.test_names([pin(value)]).first
+    assert_equal "returns an Array of 2", support.outcomes([pin([[1] * 20, [2]])]).values.first
+  end
+
+  # A Set has a literal, so both formats pin its members.
+  def test_a_set_is_pinned_by_its_members
+    assert_equal "returns Set[1, 2]", support.outcomes([pin(Set[1, 2])]).values.first
+    assert_equal "test_1_returns_set_1_2", support.test_names([pin(Set[1, 2])]).first
+    assert_equal "test_1_returns_empty_set", support.test_names([pin(Set[])]).first
+    assert_equal "Set[1, \"a\"]", support.ruby_literal(Set[1, "a"])
+  end
+
+  # A number too long for a name keeps its leading digits and its size.
+  def test_a_long_integer_keeps_its_fact_in_the_name
+    big = 1234567890123456789012345678901234567890123456789
+    names = support.test_names([pin({ "total" => big }, [{ "n" => big }]), pin({ "total" => big - 1 }, [{ "n" => big - 1 }])])
+    names.each { |name| assert_match(/\Atest_n_123e46_returns__total_123e46_\h{6}\z/, name) }
+    assert_equal "test_neg123e46_returns_ok", support.test_names([pin(:ok, [-big])]).first
+  end
+
+  # An input whose collection holds Hashes where a sibling's holds Arrays
+  # has the key: it is named by its own leaves, and a missing key once.
+  def test_a_key_that_holds_another_shape_is_not_none
+    inputs = [[{ "groups" => [[1], [2]] }], [{ "groups" => [{ "id" => 1 }, { "id" => 2 }] }]]
+    names = support.test_names(inputs.map { |args| pin(:ok, args) })
+    assert_equal %w[test_groups_1__groups_2__id_none_returns_ok test_id_1__id_2_returns_ok], names
   end
 end

@@ -149,7 +149,8 @@ ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \
 複数行のメッセージは、発生したときのまま固定する。
 `NameError` と `NoMethodError` は、クラスと見つからなかった名前（`error.name`）で固定する。
 Ruby 3.4 でメッセージの文言が変わったためである。
-`Set` のように Ruby のリテラルで書けない戻り値は、クラスだけを固定する。
+`Set` は要素で固定する（`Set[1, 2]`）。
+`Object` のように Ruby のリテラルで書けない戻り値は、クラスだけを固定する。
 RSpec では、`Struct` と `Data` の値はクラスとメンバーで固定し、それを含む Array や Hash は要素ごとに固定する（`match([a_kind_of(Rule).and(have_attributes(action: "borrow"))])`）。
 minitest は `Struct` をクラスだけで固定する。
 期待する Hash は値そのもののキー順で書くので、失敗時の差分をキーごとに見比べられる。
@@ -164,6 +165,8 @@ minitest のテスト名は入力と結果から作る。
 空白だけの文字列は `blank` になり、Hash の引数は値で名付ける。
 Hash の引数の中のコレクションは、キーと大きさで名付ける（`groups_3`、`tags_empty`）。
 コレクションの配列は大きさで名付ける（`array_of_2`）。
+スカラーとコレクションが混ざる配列は、各スカラーと各 Hash のキーで名付ける（`returns [:ok, a Hash of id, name]`、`returns_ok_hash__id__name`）。
+16 桁以上の数は、先頭 3 桁と 10 の累乗で名付ける（`123e46`）。
 別の葉も同じキーで終わるときは、その上のキーも名前に入れる（`id` の隣の `items_id`）。
 Hash の結果は、兄弟どうしを見分けられる最少の葉で名付ける。
 入れ子の葉も対象になる（`returns__due_cents_0__discount_100`）。

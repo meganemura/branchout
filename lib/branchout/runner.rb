@@ -64,12 +64,12 @@ module Branchout
     end
 
     def refusing_lets(input, &call)
-      read, result = @host.lets_read_by(&call)
+      read, made, result = @host.lets_read_by(&call)
       return result if read.empty?
 
+      savepoint = " A let an input reads first is made in that input's rolled-back savepoint and kept for the next input." unless made.empty?
       raise Error, "the input #{Canon.json(input.to_h)} reads #{read.map { |name| "let(:#{name})" }.join(", ")} " \
-                   "of the exploring test, which the emitted test does not have. A let an input reads first is made " \
-                   "in that input's rolled-back savepoint and kept for the next input. Build it in the input's Ruby."
+                   "of the exploring test, which the emitted test does not have.#{savepoint} Build it in the input's Ruby."
     end
 
     def boot

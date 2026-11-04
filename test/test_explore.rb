@@ -77,18 +77,21 @@ class ExploreTest < Minitest::Test
     end
   end
 
+  # The savepoint reason holds only for a let the input made. The spec
+  # reads its let before explore, so only the missing let is the reason.
   def test_an_input_that_reads_a_let_is_refused
-    refusal = "the input {\"args\":[\"tea\"],\"kwargs\":{},\"receiver\":{\"ruby\":\"Pantry.new(cook)\"}} reads let(:cook) " \
-              "of the exploring test, which the emitted test does not have. A let an input reads first is made in that " \
-              "input's rolled-back savepoint and kept for the next input. Build it in the input's Ruby."
+    read = "the input {\"args\":[\"tea\"],\"kwargs\":{},\"receiver\":{\"ruby\":\"Pantry.new(cook)\"}} reads let(:cook) " \
+           "of the exploring test, which the emitted test does not have."
+    made = " A let an input reads first is made in that input's rolled-back savepoint and kept for the next input."
+    build = " Build it in the input's Ruby."
     rspec = ["-I", SUITE, "-rrspec/core", "-e", "exit RSpec::Core::Runner.run(ARGV)", "--"]
     stdout, stderr, status = Open3.capture3(RbConfig.ruby, "-Ilib", *rspec, "#{SUITE}/pantry_let_spec.rb", chdir: ROOT)
     refute status.success?, stdout + stderr
-    assert_includes stdout.gsub(/\s+/, " "), "Branchout::Error: #{refusal}"
+    assert_includes stdout.gsub(/\s+/, " "), "Branchout::Error: #{read}#{build}"
 
     stdout, stderr, status = run_suite("#{SUITE}/pantry_let_test.rb")
     refute status.success?, stdout + stderr
-    assert_includes stdout.gsub(/\s+/, " "), "Branchout::Error: #{refusal}"
+    assert_includes stdout.gsub(/\s+/, " "), "Branchout::Error: #{read}#{made}#{build}"
   end
 
   # The refused explore ran its input before it found the let, so the

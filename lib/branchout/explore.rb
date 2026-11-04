@@ -6,17 +6,19 @@ module Branchout
   # reaches. +around+ runs one input and undoes what it wrote. +test_class+
   # is the class an emitted minitest file inherits from.
   Host = Data.define(:test, :around, :test_class) do
-    # Runs the block with the test's lets forgotten, then puts them back,
-    # and returns the names of the lets the block read with its result.
+    # Runs the block with the test's lets forgotten, then puts them back.
+    # Returns the names of the lets the block read, the names among them
+    # that the test had not made before, and the block's result.
     # RSpec keeps a let's value in @__memoized, minitest/spec in @_memoized.
     def lets_read_by
       holder, name = let_values
-      return [[], yield] unless holder
+      return [[], [], yield] unless holder
 
       kept = holder.instance_variable_get(name)
       holder.instance_variable_set(name, {})
       result = yield
-      [holder.instance_variable_get(name).keys, result]
+      read = holder.instance_variable_get(name).keys
+      [read, read.reject { |let| kept&.key?(let) }, result]
     ensure
       holder&.instance_variable_set(name, kept)
     end

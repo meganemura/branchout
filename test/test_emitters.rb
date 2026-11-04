@@ -765,6 +765,7 @@ class EmitterTest < Minitest::Test
     pin = ->(value) { Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1]), value: value, error: nil, covers: []) }
     assert_equal %(returns "a fairly long string that keeps...), Branchout::Emitters::Support.outcome_text(pin.("a fairly long string that keeps going and going"), [])
     assert_equal %(returns "ab #{"c" * 33}...), Branchout::Emitters::Support.outcome_text(pin.("ab #{"c" * 50}"), [])
+    assert_equal %(returns "abcdefghijk...), Branchout::Emitters::Support.outcome_text(pin.("abcdefghijk #{"z" * 40}"), [])
   end
 
   # A text over the limit cuts its outcome before the facts that tell it
@@ -1281,6 +1282,9 @@ class EmitterTest < Minitest::Test
     texts = render.(target_for.("Box", :put, singleton: true), ["#{dir}recorded.qnt", "#{dir}missing.qntx"].map { |arg| pin.(Branchout::Input.new(args: [arg])) })
     assert_includes texts, %q(it 'returns 1 when x is "recorded.qnt"' do)
     assert_includes texts, %q(it 'returns 1 when x is "missing.qntx"' do)
+    # Files that share a long start are cut where they part, as other Strings are.
+    texts = render.(target_for.("Box", :put, singleton: true), %w[one two].map { |end_| pin.(Branchout::Input.new(args: ["#{dir}#{"a" * 30}_#{end_}.csv"])) })
+    assert_includes texts, %(it 'returns 1 when x is "...#{"a" * 9}_one.csv"' do)
 
     struct = Struct.new(:a)
     shaped = [pin.(Branchout::Input.new(args: [1]), { total: 1, tax: 0 }), pin.(Branchout::Input.new(args: [2]), [struct.new(1)]),
@@ -1543,6 +1547,57 @@ class NameEdgeTest < Minitest::Test
       assert_equal ["branchout: the emitted test passes #{file}, a file of this machine outside the test's project, so the test " \
                     "passes only here. Put the file under the project, and the test names it from its own directory."], warnings
       assert_includes File.read(File.join(dir, "out/x_test.rb")), "Box.put(#{file.inspect})"
+    end
+  end
+end
+
+class ProjectValueTest < Minitest::Test
+  Target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+
+  def target(dir)
+    Target.new(true, "Box", :put, "Box.put", "lib/x.rb", File.join(dir, "lib/x.rb"), [], [Struct.new(:name).new(:x)])
+  end
+
+  def pin(value, error = nil)
+    Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1]), value: value, error: error, covers: [])
+  end
+
+  def result(*pins) = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
+
+  # A path inside a longer text keeps the rest of the text in the test's
+  # name, and an error message with no exact form is written the same way.
+  def test_a_text_that_holds_a_project_path_names_the_root_from_the_test
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, "Gemfile"), "")
+      error = Branchout::Runner::ExceptionInfo.new(class_name: "IOError", message: "lost #{dir}/data/a.csv", stable_message: true)
+      source = Branchout::Emitters.render("minitest", result(pin("saved #{dir}/out/b.csv"), pin(2, error)), target(dir),
+                                          File.join(dir, "test/x_test.rb"))
+      root = '#{File.expand_path("..", __dir__)}'
+      assert_includes source, %(  def test_1_returns_saved_out_b_csv\n)
+      assert_includes source, %(assert_equal "saved #{root}/out/b.csv", Box.put(1))
+      assert_includes source, %(assert_equal "lost #{root}/data/a.csv", error.message)
+      refute_includes source, dir
+    end
+  end
+
+  def test_a_message_with_no_exact_form_that_holds_a_machine_path_is_named
+    Dir.mktmpdir do |dir|
+      project = File.join(dir, "app")
+      FileUtils.mkdir_p(project)
+      File.write(File.join(project, "Gemfile"), "")
+      error = Branchout::Runner::ExceptionInfo.new(class_name: "IOError", message: "lost #{dir}/a.csv", stable_message: true)
+      warnings = Branchout::Emitters.write("minitest", result(pin(2, error)), target(project), File.join(project, "test/x_test.rb"))
+      assert_equal ["branchout: the emitted test pins #{dir}/a.csv, a path of this machine outside the test's project, in a returned " \
+                    "value or an error message, so the test passes only here. Give Box.put a path under the project."], warnings
+    end
+  end
+
+  # With no Gemfile, gemspec, or .git above the test, nothing is a project
+  # path, so an absolute path stays as written.
+  def test_a_test_outside_any_project_keeps_absolute_values
+    Dir.mktmpdir do |dir|
+      source = Branchout::Emitters.render("minitest", result(pin("/srv/out/b.csv")), target(dir), File.join(dir, "test/x_test.rb"))
+      assert_includes source, %(assert_equal "/srv/out/b.csv", Box.put(1))
     end
   end
 end

@@ -78,23 +78,32 @@ module Branchout
       # A file of the running branchout, such as its own lib, loaded before
       # coverage started, so it is loaded again to be measured.
       preloaded = $LOADED_FEATURES.include?(File.realpath(@target.path))
+      loading = @target.path
       begin
         quietly do
           measure do
             @load_paths.reverse_each { |dir| $LOAD_PATH.unshift(dir) unless $LOAD_PATH.include?(dir) }
             @requires.each do |path|
               $LOAD_PATH.push(File.dirname(path)) unless $LOAD_PATH.include?(File.dirname(path))
+              loading = path
               load_file.(path)
             end
+            loading = @target.path
             @target_required = !preloaded && $LOADED_FEATURES.include?(File.realpath(@target.path))
             preloaded ? load(@target.path) : load_file.(@target.path)
           end
         end
+      rescue Error
+        raise
       rescue LoadError, SyntaxError => e
-        raise Error, "failed to load #{@target.display_path}: #{e.message}"
+        raise Error, "failed to load #{Target.display_path(loading)}: #{e.message}"
       rescue NameError => e
         hint = " Pass the file that defines #{e.name} with --require." unless e.is_a?(NoMethodError)
-        raise Error, "failed to load #{@target.display_path}: #{e.message.lines.first.strip} (#{e.class}).#{hint}"
+        raise Error, "failed to load #{Target.display_path(loading)}: #{e.message.lines.first.strip} (#{e.class}).#{hint}"
+      rescue StandardError => e
+        raised = e.backtrace_locations&.first
+        at = " at #{Target.display_path(raised.absolute_path || raised.path)}:#{raised.lineno}" if raised
+        raise Error, "failed to load #{Target.display_path(loading)}: #{e.message.lines.first&.strip} (#{e.class}#{at})"
       end
       resolve
       @not_counted = callees_in_other_files(Coverage.result(stop: false, clear: true))

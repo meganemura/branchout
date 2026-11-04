@@ -825,6 +825,20 @@ class CLITest < Minitest::Test
     end
   end
 
+  # A Rails app's environment raises when a setting is missing. The run
+  # stops with one line that names the file that raised and where.
+  def test_an_error_raised_while_a_require_file_loads_is_one_line
+    Dir.mktmpdir do |dir|
+      env = File.join(dir, "env.rb")
+      File.write(env, "x = 1\nraise \"DATABASE_URL is not set\\nsee config\" if x\n")
+      target = File.join(dir, "t.rb")
+      File.write(target, "class T\n  def self.f(x) = x ? 1 : 2\nend\n")
+      _stdout, stderr, status = run_cli("explore", target, "T.f", "--require", env, "--strategy", "inputs", "--random", "0")
+      refute status.success?
+      assert_equal "branchout: failed to load #{env}: DATABASE_URL is not set (RuntimeError at #{env}:2)\n", stderr
+    end
+  end
+
   # A check that moves from the entry into a parent class in another file
   # takes its arms out of arms_total. The report names that callee and how
   # many arms it has, so a smaller total does not read as less logic. An

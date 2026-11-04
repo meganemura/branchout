@@ -42,9 +42,10 @@ module Branchout
                                           runner_load_paths: RUNNER_LOAD_PATHS))
         lines << ""
         const = result.const_expression || target.const_name
+        type = ", type: #{result.spec_type.inspect}" if result.spec_type.is_a?(Symbol)
         # A private constant cannot be named bare at load time, so the
         # describe names it as text.
-        lines << "RSpec.describe #{const == target.const_name ? const : target.const_name.inspect} do"
+        lines << "RSpec.describe #{const == target.const_name ? const : target.const_name.inspect}#{type} do"
         lines << "  describe #{"#{target.singleton ? "." : "#"}#{target.method_name}".inspect} do"
         if result.pins.empty?
           lines << '    it "discovers no inputs" do'

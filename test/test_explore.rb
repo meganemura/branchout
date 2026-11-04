@@ -66,7 +66,7 @@ class ExploreTest < Minitest::Test
       assert_includes File.read(env["REPORT_TO"]), "timeout: none\n"
       assert_includes File.read(env["REPORT_TO"]), "arms_covered: 2\n"
       emitted = File.read(env["EMIT_TO"])
-      assert_includes emitted, "require \"spec_helper\"\n\nRSpec.describe Pantry do\n"
+      assert_includes emitted, "require \"spec_helper\"\n\nRSpec.describe Pantry, type: :model do\n"
       assert_includes emitted, "    context \"with Pantry.new(owner)\" do\n      let(:pantry) { Pantry.new(owner) }\n"
       assert_includes emitted, "    context \"with Pantry.new('bo')\" do\n      let(:pantry) { Pantry.new('bo') }\n"
       assert_includes emitted, "expect(pantry.stock(pantry.owner + ' tea')).to eq(:first)"

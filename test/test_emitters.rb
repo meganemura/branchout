@@ -599,6 +599,17 @@ class EmitterTest < Minitest::Test
     end
   end
 
+  # An emitted spec runs as the same kind of example group as the test
+  # that explored it, so a Rails model spec keeps type: :model.
+  def test_an_rspec_file_keeps_the_type_of_the_exploring_group
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Box", :put, "Box.put", "lib/x.rb", File.join(ROOT, "lib/x.rb"), [], [Struct.new(:name).new(:x)])
+    pins = [Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1]), value: 1, error: nil, arm_ids: [])]
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [], spec_type: :model)
+    assert_includes Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")),
+                    "\nRSpec.describe Box, type: :model do\n"
+  end
+
   # A stable message is pinned as it was raised, newlines too; the report
   # keeps the folded text.
   def test_a_stable_message_is_pinned_as_raised

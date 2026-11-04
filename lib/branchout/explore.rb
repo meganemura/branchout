@@ -4,8 +4,9 @@ module Branchout
   # The test that runs explore from inside a suite. +test+ is the example or
   # test instance whose helpers, factories, and fixtures the inputs' Ruby
   # reaches. +around+ runs one input and undoes what it wrote. +test_class+
-  # is the class an emitted minitest file inherits from.
-  Host = Data.define(:test, :around, :test_class) do
+  # is the class an emitted minitest file inherits from, and +spec_type+ the
+  # type metadata an emitted RSpec file gives its describe.
+  Host = Data.define(:test, :around, :test_class, :spec_type) do
     # Runs the block with the test's lets forgotten, then puts them back.
     # Returns the names of the lets the block read, the names among them
     # that the test had not made before, and the block's result.
@@ -65,7 +66,7 @@ module Branchout
                    "pass the helper file as requires:"
     end
     host = Host.new(test: within, around: around || (defined?(ActiveRecord::Base) ? ROLL_BACK : RUN_ONLY),
-                    test_class: within.class.superclass.name)
+                    test_class: within.class.superclass.name, spec_type: spec_type_of(within))
     result = Engine.explore(
       target: target, entry: entry, user_inputs: user_inputs, type_overrides: type_overrides, seed: seed,
       strategies: strategies, random: random, mutate_cap: mutate_cap, timeout: timeout, requires: requires, host: host
@@ -108,5 +109,9 @@ module Branchout
     nil
   end
 
-  private_class_method :defining_file, :parse_inputs, :loaded_helper
+  def spec_type_of(test)
+    test.class.metadata[:type] if test.class.respond_to?(:metadata)
+  end
+
+  private_class_method :spec_type_of, :defining_file, :parse_inputs, :loaded_helper
 end

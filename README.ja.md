@@ -280,6 +280,7 @@ minitest では、同じ呼び出しを `ActiveSupport::TestCase` のテスト�
 指定しないと `emit_tests:` を断る。
 モデルはアプリが読み込むので require しない。
 minitest のテストは、探索したテストの基底クラス（`ActiveSupport::TestCase` など）を継承する。
+RSpec のファイルは、探索した example group の `type`（`type: :model` など）を `describe` に付ける。
 rspec はプロジェクトの `spec` と `lib` を自分でロードパスに入れるので、RSpec のファイルの `# Load path:` コメントはこの 2 つを挙げない。
 他のテストと同じく、`BRANCHOUT` なしで実行する。
 

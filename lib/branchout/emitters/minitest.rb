@@ -44,7 +44,7 @@ module Branchout
         end
 
         arrange.each { |line| lines << "    #{line}" }
-        pinned = Support.pinned_value(pin.value, pin_keys)
+        pinned = Support.pinned_value(pin.value, Support.keys_for(pin, pin_keys))
         if !pinned.equal?(pin.value) && Support.literal?(pinned)
           keys = pinned.keys.map { |key| Support.ruby_literal(key) }.join(", ")
           lines << "    assert_equal(#{Support.ruby_literal(pinned)}, #{call}.slice(#{keys}))"

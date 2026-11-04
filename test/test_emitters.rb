@@ -483,6 +483,10 @@ class EmitterTest < Minitest::Test
     assert_equal ["returns total: 6", "returns total: 2"], support.outcomes(pins).values
     assert_equal ["returns tax: 1", "returns tax: 0"], support.outcomes(pins, %w[tax]).values
     assert_equal %w[test_1_returns__tax_1 test_2_returns__tax_0], support.test_names(pins, %w[tax])
+    own = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1], pin_keys: %w[id]), value: value, error: nil, arm_ids: [])
+    assert_equal ["returns {\"id\" => \"r\"}"], support.outcomes([own], %w[tax]).values
+    assert_equal %w[id], support.keys_for(own, %w[tax])
+    assert_equal %w[tax], support.keys_for(pins.first, %w[tax])
   end
 
   # Strings that share their start are named by the words from where they

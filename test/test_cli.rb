@@ -479,6 +479,37 @@ class CLITest < Minitest::Test
     end
   end
 
+  # An input's own pin_keys replace --pin-keys for that input alone, so
+  # one inputs file can pin a whole Hash for one call and two keys for
+  # another.
+  def test_an_input_names_its_own_pin_keys
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "receipt.rb")
+      File.write(target, "module Receipt\n  def self.build(n)\n    { total: n * 2, tax: n > 2 ? 1 : 0, id: \"r\" }\n  end\nend\n")
+      path = write_inputs(dir, { "inputs" => [[1], { "args" => [3], "pin_keys" => ["tax"] }, { "args" => [5], "pin_keys" => [] }] })
+      test = File.join(dir, "receipt_test.rb")
+      spec = File.join(dir, "receipt_spec.rb")
+      [test, spec].each do |out|
+        _out, err, status = run_cli("explore", target, "Receipt.build", "--strategy", "inputs", "--random", "0",
+                                    "--inputs", path, "--emit-tests", out, "--pin-keys", "total")
+        assert status.success?, err
+      end
+      minitest = File.read(test)
+      assert_includes minitest, "    assert_equal({total: 2}, Receipt.build(1).slice(:total))\n"
+      assert_includes minitest, "    assert_equal({tax: 1}, Receipt.build(3).slice(:tax))\n"
+      assert_includes minitest, "    assert_equal({total: 10, tax: 1, id: \"r\"}, Receipt.build(5))\n"
+      rspec = File.read(spec)
+      assert_includes rspec, "      expect(Receipt.build(1)).to include({total: 2})\n"
+      assert_includes rspec, "      expect(Receipt.build(3)).to include({tax: 1})\n"
+      assert_includes rspec, "      expect(Receipt.build(5)).to eq({total: 10, tax: 1, id: \"r\"})\n"
+
+      write_inputs(dir, { "inputs" => [{ "args" => [1], "pin_keys" => "tax" }] })
+      _out, err, status = run_cli("explore", target, "Receipt.build", "--strategy", "inputs", "--random", "0", "--inputs", path)
+      refute status.success?
+      assert_equal "branchout: #{path} inputs[0] pin_keys must be an array of key names\n", err
+    end
+  end
+
   # --pin-keys pins chosen keys of a returned Hash, so a key added later
   # fails no test.
   def test_pin_keys_pins_only_the_chosen_keys_of_a_hash

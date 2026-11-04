@@ -126,7 +126,7 @@ module Branchout
               lines << "#{indent}  }.to #{error_matcher(pin.error)}"
             end
           else
-            lines << "#{indent}  expect(#{call}).to #{value_matcher(pin.value)}"
+            lines << "#{indent}  expect(#{call}).to #{value_matcher(pin.value, Support.keys_for(pin, @pin_keys))}"
           end
           lines << "#{indent}end"
         end
@@ -141,8 +141,8 @@ module Branchout
           end
         end
 
-        def value_matcher(value)
-          pinned = Support.pinned_value(value, @pin_keys)
+        def value_matcher(value, pin_keys)
+          pinned = Support.pinned_value(value, pin_keys)
           return "include(#{Support.ruby_literal(pinned)})" if !pinned.equal?(value) && Support.literal?(pinned)
           unless Support.literal?(value)
             return "match(#{Support.shape_matcher(value)})" if value.is_a?(Array) || value.is_a?(Hash)

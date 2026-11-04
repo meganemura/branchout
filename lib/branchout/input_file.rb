@@ -34,7 +34,7 @@ module Branchout
 
     METHOD_NAME = /\A(?:[A-Za-z_][A-Za-z0-9_]*[?!=]?|<<|>>|\[\]=?|[-+*\/%&|^<>]|\*\*|<=>|==|!=|<=|>=|=~)\z/
 
-    def parse_entry(entry, label, keys = %w[args kwargs new setup note])
+    def parse_entry(entry, label, keys = %w[args kwargs new setup note pin_keys])
       case entry
       when Array
         Input.new(args: entry)
@@ -47,7 +47,12 @@ module Branchout
         raise Error, "#{label} new cannot have its own new" if receiver&.receiver
 
         setup = parse_setup(entry.fetch("setup", []), "#{label} setup")
-        Input.new(args: entry["args"], kwargs: entry["kwargs"] || {}, receiver: receiver, setup: setup)
+        pin_keys = entry["pin_keys"]
+        unless pin_keys.nil? || (pin_keys.is_a?(Array) && pin_keys.all? { |key| key.is_a?(String) && !key.empty? })
+          raise Error, "#{label} pin_keys must be an array of key names"
+        end
+
+        Input.new(args: entry["args"], kwargs: entry["kwargs"] || {}, receiver: receiver, setup: setup, pin_keys: pin_keys)
       else
         raise Error, "#{label} must be an array or an object"
       end

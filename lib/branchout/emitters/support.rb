@@ -309,7 +309,12 @@ module Branchout
       end
 
       def pinned_pin(pin, pin_keys)
-        pin.error ? pin : pin.dup.tap { |copy| copy.value = pinned_value(pin.value, pin_keys) }
+        pin.error ? pin : pin.dup.tap { |copy| copy.value = pinned_value(pin.value, keys_for(pin, pin_keys)) }
+      end
+
+      # The keys that pin +pin+'s Hash: its input's own, or else +pin_keys+.
+      def keys_for(pin, pin_keys)
+        pin.input.pin_keys || pin_keys
       end
 
       def outcome_text(pin, differing, short: false)

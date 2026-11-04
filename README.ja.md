@@ -126,6 +126,8 @@ ruby bin/branchout baselines examples/magic_value.rb MagicValue.classify \
 `bool` の引数には、変異とランダムサンプリングが `false` と `true` の両方を試す。
 `meta` のような他のトップレベルキーは無視する。
 各エントリの `note` も無視するので、その入力を選んだ理由をすぐ横に書ける。
+エントリの `pin_keys`（`{"args": [3], "pin_keys": ["tax"]}`）は、その入力のテストに限って `--pin-keys` の代わりになる。
+`"pin_keys": []` は、その Hash を丸ごと固定する。
 エントリは末尾へ足す。
 消したり並べ替えたりしない。
 

@@ -115,8 +115,25 @@ class MutatorTest < Minitest::Test
     "{\"inputs\": [{\"args\": [], \"setup\": [{\"args\": []}]}]}" => "inputs[0] setup[0] is missing method",
     "{\"inputs\": [{\"args\": [], \"setup\": [{\"method\": \"a b\"}]}]}" => "inputs[0] setup[0] method \"a b\" is not a method name",
     "{\"inputs\": [{\"args\": [], \"setup\": [{\"method\": \"a\", \"new\": []}]}]}" => "inputs[0] setup[0] has unknown keys: new",
-    "{\"inputs\": [{\"args\": [], \"new\": {\"args\": [], \"setup\": []}}]}" => "inputs[0] new has unknown keys: setup"
+    "{\"inputs\": [{\"args\": [], \"new\": {\"args\": [], \"setup\": []}}]}" => "inputs[0] new has unknown keys: setup",
+    "{\"inputs\": [{\"args\": [], \"pin_keys\": \"a\"}]}" => "inputs[0] pin_keys must be an array of key names",
+    "{\"inputs\": [{\"args\": [], \"pin_keys\": [1]}]}" => "inputs[0] pin_keys must be an array of key names",
+    "{\"inputs\": [{\"args\": [], \"pin_keys\": [\"\"]}]}" => "inputs[0] pin_keys must be an array of key names",
+    "{\"inputs\": [{\"args\": [], \"new\": {\"args\": [], \"pin_keys\": []}}]}" => "inputs[0] new has unknown keys: pin_keys"
   }.freeze
+
+  # pin_keys belongs to the test, not to the call: it is kept apart from
+  # the canonical input, and nil means "use --pin-keys".
+  def test_input_file_reads_pin_keys
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "inputs.json")
+      File.write(path, JSON.generate({ "inputs" => [{ "args" => [1], "pin_keys" => %w[tax total] }, { "args" => [2], "pin_keys" => [] }, [3]] }))
+      inputs, _types = Branchout::InputFile.load(path)
+      assert_equal [%w[tax total], [], nil], inputs.map(&:pin_keys)
+      assert_equal '{"args":[1],"kwargs":{}}', inputs.first.canonical
+      assert inputs.first.pin_keys.frozen?
+    end
+  end
 
   def test_input_file_reads_setup_steps
     Dir.mktmpdir do |dir|

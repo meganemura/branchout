@@ -12,10 +12,12 @@ module Branchout
 
     # +receiver+ is the Input whose arguments go to new for a Const#method
     # entry, or nil to call new with none. +setup+ lists the SetupCalls
-    # that build the receiver's state.
-    attr_reader :args, :kwargs, :receiver, :setup
+    # that build the receiver's state. +pin_keys+, when not nil, replaces
+    # --pin-keys for this input's test. It is not part of the call, so it is
+    # not in to_h.
+    attr_reader :args, :kwargs, :receiver, :setup, :pin_keys
 
-    def initialize(args:, kwargs: {}, receiver: nil, setup: [])
+    def initialize(args:, kwargs: {}, receiver: nil, setup: [], pin_keys: nil)
       @args = deep_freeze(normalize(args))
       unless @args.is_a?(Array)
         raise Error, "input args must be an array"
@@ -31,6 +33,7 @@ module Branchout
       })
       @receiver = receiver
       @setup = setup.map { |call| SetupCall.new(-call.method_name.to_s, call.arguments).freeze }.freeze
+      @pin_keys = pin_keys&.map { |key| -key }.freeze
       freeze
     end
 

@@ -1213,6 +1213,39 @@ class BlockInputTest < Minitest::Test
   end
 end
 
+class RenderTest < Minitest::Test
+  def box_all
+    Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+          .new(true, "Box", :all, "Box.all", "lib/x.rb", File.join(EmitterTest::ROOT, "lib/x.rb"), [], [])
+  end
+
+  # An entry with no arguments has no input words, so its name is the
+  # outcome alone. An Array of objects with no literal is described by
+  # its size.
+  def test_an_array_of_objects_from_no_arguments
+    pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: []), value: [Object.new, Object.new], error: nil, arm_ids: [])
+    result = Branchout::Engine::Result.new(pins: [pin], requires: [], load_paths: [], private_calls: [])
+    assert_includes Branchout::Emitters.render("minitest", result, box_all, File.join(EmitterTest::ROOT, "test/x_test.rb")),
+                    "  def test_returns_array\n    assert_kind_of Array, Box.all\n"
+    assert_includes Branchout::Emitters.render("rspec", result, box_all, File.join(EmitterTest::ROOT, "spec/x_spec.rb")),
+                    "    it \"returns an Array of 2\" do\n"
+  end
+
+  # A receiver the input's Ruby builds is written as that Ruby, under the
+  # name the input's arguments read it by.
+  def test_a_built_receiver_is_written_as_its_ruby
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(false, "Loan", :approve, "Loan#approve", "app/models/loan.rb", File.join(EmitterTest::ROOT, "app/models/loan.rb"), [], [])
+    input = Branchout::Input.new(args: [], receiver: Branchout::Code.parse("create(:loan)"))
+    result = Branchout::Engine::Result.new(pins: [Branchout::Engine::Pin.new(input: input, value: :ok, error: nil, arm_ids: [])],
+                                           requires: [], load_paths: [], private_calls: [])
+    minitest = Branchout::Emitters.render("minitest", result, target, File.join(EmitterTest::ROOT, "test/x_test.rb"))
+    assert_includes minitest, "    loan = create(:loan)\n    assert_equal :ok, loan.approve\n"
+    rspec = Branchout::Emitters.render("rspec", result, target, File.join(EmitterTest::ROOT, "spec/x_spec.rb"))
+    assert_includes rspec, "    let(:loan) { create(:loan) }\n"
+  end
+end
+
 class NameEdgeTest < Minitest::Test
   def support = Branchout::Emitters::Support
 

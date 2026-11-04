@@ -80,6 +80,12 @@ class CanonTest < Minitest::Test
     assert_equal (2 + 1 + 2) + 2 + 3 + 4, input.weight
   end
 
+  # A shorter receiver source is the simpler input to show in a report.
+  def test_a_receiver_built_by_ruby_weighs_its_source
+    built = Branchout::Input.new(args: [1], receiver: Branchout::Code.parse("create(:loan)"))
+    assert_equal 1 + 13, built.weight
+  end
+
   def test_input_freezes_nested_values_and_refuses_non_finite_floats
     input = Branchout::Input.new(args: [[[1]], { "a" => [2] }])
     assert input.args.first.first.frozen?

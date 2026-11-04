@@ -1,24 +1,9 @@
 # frozen_string_literal: true
 
-require "coverage"
-
-module Branchout
-  # Coverage counts a file's arms only when the file loads after Coverage
-  # was set up, so a test suite requires this file before its app loads.
-  # Setup leaves measurement suspended: explore resumes it around each call.
-  module CoverageSession
-    module_function
-
-    def install
-      return unless Coverage.state == :idle
-
-      previous = $VERBOSE
-      $VERBOSE = nil
-      Coverage.setup(lines: true, branches: true)
-    ensure
-      $VERBOSE = previous if defined?(previous)
-    end
-  end
-end
+# A test suite requires this file before its app loads, so that explore can
+# count the arms of the app's files. Requiring branchout itself does not
+# start coverage: Bundler loads the gemspec, and so branchout, in every
+# process of a project that depends on it by path.
+require_relative "coverage_session"
 
 Branchout::CoverageSession.install

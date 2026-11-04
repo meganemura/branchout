@@ -85,6 +85,15 @@ class ExploreTest < Minitest::Test
     assert_equal "loaded", stdout
   end
 
+  # Bundler loads the gemspec, and so branchout, in every process of a
+  # project that depends on branchout by path.
+  def test_requiring_branchout_leaves_coverage_off
+    stdout, stderr, status = Open3.capture3(RbConfig.ruby, "-Ilib", "-e", 'require "branchout"; print Coverage.state',
+                                            chdir: ROOT)
+    assert status.success?, stderr
+    assert_equal "idle", stdout
+  end
+
   def test_a_target_loaded_before_coverage_is_refused_not_loaded_again
     stdout, _stderr, status = run_suite("#{SUITE}/early_test.rb", "PANTRY_FIRST" => "1")
     refute status.success?

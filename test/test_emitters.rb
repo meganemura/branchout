@@ -1088,3 +1088,19 @@ class NameFactsTest < Minitest::Test
     assert_equal %w[test_groups_1__groups_2__id_none_returns_ok test_id_1__id_2_returns_ok], names
   end
 end
+
+class BlockInputTest < Minitest::Test
+  # Two inputs that differ only in their block are told apart by it.
+  def test_an_rspec_example_names_the_block_that_tells_it_apart
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Box", :put, "Box.put", "lib/x.rb", File.join(EmitterTest::ROOT, "lib/x.rb"), [], [Struct.new(:name).new(:x)])
+    pins = ["{ |n| n > 2 }", "{ |n| n > 9 }"].each_with_index.map do |block, index|
+      input = Branchout::Input.new(args: [1], block: Branchout::Code.block(block))
+      Branchout::Engine::Pin.new(input: input, value: index, error: nil, arm_ids: [])
+    end
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
+    source = Branchout::Emitters.render("rspec", result, target, File.join(EmitterTest::ROOT, "spec/x_spec.rb"))
+    assert_includes source, "    it \"returns 0 when block is { |n| n > 2 }\" do\n      expect(Box.put(1) { |n| n > 2 }).to eq(0)\n"
+    assert_includes source, "    it \"returns 1 when block is { |n| n > 9 }\" do\n"
+  end
+end

@@ -403,6 +403,8 @@ class TargetTest < Minitest::Test
           Ns::Box.new.open
           def inner = Ledger.new.hidden
           plain.call
+          made = maker.new
+          made.run
         end
       end
       class Other

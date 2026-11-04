@@ -498,8 +498,6 @@ module Branchout
     # named arguments make those defs class methods too, and extend self
     # makes every def in the body one, including those above it.
     def collect_defs(node, stack, in_singleton, acc, functions = nil)
-      return unless node.is_a?(Prism::Node)
-
       case node.type
       when :module_node, :class_node
         inner = namespace_of(node, stack)

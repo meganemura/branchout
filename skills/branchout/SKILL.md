@@ -48,6 +48,7 @@ Start from one seed. [inputs.example.json](inputs.example.json) shows every acce
 
 - An entry is `{"args": [...]}` or a bare array. Keywords go in `kwargs`: `{"args": [0], "kwargs": {"flag": true}}`.
 - For `Const#method`, constructor arguments go in `new`, in the same shape as an entry: `{"args": [5], "new": [10]}` calls `Const.new(10).method(5)`, and `{"args": [5], "new": {"kwargs": {"main": 1}}}` calls `Const.new(main: 1).method(5)`. A required keyword of `initialize` needs `new` as a required argument does. Inputs differ by `new` too, so a method with no parameters is explored by varying `new`. When the target file defines `initialize`, `mutate` and `random` fill `new` from its parameters, in the same domains as the method's own.
+- When the receiver is an object that `new` cannot build, such as a saved record from a factory, a fixture, or a test helper, give its Ruby in `receiver` in place of `new`: `{"receiver": {"ruby": "create(:loan, :approved)"}, "args": [{"ruby": "loan.borrower"}]}`. The receiver takes the name the emitted test gives it, the class in snake case (`loan`, `room`), so `args`, `kwargs`, and `setup` can read from it (`room.acts.first`). Each input builds it again. The emitted minitest test assigns that name, and the RSpec spec declares it as a `let`.
 - When the method reads state that later calls build, such as `cart.add(...)` before `cart.total`, list those calls in `setup`, in order: `{"args": [], "setup": [{"method": "add", "args": ["apple", 3]}]}`. Each step has `method` and optional `args` and `kwargs`. Coverage counts only the entry call. An exception raised in a setup call is still reported, with `loc` on that line. The emitted test names the receiver after the class (`cart = Shop::Cart.new`) and repeats the calls.
 - Seeds: `[0]` int, `[0.0]` float, `[""]` string, `[[]]` array, `[{}]` hash, `[false]` bool.
 - `"types"` values are `int`, `float`, `string`, `array`, `hash`, or `bool`. A default of `[]`, `{}`, `true`, or `false` already gives the type. The array length must match the positional parameters. Extra top-level keys such as `meta` are ignored. An entry may carry a `note` (`{"args": [100], "note": "the refund limit"}`), which branchout ignores; put the reason for that input there. An entry may carry `pin_keys` (`{"args": [3], "pin_keys": ["tax"]}`), which replaces `--pin-keys` for that input's test; `"pin_keys": []` pins its Hash whole.
@@ -69,6 +70,41 @@ branchout explore lib/foo/model.rb 'Foo::Model#value' \
 
 Run from the project root. `loc` and `target` print relative to the current directory, and absolute paths otherwise.
 
+## Inside a test suite (Rails)
+
+Most methods of a Rails app run only inside its suite: they need the booted app, the database, factories, and a transaction per test. Explore those from inside a test with `Branchout.explore`, not with the CLI.
+
+1. Add the gem to the app's test group: `gem "branchout", group: :test, require: false`.
+2. Start coverage before the app loads. Make this the first line of `spec/rails_helper.rb` (or `spec/spec_helper.rb`, or `test/test_helper.rb`): `require "branchout/coverage" if ENV["BRANCHOUT"]`. Coverage counts a file only when it loads after that line. A model that loaded earlier is refused with `loaded before branchout/coverage`, not loaded again, because loading it again declares its validations twice.
+3. Write one example that explores, skipped unless `BRANCHOUT` is set:
+
+```ruby
+require "rails_helper"
+require "branchout"
+
+RSpec.describe Loan do
+  it "explores approve", if: ENV["BRANCHOUT"] do
+    officer = {ruby: "{name: 'Grace', senior: false}"}
+    puts Branchout.explore("Loan#approve", within: self, emit_tests: "spec/models/loan_approve_spec.rb", inputs: [
+      {receiver: {ruby: "build(:loan, amount: 500)"}, args: [officer]},
+      {receiver: {ruby: "create(:loan, :approved)"}, args: [officer]}
+    ])
+  end
+end
+```
+
+4. Run it: `BRANCHOUT=1 bundle exec rspec spec/models/loan_explore_spec.rb`. In minitest the same call goes in a `test` of an `ActiveSupport::TestCase`, run with `BRANCHOUT=1 bin/rails test test/models/loan_explore_test.rb`.
+
+`explore` returns the report the CLI prints, and follows the same rounds: append inputs to the list (or to an inputs file, by passing its path as `inputs:`) and rerun. `within: self` is the running test. Each input's Ruby runs in that test, so it reaches the suite's factories (`create`, `build`), fixtures (`rooms(:open)`), and helpers. When ActiveRecord is loaded, each input runs in a savepoint that is rolled back, so no input sees the rows another wrote, and the test's own rows stay as they were; `around:` replaces that, as a lambda that takes the input as a block. The strategy is `inputs` only by default, because a random argument rarely fits a record. The other keywords are `target:` (the file, when the entry is defined outside the file `source_location` names), `emit_tests:`, `format:`, `json:`, `pin_keys:`, `requires:`, `strategies:`, `seed:`, `random:`, `mutate_cap:`, and `timeout:` (default 1; `nil` turns it off).
+
+The emitted test requires the helper the suite loaded (`require "rails_helper"`, else `test_helper`, else `spec_helper`) by name and does not require the model, which the app loads. A minitest test inherits from the exploring test's own base class, such as `ActiveSupport::TestCase`, so fixtures and helpers work there too. Run it as any other test of the suite, without `BRANCHOUT`.
+
+- An input's Ruby must not read a `let` or a local of the exploring example. The emitted file has neither. A `let` that an input reads first is made inside that input's savepoint, so the rollback removes its row, and later inputs get the record Rails marked unsaved. Build what an input needs in its own Ruby.
+- Do not run it with SimpleCov or another coverage tool: explore refuses Coverage that another tool started.
+- Leave the explore example skipped, or delete it once the emitted test is in place.
+
+`--require config/environment.rb` also loads a Rails app for the CLI, with `RAILS_ENV=test`, but each input's rows stay in the test database, later inputs see them, and the test's helpers and `create` are not there.
+
 ## Reading the frontier
 
 Stdout is the contract. Sections are `COVERED`, `FRONTIER`, `EXCEPTIONS`, and `NOT COUNTED`. Ids are sorted. There is no timestamp.
@@ -77,7 +113,7 @@ Stdout is the contract. Sections are `COVERED`, `FRONTIER`, `EXCEPTIONS`, and `N
 - `loc` is `file:line:column`. Open that line. `cond` is the predicate, or the `when` / `in` line. Longer text is cut at 160 characters.
 - `sense` selects the arm: `cond-true` (`if` then, `unless` else), `cond-false` (`if` else, `unless` then), `arm-matched` (that `when` or `in`), `arm-else` (case else), `body-entered` (`while` or `until` body), `receiver-present` / `receiver-nil` (`&.`). Anything else is `taken`.
 - `parent: reached` means some input executed the decision. Flip these first. `parent: not-reached` means the parent has not run and `nearest` is `null`. Reach the parent first.
-- `nearest` reached the decision with the fewest taken arms, then the smallest weight (absolute numeric size, plus string, Ruby source, and container length), then the smallest canonical JSON. With no keywords and no `new` it prints as the args array (`[0,1]`), which pastes into `args`. With keywords, `new`, `setup`, or a `block` it prints as `{"args":[...],"kwargs":{...}}`, plus `"new"`, `"setup"`, and `"block"` when set, which pastes back as an entry.
+- `nearest` reached the decision with the fewest taken arms, then the smallest weight (absolute numeric size, plus string, Ruby source, and container length), then the smallest canonical JSON. With no keywords and no `new` it prints as the args array (`[0,1]`), which pastes into `args`. With keywords, `new`, `receiver`, `setup`, or a `block` it prints as `{"args":[...],"kwargs":{...}}`, plus `"new"`, `"receiver"`, `"setup"`, and `"block"` when set, which pastes back as an entry.
 - `path` is the sorted set of arms `nearest` took. Order is not recorded. An empty set prints `(none)`; a missing path prints `null`.
 - `COVERED` uses `input` for the witness of that arm. `EXCEPTIONS` lists `class`, `loc`, `input`, and `message`. An empty frontier can still have exceptions, and a covered method can still raise.
 - `NOT COUNTED` lists the methods in other files that the counted code calls on self, such as a parent class's helper or a mixin's method, and the methods it calls on an object built with `Const.new` in a local or in an instance variable the class sets (`@ledger = Ledger.new`): `callee` (`Register#required_sku`), `loc` (its `def`), and `arms` (the arms in that `def`, or `unknown`). Their arms are not in `arms_total`, so an `arms_total` that dropped after a refactor can mean the logic moved there. Explore that callee as its own entry. C methods, attribute readers, methods with no arms, and calls on an object whose class the code does not show (a parameter, a method's return value) are not listed.

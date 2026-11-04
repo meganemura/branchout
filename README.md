@@ -108,7 +108,7 @@ An inputs file starts as one seed:
 }
 ```
 
-An entry may be a bare array. Keywords go in `kwargs`, constructor arguments go in `new`, and calls that build the receiver's state go in `setup`. If type inference is wrong, set `"types"` to one of `int`, `float`, `string`, `array`, `hash`, or `bool` per positional parameter. A default value of `[]`, `{}`, `true`, or `false` gives its type, and `bool` makes mutation and random sampling try both `false` and `true`. Other top-level keys, such as `meta`, are ignored, and so is a `note` on an entry, which keeps the reason for that input beside it. An entry's `pin_keys` (`{"args": [3], "pin_keys": ["tax"]}`) replaces `--pin-keys` for that input's test, and `"pin_keys": []` pins its Hash whole. A value JSON cannot write, such as a record or an exception, is Ruby in `{"ruby": "..."}`, often a factory in a `--require` file: `{"args": [{"ruby": "Factories.loan(3)"}]}`. Each call evaluates it again at the top level, and the emitted tests write it as given (`Lending.approve(Factories.loan(3))`). A block the method takes goes in `block`, with braces: `{"args": [5], "block": "{ |amount| amount > 2 }"}`. A Hash argument whose one key is `"ruby"` is written as Ruby too: `{"ruby": "{\"ruby\" => \"3.4\"}"}`. Append entries. Do not delete or reorder them.
+An entry may be a bare array. Keywords go in `kwargs`, constructor arguments go in `new`, and calls that build the receiver's state go in `setup`. A receiver that `new` cannot build, such as a saved record, is Ruby in `receiver`: `{"receiver": {"ruby": "Factories.loan(3)"}, "args": [{"ruby": "loan.amount"}]}`. The receiver takes the name the emitted test gives it, the class in snake case, so the arguments and `setup` can read from it. If type inference is wrong, set `"types"` to one of `int`, `float`, `string`, `array`, `hash`, or `bool` per positional parameter. A default value of `[]`, `{}`, `true`, or `false` gives its type, and `bool` makes mutation and random sampling try both `false` and `true`. Other top-level keys, such as `meta`, are ignored, and so is a `note` on an entry, which keeps the reason for that input beside it. An entry's `pin_keys` (`{"args": [3], "pin_keys": ["tax"]}`) replaces `--pin-keys` for that input's test, and `"pin_keys": []` pins its Hash whole. A value JSON cannot write, such as a record or an exception, is Ruby in `{"ruby": "..."}`, often a factory in a `--require` file: `{"args": [{"ruby": "Factories.loan(3)"}]}`. Each call evaluates it again at the top level, and the emitted tests write it as given (`Lending.approve(Factories.loan(3))`). A block the method takes goes in `block`, with braces: `{"args": [5], "block": "{ |amount| amount > 2 }"}`. A Hash argument whose one key is `"ruby"` is written as Ruby too: `{"ruby": "{\"ruby\" => \"3.4\"}"}`. Append entries. Do not delete or reorder them.
 
 ```sh
 ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \
@@ -136,6 +136,51 @@ Arithmetic
 
 A method that takes no argument in any input becomes the `subject`. An input that raised keeps its setup calls inside the `expect` block, so a raise from setup is still pinned. A minitest path uses `--format minitest` and runs with `ruby`. An RSpec file needs the `rspec` gem.
 
+## Inside a test suite (Rails)
+
+Most methods of a Rails app run only inside its suite, with the app booted, the database, factories, and a transaction per test. `Branchout.explore` runs from inside a test and returns the report the CLI prints.
+
+```ruby
+# Gemfile
+group :test do
+  gem "branchout", require: false
+end
+```
+
+The first line of `spec/rails_helper.rb`, before the app loads (or of `spec/spec_helper.rb` or `test/test_helper.rb`):
+
+```ruby
+require "branchout/coverage" if ENV["BRANCHOUT"]
+```
+
+```ruby
+# spec/models/loan_explore_spec.rb
+require "rails_helper"
+require "branchout"
+
+RSpec.describe Loan do
+  it "explores approve", if: ENV["BRANCHOUT"] do
+    officer = {ruby: "{name: 'Grace', senior: false}"}
+    puts Branchout.explore("Loan#approve", within: self, emit_tests: "spec/models/loan_approve_spec.rb", inputs: [
+      {receiver: {ruby: "build(:loan, amount: 500)"}, args: [officer]},
+      {receiver: {ruby: "create(:loan, :approved)"}, args: [officer]}
+    ])
+  end
+end
+```
+
+```sh
+BRANCHOUT=1 bundle exec rspec spec/models/loan_explore_spec.rb
+```
+
+The inputs are the entries of an inputs file, or the file's path. Their Ruby runs in the test (`within: self`), so it reaches the suite's factories, fixtures, and helpers. When ActiveRecord is loaded, each input runs in a savepoint that is rolled back: no input sees the rows another wrote, and the test's rows stay as they were. `around:` replaces that, as a lambda that takes the input as a block. The strategy is `inputs` only unless `strategies:` says otherwise, and `timeout:` is 1 second unless set (`nil` turns it off). `target:`, `emit_tests:`, `format:`, `json:`, `pin_keys:`, `requires:`, `seed:`, `random:`, and `mutate_cap:` mean what the CLI flags mean. In minitest the same call goes in a test of an `ActiveSupport::TestCase`, run with `BRANCHOUT=1 bin/rails test`.
+
+The emitted test requires the helper the suite loaded (`rails_helper`, else `test_helper`, else `spec_helper`) by name. It does not require the model, which the app loads. A minitest test inherits from the exploring test's base class, such as `ActiveSupport::TestCase`. Run it as any other test, without `BRANCHOUT`.
+
+Coverage counts a file only when the file loads after `branchout/coverage`. A target that loaded earlier is refused, not loaded again, because loading a model again declares its validations a second time. Coverage that another tool, such as SimpleCov, started is refused too. An input's Ruby must not read a `let` or a local of the exploring example: the emitted file has neither.
+
+The CLI can load the app with `RAILS_ENV=test` and `--require config/environment.rb`, but then each input's rows stay in the test database, later inputs see them, and the test's helpers are not there.
+
 ## How it builds the frontier
 
 branchout loads the `--require` files and then the target after `Coverage.setup(lines: true, branches: true)` and discards the counts from loading. For each input it resumes coverage, calls the method, suspends coverage, and reads `Coverage.result`. It keeps the entry method and same-file callees reached by a bare call or `self.`. A class method that builds its own instance, as in `def self.apply(doc) = new(doc).apply`, is followed into `initialize` and the instance method it calls, also through `tap(&:parse)` or `then(&:parse)`.
@@ -152,7 +197,7 @@ Exceptions are listed apart from arm coverage. A covered arm can still raise. Th
 
 ## Install
 
-Ruby 3.3 or newer. Exploring uses Coverage, Prism, and json from the standard library. From this checkout, run `ruby bin/branchout`, or put `bin` on `PATH`. Emitted minitest files run under `ruby`. Emitted RSpec files need the `rspec` gem.
+Ruby 3.3 or newer. Exploring uses Coverage, Prism, and json from the standard library. Add `gem "branchout", group: :test, require: false` to a Gemfile and run `bundle exec branchout`, or, from this checkout, run `ruby bin/branchout`, or put `bin` on `PATH`. Emitted minitest files run under `ruby`. Emitted RSpec files need the `rspec` gem.
 
 Install the [branchout skill](skills/branchout/SKILL.md) with the [`skills`](https://github.com/vercel-labs/skills) CLI (Node.js 22.20 or later). This repository is private, so these commands need GitHub access.
 

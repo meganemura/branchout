@@ -124,6 +124,8 @@ ruby bin/branchout baselines examples/magic_value.rb MagicValue.classify \
 
 エントリは配列だけでもよい。
 キーワードは `kwargs` に、コンストラクタ引数は `new` に、レシーバーの状態を作る呼び出しは `setup` に書く。
+保存済みのレコードのように `new` では作れないレシーバーは、`receiver` に Ruby で書く（`{"receiver": {"ruby": "Factories.loan(3)"}, "args": [{"ruby": "loan.amount"}]}`）。
+レシーバーには、出力するテストと同じ名前（クラス名のスネークケース）が付くので、引数と `setup` からそのレシーバーを読める。
 型推論が違うときは、`"types"` に位置引数 1 つにつき `int`、`float`、`string`、`array`、`hash`、`bool` のいずれかを置く。
 既定値が `[]`、`{}`、`true`、`false` の引数はその型になる。
 `bool` の引数には、変異とランダムサンプリングが `false` と `true` の両方を試す。
@@ -214,6 +216,70 @@ Arithmetic
 そのため setup で出た例外も固定できる。
 minitest のパスは `--format minitest` で、`ruby` で実行する。RSpec には `rspec` gem が要る。
 
+## テストスイートの中で使う（Rails）
+
+Rails アプリのメソッドの多くは、スイートの中でしか動かない。
+アプリの起動、データベース、ファクトリ、テストごとのトランザクションが要るからである。
+`Branchout.explore` はテストの中から動き、CLI と同じレポートを返す。
+
+```ruby
+# Gemfile
+group :test do
+  gem "branchout", require: false
+end
+```
+
+`spec/rails_helper.rb`（または `spec/spec_helper.rb`、`test/test_helper.rb`）の先頭、アプリを読み込む前に次の行を置く。
+
+```ruby
+require "branchout/coverage" if ENV["BRANCHOUT"]
+```
+
+```ruby
+# spec/models/loan_explore_spec.rb
+require "rails_helper"
+require "branchout"
+
+RSpec.describe Loan do
+  it "explores approve", if: ENV["BRANCHOUT"] do
+    officer = {ruby: "{name: 'Grace', senior: false}"}
+    puts Branchout.explore("Loan#approve", within: self, emit_tests: "spec/models/loan_approve_spec.rb", inputs: [
+      {receiver: {ruby: "build(:loan, amount: 500)"}, args: [officer]},
+      {receiver: {ruby: "create(:loan, :approved)"}, args: [officer]}
+    ])
+  end
+end
+```
+
+```sh
+BRANCHOUT=1 bundle exec rspec spec/models/loan_explore_spec.rb
+```
+
+入力は入力ファイルのエントリの並びか、そのファイルのパスである。
+入力の Ruby はそのテストの中（`within: self`）で動くので、スイートのファクトリ、フィクスチャ、ヘルパーを使える。
+ActiveRecord が読み込まれていれば、各入力はセーブポイントの中で動き、最後にロールバックされる。
+そのため、ある入力が書いた行を別の入力は見ず、テスト自身の行もそのまま残る。
+`around:` に、入力をブロックとして受け取るラムダを渡すと、これを置き換えられる。
+戦略は `strategies:` で変えない限り `inputs` だけで、`timeout:` は指定しない限り 1 秒である（`nil` で切る）。
+`target:`、`emit_tests:`、`format:`、`json:`、`pin_keys:`、`requires:`、`seed:`、`random:`、`mutate_cap:` は、CLI の同名のフラグと同じ意味である。
+minitest では、同じ呼び出しを `ActiveSupport::TestCase` のテストに書き、`BRANCHOUT=1 bin/rails test` で動かす。
+
+出力するテストは、スイートが読み込んだヘルパー（`rails_helper`、なければ `test_helper`、なければ `spec_helper`）を名前で require する。
+モデルはアプリが読み込むので require しない。
+minitest のテストは、探索したテストの基底クラス（`ActiveSupport::TestCase` など）を継承する。
+他のテストと同じく、`BRANCHOUT` なしで実行する。
+
+Coverage が数えるのは、`branchout/coverage` の後に読み込まれたファイルだけである。
+それより前に読み込まれたターゲットは、読み込み直さずに断る。
+モデルを読み込み直すと、バリデーションが二重に宣言されるからである。
+SimpleCov のような別のツールが始めた Coverage も断る。
+入力の Ruby は、探索する example の `let` やローカル変数を読んではいけない。
+出力するファイルにはどちらもないからである。
+
+CLI でも、`RAILS_ENV=test` と `--require config/environment.rb` でアプリを読み込める。
+ただしその場合、各入力の行はテスト用データベースに残り、後の入力はそれを見る。
+テストのヘルパーも使えない。
+
 ## フロンティアの作り方
 
 `--require` のファイルと対象ファイルは `Coverage.setup(lines: true, branches: true)` のあとで読み、ロード時のカウントは捨てる。入力ごとに coverage を resume し、メソッドを呼び、suspend して `Coverage.result` を読む。残すのは入口メソッドと、同じファイル内で裸呼び出しまたは `self.` から届く callee だけである。
@@ -241,7 +307,7 @@ C で書かれたメソッド、Ruby 自身の prelude のメソッド、属性�
 
 ## インストール
 
-Ruby 3.3 以降。探索に使うのは標準ライブラリの Coverage、Prism、json である。このチェックアウトでは `ruby bin/branchout` を実行するか、`bin` を `PATH` に置く。出した minitest は `ruby` で実行する。出した RSpec には `rspec` gem が要る。
+Ruby 3.3 以降。探索に使うのは標準ライブラリの Coverage、Prism、json である。Gemfile に `gem "branchout", group: :test, require: false` を書いて `bundle exec branchout` を実行するか、このチェックアウトで `ruby bin/branchout` を実行するか、`bin` を `PATH` に置く。出した minitest は `ruby` で実行する。出した RSpec には `rspec` gem が要る。
 
 [branchout スキル](skills/branchout/SKILL.md)（英語）は [`skills` CLI](https://github.com/vercel-labs/skills)（Node.js 22.20 以降）で入れる。このリポジトリは private なので、GitHub へのアクセスが要る。
 

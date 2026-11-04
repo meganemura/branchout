@@ -1257,6 +1257,16 @@ class NameEdgeTest < Minitest::Test
     assert_equal %w[test_n_n_2_returns_1 test_n_n_9_returns_1], names
   end
 
+  # An input names the receiver its Ruby builds, so inputs that differ
+  # only in it get names of their own.
+  def test_siblings_that_differ_in_a_built_receiver_are_named_by_it
+    pins = ["create(:loan)", "create(:loan, :approved)"].map do |source|
+      input = Branchout::Input.new(args: [1], receiver: Branchout::Code.parse(source))
+      Branchout::Engine::Pin.new(input: input, value: :ok, error: nil, arm_ids: [])
+    end
+    assert_equal %w[test_1_receiver_create_loan_returns_ok test_1_receiver_create_loan_approved_returns_ok], support.test_names(pins)
+  end
+
   def test_a_number_of_fifteen_digits_is_named_whole
     assert_equal "100000000000000", support.number_word(10**14)
     assert_equal "100e13", support.number_word(10**15)

@@ -172,7 +172,9 @@ module Branchout
     def resolve
       expression = nil
       const = @target.const_name.split("::").inject(Object) do |mod, name|
-        hidden = mod.const_defined?(name, false) && !mod.constants(false).include?(name.to_sym)
+        # Each name is one its lexical parent defines, so a name that
+        # Module#constants leaves out is a private constant.
+        hidden = !mod.constants.include?(name.to_sym)
         expression = if hidden
                        "#{expression || "Object"}.const_get(:#{name})"
                      else

@@ -49,21 +49,27 @@ module Branchout
 
     def execute(input)
       check_receiver(input)
-      begin
-        value = invoke(input)
-      rescue Exception => e # rubocop:disable Lint/RescueException
-        error = ExceptionInfo.from(
-          e,
-          @target.display_path,
-          @target.path,
-          fallback_line: @target.ranges.first&.begin
-        )
-      end
+      value, error = @host ? refusing_lets(input) { outcome(input) } : outcome(input)
       data = extract(Coverage.result(stop: false, clear: true))
       Execution.new(input: input, value: value, error: error, lines: data[:lines], branches: data[:branches])
     end
 
     private
+
+    def outcome(input)
+      [invoke(input), nil]
+    rescue Exception => e # rubocop:disable Lint/RescueException
+      [nil, ExceptionInfo.from(e, @target.display_path, @target.path, fallback_line: @target.ranges.first&.begin)]
+    end
+
+    def refusing_lets(input, &call)
+      read, result = @host.lets_read_by(&call)
+      return result if read.empty?
+
+      raise Error, "the input #{Canon.json(input.to_h)} reads #{read.map { |name| "let(:#{name})" }.join(", ")} " \
+                   "of the exploring test, which the emitted test does not have. A let an input reads first is made " \
+                   "in that input's rolled-back savepoint and kept for the next input. Build it in the input's Ruby."
+    end
 
     def boot
       CoverageSession.install

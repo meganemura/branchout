@@ -177,7 +177,7 @@ The inputs are the entries of an inputs file, or the file's path. Their Ruby run
 
 The emitted test requires the helper the suite loaded (`rails_helper`, else `test_helper`, else `spec_helper`) by name. It does not require the model, which the app loads. A minitest test inherits from the exploring test's base class, such as `ActiveSupport::TestCase`. Run it as any other test, without `BRANCHOUT`.
 
-Coverage counts a file only when the file loads after `branchout/coverage`. A target that loaded earlier is refused, not loaded again, because loading a model again declares its validations a second time. Coverage that another tool, such as SimpleCov, started is refused too. An input's Ruby must not read a `let` or a local of the exploring example: the emitted file has neither.
+Coverage counts a file only when the file loads after `branchout/coverage`. A target that loaded earlier is refused, not loaded again, because loading a model again declares its validations a second time. Coverage that another tool, such as SimpleCov, started is refused too. An input's Ruby must not read a local of the exploring example, and an input that reads a `let` or `subject` is refused: the emitted file has neither, and a `let` read first inside an input would be made in its rolled-back savepoint and kept for the next input.
 
 The CLI can load the app with `RAILS_ENV=test` and `--require config/environment.rb`, but then each input's rows stay in the test database, later inputs see them, and the test's helpers are not there.
 

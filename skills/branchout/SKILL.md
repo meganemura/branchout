@@ -99,7 +99,7 @@ end
 
 The emitted test requires the helper the suite loaded (`require "rails_helper"`, else `test_helper`, else `spec_helper`) by name and does not require the model, which the app loads. A minitest test inherits from the exploring test's own base class, such as `ActiveSupport::TestCase`, so fixtures and helpers work there too. Run it as any other test of the suite, without `BRANCHOUT`.
 
-- An input's Ruby must not read a `let` or a local of the exploring example. The emitted file has neither. A `let` that an input reads first is made inside that input's savepoint, so the rollback removes its row, and later inputs get the record Rails marked unsaved. Build what an input needs in its own Ruby.
+- An input's Ruby must not read a local of the exploring example, and explore refuses an input that reads a `let` or `subject`. The emitted file has neither, and a `let` that an input reads first would be made inside that input's savepoint, so the rollback removes its row and later inputs get the record Rails marked unsaved. Build what an input needs in its own Ruby.
 - Do not run it with SimpleCov or another coverage tool: explore refuses Coverage that another tool started.
 - Leave the explore example skipped, or delete it once the emitted test is in place.
 

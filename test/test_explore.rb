@@ -75,6 +75,20 @@ class ExploreTest < Minitest::Test
     end
   end
 
+  def test_an_input_that_reads_a_let_is_refused
+    refusal = "the input {\"args\":[\"tea\"],\"kwargs\":{},\"receiver\":{\"ruby\":\"Pantry.new(cook)\"}} reads let(:cook) " \
+              "of the exploring test, which the emitted test does not have. A let an input reads first is made in that " \
+              "input's rolled-back savepoint and kept for the next input. Build it in the input's Ruby."
+    rspec = ["-I", SUITE, "-rrspec/core", "-e", "exit RSpec::Core::Runner.run(ARGV)", "--"]
+    stdout, stderr, status = Open3.capture3(RbConfig.ruby, "-Ilib", *rspec, "#{SUITE}/pantry_let_spec.rb", chdir: ROOT)
+    refute status.success?, stdout + stderr
+    assert_includes stdout.gsub(/\s+/, " "), "Branchout::Error: #{refusal}"
+
+    stdout, stderr, status = run_suite("#{SUITE}/pantry_let_test.rb")
+    refute status.success?, stdout + stderr
+    assert_includes stdout.gsub(/\s+/, " "), "Branchout::Error: #{refusal}"
+  end
+
   # minitest 6 needs prism 1, and RubyGems activates the newest prism for
   # a require with no version, so branchout must not load prism until it
   # parses.

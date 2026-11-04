@@ -13,7 +13,7 @@ module Branchout
 
     Arm = Struct.new(
       :id, :loc, :line, :column, :cond, :sense, :input, :parent, :nearest, :path,
-      :covered, :value, :error,
+      :covered,
       keyword_init: true
     )
 
@@ -39,8 +39,6 @@ module Branchout
       @type_overrides = type_overrides
       @seed = seed
       @strategies = STRATEGY_ORDER.select { |name| strategies.include?(name) }
-      raise Error, "strategy list is empty" if @strategies.empty?
-
       @random = random
       @mutate_cap = mutate_cap
       @timeout = timeout
@@ -82,20 +80,10 @@ module Branchout
     private
 
     def build_result(target, runner, executions, counts, repeated_inputs)
-      catalog = {}
-      runner.template[:branches].each do |branch_key, arms|
-        catalog[branch_key] ||= []
-        arms.each_key { |arm_key| catalog[branch_key] << arm_key unless catalog[branch_key].include?(arm_key) }
-      end
-      executions.each do |execution|
-        execution.branches.each do |branch_key, arms|
-          catalog[branch_key] ||= []
-          arms.each_key { |arm_key| catalog[branch_key] << arm_key unless catalog[branch_key].include?(arm_key) }
-        end
-      end
-
-      arms = catalog.flat_map do |branch_key, arm_keys|
-        arm_keys.map { |arm_key| make_arm(target, branch_key, arm_key, executions) }
+      # Coverage lists every branch of the file, taken or not, so the table
+      # from loading holds every arm an execution can report.
+      arms = runner.template[:branches].flat_map do |branch_key, arm_counts|
+        arm_counts.keys.map { |arm_key| make_arm(target, branch_key, arm_key, executions) }
       end
       covered = arms.select(&:covered).sort_by(&:id)
       frontier = arms.reject(&:covered).sort_by(&:id)
@@ -143,13 +131,10 @@ module Branchout
           column: column,
           cond: target.condition_text(branch_key[0], branch_key[2], branch_key[3], arm_key[0], line, column),
           sense: sense_for(branch_key[0], arm_key[0]),
-          input: nil,
           parent: nearest ? "reached" : "not-reached",
           nearest: nearest&.input,
           path: nearest ? path_ids(nearest) : nil,
-          covered: false,
-          value: nil,
-          error: nil
+          covered: false
         )
       else
         witness = best_execution(takers)
@@ -162,11 +147,8 @@ module Branchout
           sense: sense_for(branch_key[0], arm_key[0]),
           input: witness.input,
           parent: "reached",
-          nearest: nil,
           path: path_ids(witness),
-          covered: true,
-          value: witness.value,
-          error: witness.error
+          covered: true
         )
       end
     end
@@ -196,19 +178,10 @@ module Branchout
     end
 
     def collect_pins(executions, covered, findings)
-      by_input = {}
-      keys = {}
-      executions.each do |execution|
-        by_input[execution.input.canonical] = execution
-        keys[execution.input.canonical] = true if execution.origin == :inputs
-      end
-      covered.each do |arm|
-        keys[arm.input.canonical] = true
-      end
-      findings.each do |finding|
-        keys[finding.input.canonical] = true
-      end
-      keys.keys.sort.map do |key|
+      by_input = executions.to_h { |execution| [execution.input.canonical, execution] }
+      keys = executions.select { |execution| execution.origin == :inputs }.map { |execution| execution.input.canonical } |
+             covered.map { |arm| arm.input.canonical } | findings.map { |finding| finding.input.canonical }
+      keys.sort.map do |key|
         execution = by_input[key]
         Pin.new(
           input: execution.input,
@@ -234,9 +207,7 @@ module Branchout
     end
 
     def parent_reached?(execution, branch_key)
-      arms = execution.branches[branch_key]
-      return false unless arms
-      return true if arms.values.any? { |count| count.to_i.positive? }
+      return true if execution.branches[branch_key].values.any? { |count| count.to_i.positive? }
       return false unless branch_key[0] == :while || branch_key[0] == :until
 
       line = branch_key[2]

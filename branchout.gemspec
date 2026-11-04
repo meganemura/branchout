@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "lib/branchout"
+require_relative "lib/branchout/version"
 
 Gem::Specification.new do |spec|
   spec.name = "branchout"

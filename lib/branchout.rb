@@ -10,8 +10,9 @@ require "timeout"
 # version, and minitest 6 then fails to activate with prism 1.
 autoload :Prism, "prism"
 
+require_relative "branchout/version"
+
 module Branchout
-  VERSION = "0.1.0"
   Error = Class.new(StandardError)
 end
 

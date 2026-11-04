@@ -138,8 +138,8 @@ class ExploreTest < Minitest::Test
     assert_equal "inputs[0] receiver must be Ruby such as {\"ruby\": \"create(:loan)\"}", error.message
   end
 
-  # Bundler loads the gemspec, and so branchout, in every process of a
-  # project that depends on branchout by path.
+  # An app whose Gemfile lists branchout without require: false loads it in
+  # every process.
   def test_requiring_branchout_leaves_coverage_off
     stdout, stderr, status = Open3.capture3(RbConfig.ruby, "-Ilib", "-e", 'require "branchout"; print Coverage.state',
                                             chdir: ROOT)

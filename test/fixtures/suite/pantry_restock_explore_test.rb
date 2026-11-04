@@ -11,9 +11,9 @@ class PantryRestockExploreTest < SuiteCase
       "custom" => ->(&input) { input.call },
       "wrapped" => ->(&input) { Branchout::ROLL_BACK.call(&input) }
     }[ENV["BRANCHOUT_AROUND"]]
-    report = Branchout.explore("Pantry#restock", within: self, around: around, emit_tests: ENV.fetch("EMIT_TO"), format: :minitest, inputs: [
-      {receiver: {ruby: "Pantry.new(owner)"}, args: ["jam"]}
-    ])
+    inputs = [{receiver: {ruby: "Pantry.new(owner)"}, args: ["jam"]}]
+    Branchout.explore("Pantry#restock", within: self, inputs: inputs) if ENV["EXPLORE_FIRST"]
+    report = Branchout.explore("Pantry#restock", within: self, around: around, emit_tests: ENV.fetch("EMIT_TO"), format: :minitest, inputs: inputs)
     File.write(ENV.fetch("REPORT_TO"), "#{report}rows left: #{ActiveRecord::Base.rows.length - rows.length}\n")
   end
 end

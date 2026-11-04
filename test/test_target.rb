@@ -483,6 +483,10 @@ class TargetTest < Minitest::Test
     parse_source("module T\n  def self.f(x)\n    x ? 1 : 2\n  end\nend\n", "T.f") do |target|
       assert_equal [3, "x ? 1 : 2 -> else"], target.covered_arm(:if, 3, 4, :else, 3, 12)
     end
+    # A def nested in the entry is not indexed, so its case keeps its own line.
+    parse_source("module T\n  def self.f(x)\n    def self.g(y)\n      case y\n      when 1 then :a\n      end\n    end\n  end\nend\n", "T.f") do |target|
+      assert_equal [4, "case y"], target.covered_arm(:case, 4, 6, :when, 5, 18)
+    end
   end
 
   def test_condition_text_without_a_decision_node_is_the_source_line

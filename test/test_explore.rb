@@ -65,12 +65,13 @@ class ExploreTest < Minitest::Test
   # Without a rollback the run with frozen Strings keeps its row, so a
   # second run would pin a value no fresh test sees. Only an input that ran
   # in ROLL_BACK's savepoint runs again; a custom around that keeps its rows,
-  # as RUN_ONLY does, keeps the FrozenError.
+  # as RUN_ONLY does, keeps the FrozenError, also after an earlier explore
+  # in the same test rolled its input back.
   def test_an_input_that_keeps_its_rows_is_not_run_again_with_unfrozen_strings
-    { "run_only" => 1, "custom" => 1, "wrapped" => 0 }.each do |around, rows_left|
+    [["run_only", 1], ["custom", 1], ["wrapped", 0], ["run_only", 1, "1"]].each do |around, rows_left, first|
       Dir.mktmpdir do |dir|
         env = {"EMIT_TO" => File.join(dir, "restock_test.rb"), "REPORT_TO" => File.join(dir, "report.txt"),
-               "BRANCHOUT_AROUND" => around}
+               "BRANCHOUT_AROUND" => around, "EXPLORE_FIRST" => first}
         stdout, stderr, status = run_suite("#{SUITE}/pantry_restock_explore_test.rb", env)
         assert status.success?, stdout + stderr
         report = File.read(env["REPORT_TO"])

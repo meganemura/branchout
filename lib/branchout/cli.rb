@@ -19,7 +19,7 @@ module Branchout
 
       Options:
         --inputs PATH       JSON file of candidate inputs
-        --require PATH      load PATH before TARGET (repeatable)
+        --require PATH      load PATH, or a feature on -I or the load path, before TARGET (repeatable)
         -I DIR              put DIR on the load path (repeatable)
         --seed N            RNG seed (default 0)
         --random N          random samples (default 16)

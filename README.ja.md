@@ -86,7 +86,7 @@ OPERATORS
 | フラグ | 既定 | 意味 |
 | --- | --- | --- |
 | `--inputs PATH` | なし | 入力の JSON ファイル |
-| `--require PATH` | なし | ターゲットより先に PATH を読み込む。ライブラリの残りが要るターゲットに使う。繰り返し指定できる。PATH のディレクトリはロードパスの末尾、gem の後に入るので、`lib/name.rb` は `require "name/part"` でき、`config/environment.rb` の隣の `config/puma.rb` が puma gem を隠さない。出力するテストも PATH を読み込む |
+| `--require PATH` | なし | ターゲットより先に PATH を読み込む。ライブラリの残りが要るターゲットに使う。繰り返し指定できる。PATH のディレクトリはロードパスの末尾、gem の後に入るので、`lib/name.rb` は `require "name/part"` でき、`config/environment.rb` の隣の `config/puma.rb` が puma gem を隠さない。作業ディレクトリの下にファイルがない PATH は、`ruby -r` と同じく機能名として読む。`--require shop -I lib` は `lib/shop.rb` を読み込み、どの `-I` ディレクトリにもない名前はロードパスから探す。出力するテストも PATH を読み込む |
 | `-I DIR` | なし | 探索中、`ruby -I` と同じく DIR をロードパスに入れる。繰り返し指定できる。`--require-by-name` を付けると、DIR の下のファイルは DIR からの名前で読み込む。`app/models` の下の Rails のモデルなどに使う |
 | `--seed N` | `0` | 乱数の種 |
 | `--random N` | `16` | ランダム標本の個数 |

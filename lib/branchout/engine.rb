@@ -38,8 +38,8 @@ module Branchout
                    requires:, load_paths:, host:)
       @host = host
       @path = target
-      @requires = requires.map { |path| File.expand_path(path) }
       @load_paths = load_paths.map { |dir| File.expand_path(dir) }
+      @requires = requires.map { |name| required_file(name) }
       @entry = entry
       @user_inputs = user_inputs
       @type_overrides = type_overrides
@@ -84,6 +84,19 @@ module Branchout
     end
 
     private
+
+    # A --require that names no file under the working directory is a
+    # feature, as Ruby's own -r reads it: found on an -I directory, then on
+    # the load path.
+    def required_file(name)
+      path = File.expand_path(name)
+      return path if File.file?(path) || File.file?("#{path}.rb")
+
+      feature = name.end_with?(".rb") ? name : "#{name}.rb"
+      found = @load_paths.map { |dir| File.join(dir, feature) }.find { |file| File.file?(file) }
+      found ||= $LOAD_PATH.resolve_feature_path(name)&.last
+      found or raise Error, "--require #{name} names no file under the working directory, an -I directory, or the load path"
+    end
 
     def build_result(target, runner, executions, counts, repeated_inputs)
       # Coverage lists every branch of the file, taken or not, so the table

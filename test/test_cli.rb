@@ -748,6 +748,32 @@ class CLITest < Minitest::Test
     end
   end
 
+  # A --require that names no file is a feature on the -I directories or
+  # the load path, as Ruby's own -r reads it.
+  def test_a_require_that_names_no_file_is_found_on_the_load_path
+    Dir.mktmpdir do |dir|
+      lib = File.join(dir, "lib")
+      FileUtils.mkdir_p(File.join(lib, "shop"))
+      File.write(File.join(lib, "shop.rb"), "require_relative \"shop/cart\"\n")
+      File.write(File.join(lib, "shop/cart.rb"), "module Shop\n  def self.size(n) = n > 2 ? :big : :small\nend\n")
+      path = write_inputs(dir, { "inputs" => [[2], [3]] })
+      test = File.join(dir, "out/cart_test.rb")
+      out, err, status = run_cli("explore", File.join(lib, "shop/cart.rb"), "Shop.size", "-I", lib, "--require", "shop",
+                                 "--strategy", "inputs", "--random", "0", "--inputs", path, "--emit-tests", test, "--require-by-name")
+      assert status.success?, err
+      assert_includes out, "arms_covered: 2\narms_total: 2\n"
+      assert_includes File.read(test), "\nrequire \"shop\"\n\n"
+
+      _out, err, status = run_cli("explore", File.join(lib, "shop/cart.rb"), "Shop.size", "-I", lib, "--require", "shop",
+                                  "--require", "etc", "--strategy", "inputs", "--random", "0", "--inputs", path)
+      assert status.success?, err
+
+      _out, err, status = run_cli("explore", File.join(lib, "shop/cart.rb"), "Shop.size", "-I", lib, "--require", "shopp")
+      refute status.success?
+      assert_equal "branchout: --require shopp names no file under the working directory, an -I directory, or the load path\n", err
+    end
+  end
+
   # A Rails model is outside lib: -I puts its directory on the load path,
   # for the explore run and for the name the emitted test requires.
   def test_a_load_path_directory_names_a_target_outside_lib

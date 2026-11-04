@@ -72,7 +72,7 @@ While searching, pass `--strategy inputs --random 0` and keep `--seed` fixed, so
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--inputs PATH` | none | JSON file of inputs |
-| `--require PATH` | none | Load PATH before the target, for a target that needs the rest of its library. Repeatable. PATH's directory joins the end of the load path, after the gems, so `lib/name.rb` can `require "name/part"`, and `config/puma.rb` beside `config/environment.rb` does not hide the puma gem. Emitted tests require PATH too |
+| `--require PATH` | none | Load PATH before the target, for a target that needs the rest of its library. Repeatable. PATH's directory joins the end of the load path, after the gems, so `lib/name.rb` can `require "name/part"`, and `config/puma.rb` beside `config/environment.rb` does not hide the puma gem. A PATH that names no file under the working directory is a feature, as `ruby -r` reads it: `--require shop -I lib` loads `lib/shop.rb`, and a name that no `-I` directory holds is looked up on the load path. Emitted tests require PATH too |
 | `-I DIR` | none | Put DIR on the load path while exploring, as `ruby -I` does. Repeatable. With `--require-by-name`, a file under DIR is required by its name from DIR, such as a Rails model under `app/models` |
 | `--seed N` | `0` | RNG seed |
 | `--random N` | `16` | Number of random samples |

@@ -278,7 +278,7 @@ module Branchout
         differing = paths.reject do |path|
           leaves.all? { |map| map.key?(path) && map[path].eql?(leaves.first[path]) }
         end
-        shared = differing.to_h { |path| [path, shared_start(leaves.filter_map { |map| map[path] })] }
+        shared = differing.to_h { |path| [path, shared_start(leaves.select { |map| map.key?(path) }.map { |map| map[path] })] }
         leaves.map do |map|
           differing.flat_map do |path|
             # An input that has an empty collection above this leaf, or

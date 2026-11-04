@@ -1180,6 +1180,12 @@ class NameEdgeTest < Minitest::Test
     assert_equal %w[1 none], support.without_repeated_none(%w[1 none none none])
   end
 
+  # A leaf whose value is nil or false is a leaf too.
+  def test_siblings_that_differ_by_a_nil_leaf_are_named
+    names = support.test_names([[{ "a" => nil }], [{ "b" => nil }]].map { |args| pin(:ok, args: args) })
+    assert_equal %w[test_a_nil__b_none_returns_ok test_a_none__b_nil_returns_ok], names
+  end
+
   def test_a_block_and_an_empty_collection_beside_a_scalar_are_named
     assert_equal "test_1_with_block_returns_1", support.test_names([pin(1, block: "{ |a| a }")]).first
     assert_equal "test_1_returns_ok_empty_hash", support.test_names([pin([:ok, {}])]).first

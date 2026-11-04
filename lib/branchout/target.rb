@@ -27,6 +27,10 @@ module Branchout
     # [singleton, name] of each call on self that no method in this file
     # answers. Ruby's own lookup decides after load where each one lives.
     attr_reader :outside_calls
+    # [namespace, class, name] of each call on an object the counted code
+    # builds with Class.new, kept in a local or an instance variable.
+    # +class+ is the constant as written, so Ruby resolves it in +namespace+.
+    attr_reader :typed_calls
 
     def self.parse(path, entry, type_overrides: nil)
       new(path, entry, type_overrides: type_overrides).tap(&:parse)
@@ -79,6 +83,7 @@ module Branchout
 
       @ranges = []
       @outside_calls = []
+      @typed_calls = []
       @literals = Literals.new(ints: [], floats: [], strings: [])
       @conditions = {}
       bodies = []
@@ -94,6 +99,8 @@ module Branchout
         body = info.node.body
         bodies << body if body
         index_conditions(body) if body
+        built = info.singleton ? {} : built_ivars(defs, info.const_name)
+        calls_on_built(body, built).each { |const, name| @typed_calls << [info.const_name, const, name] } if body
         bare_calls(body).each do |name|
           callee = find.(info.singleton, name)
           callee ? queue << callee : @outside_calls << [info.singleton, name]
@@ -329,6 +336,56 @@ module Branchout
       end
       node.compact_child_nodes.each { |child| bare_calls(child, acc) }
       acc
+    end
+
+    # Instance variables that a method of +const+ in this file sets to
+    # Class.new, as initialize does for a collaborator: name => class text.
+    def built_ivars(defs, const)
+      defs.select { |info| info.const_name == const && !info.singleton && info.node.body }
+          .flat_map { |info| assignments(info.node.body, :instance_variable_write_node) }.to_h
+    end
+
+    # [class text, method name] of each call on a value that this body
+    # builds with Class.new: a local it assigns, an instance variable in
+    # +ivars+, or the new call itself.
+    def calls_on_built(body, ivars)
+      locals = assignments(body, :local_variable_write_node).to_h
+      found = []
+      walk = lambda do |node|
+        next unless node.is_a?(Prism::Node)
+        next if node.type == :def_node
+
+        if node.type == :call_node && (receiver = node.receiver)
+          const = case receiver.type
+                  when :local_variable_read_node then locals[receiver.name]
+                  when :instance_variable_read_node then ivars[receiver.name]
+                  when :call_node then built_class(receiver)
+                  end
+          found << [const, node.name] if const
+        end
+        node.compact_child_nodes.each { |child| walk.(child) }
+      end
+      walk.(body)
+      found.uniq
+    end
+
+    def assignments(node, type, acc = [])
+      return acc unless node.is_a?(Prism::Node)
+      return acc if node.type == :def_node
+
+      if node.type == type && (const = built_class(node.value))
+        acc << [node.name, const]
+      end
+      node.compact_child_nodes.each { |child| assignments(child, type, acc) }
+      acc
+    end
+
+    # The class text of Class.new(...), or nil.
+    def built_class(node)
+      return nil unless node&.type == :call_node && node.name == :new
+      return nil unless %i[constant_read_node constant_path_node].include?(node.receiver&.type)
+
+      node.receiver.slice.delete_prefix("::")
     end
 
     # Methods a class method calls on an instance it builds itself, as in

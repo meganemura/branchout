@@ -163,8 +163,14 @@ module Branchout
       branches = loaded.each_with_object({}) do |(file, data), out|
         out[File.expand_path(file)] = data[:branches] if data.is_a?(Hash) && data[:branches]
       end
-      found = @target.outside_calls.filter_map do |singleton, name|
-        method = singleton ? @owner.method(name) : @owner.instance_method(name)
+      on_self = @target.outside_calls.map do |singleton, name|
+        -> { [singleton, singleton ? @owner.method(name) : @owner.instance_method(name)] }
+      end
+      on_built = @target.typed_calls.map do |namespace, const, name|
+        -> { [false, built_class(namespace, const).instance_method(name)] }
+      end
+      found = (on_self + on_built).filter_map do |lookup|
+        singleton, method = lookup.call
         # An attribute reader or writer has no instructions, so no arms.
         next if RubyVM::InstructionSequence.of(method).nil?
 
@@ -176,11 +182,25 @@ module Branchout
 
         lines = Target.def_lines(file, line)
         arms = lines && branches[file]&.sum { |branch_key, arms_of| lines.cover?(branch_key[2]) ? arms_of.length : 0 }
-        [file, line, Callee.new(name: callee_name(method.owner, singleton, name), loc: "#{Target.display_path(file)}:#{line}", arms: arms)]
+        # A method with no arms hides none.
+        next if arms&.zero?
+
+        [file, line, Callee.new(name: callee_name(method.owner, singleton, method.name), loc: "#{Target.display_path(file)}:#{line}", arms: arms)]
       rescue NameError
         nil
       end
       found.uniq { |file, line, _callee| [file, line] }.sort_by { |file, line, _callee| [file, line] }.map(&:last)
+    end
+
+    # The class +const+ names where it is written, inside +namespace+, as
+    # Ruby's lexical lookup finds it.
+    def built_class(namespace, const)
+      scopes = namespace.split("::")
+      scopes.length.downto(0).each do |depth|
+        name = [*scopes.first(depth), const].join("::")
+        return Object.const_get(name) if Object.const_defined?(name)
+      end
+      Object.const_get(const)
     end
 
     def callee_name(owner, singleton, name)

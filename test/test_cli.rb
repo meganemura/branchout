@@ -739,7 +739,8 @@ class CLITest < Minitest::Test
   # A check that moves from the entry into a parent class in another file
   # takes its arms out of arms_total. The report names that callee and how
   # many arms it has, so a smaller total does not read as less logic. An
-  # attribute reader holds no logic, so it is not named.
+  # attribute reader, or a method with no arms, hides no arm, so it is not
+  # named.
   def test_the_report_names_callees_in_other_files_it_did_not_count
     Dir.mktmpdir do |dir|
       parent = File.join(dir, "parent.rb")
@@ -775,23 +776,60 @@ class CLITest < Minitest::Test
       args = ["explore", child, "Child#label", "--require", parent, "--strategy", "inputs", "--random", "0", "--inputs", path]
       stdout, stderr, status = run_cli(*args)
       assert status.success?, stderr
-      assert_includes stdout, "arms_total: 4\nexceptions: 0\ncallees_not_counted: 2\n"
+      assert_includes stdout, "arms_total: 4\nexceptions: 0\ncallees_not_counted: 1\n"
       assert stdout.end_with?(<<~TEXT), stdout
         NOT COUNTED
         callee: Parent#checked
         loc: #{parent}:4
         arms: 2
-
-        callee: Parent#plain
-        loc: #{parent}:10
-        arms: 0
       TEXT
 
       stdout, stderr, status = run_cli(*args, "--json")
       assert status.success?, stderr
       assert_equal [
-        { "callee" => "Parent#checked", "loc" => "#{parent}:4", "arms" => 2 },
-        { "callee" => "Parent#plain", "loc" => "#{parent}:10", "arms" => 0 }
+        { "callee" => "Parent#checked", "loc" => "#{parent}:4", "arms" => 2 }
+      ], JSON.parse(stdout)["not_counted"]
+    end
+  end
+
+  # A service object the entry builds with Const.new, kept in a local or
+  # in an instance variable, runs logic the report does not count, so the
+  # report names its methods. A call on an untyped value is not named.
+  def test_the_report_names_methods_called_on_objects_the_class_builds
+    Dir.mktmpdir do |dir|
+      ledger = File.join(dir, "ledger.rb")
+      File.write(ledger, <<~RUBY)
+        module Shop
+          class Ledger
+            def post(amount) = amount.negative? ? :refund : :sale
+            def audit(amount) = amount > 100 ? :review : :ok
+            def close = :closed
+          end
+        end
+      RUBY
+      till = File.join(dir, "till.rb")
+      File.write(till, <<~RUBY)
+        module Shop
+          class Till
+            def initialize
+              @ledger = Ledger.new
+            end
+
+            def ring(amount, other)
+              journal = Shop::Ledger.new
+              other.post(amount)
+              @ledger.post(amount) == :sale && journal.audit(amount) == :ok ? :done : :held
+            end
+          end
+        end
+      RUBY
+      path = write_inputs(dir, { "inputs" => [[5, 1]] })
+      stdout, stderr, status = run_cli("explore", till, "Shop::Till#ring", "--require", ledger, "--strategy", "inputs", "--random", "0",
+                                       "--inputs", path, "--json")
+      assert status.success?, stderr
+      assert_equal [
+        { "callee" => "Shop::Ledger#post", "loc" => "#{ledger}:3", "arms" => 2 },
+        { "callee" => "Shop::Ledger#audit", "loc" => "#{ledger}:4", "arms" => 2 }
       ], JSON.parse(stdout)["not_counted"]
     end
   end

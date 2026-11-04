@@ -1104,3 +1104,35 @@ class BlockInputTest < Minitest::Test
     assert_includes source, "    it \"returns 1 when block is { |n| n > 9 }\" do\n"
   end
 end
+
+class NameEdgeTest < Minitest::Test
+  def support = Branchout::Emitters::Support
+
+  def pin(value, args: [1], block: nil)
+    input = Branchout::Input.new(args: args, block: block && Branchout::Code.block(block))
+    Branchout::Engine::Pin.new(input: input, value: value, error: nil, arm_ids: [])
+  end
+
+  def test_unnamed_requires_are_the_files_no_directory_holds
+    assert_equal ["/w/app/cart.rb"], support.unnamed_requires(["/w/lib/shop.rb"], "/w/app/cart.rb")
+    assert_empty support.unnamed_requires(["/w/lib/shop.rb"], "/w/app/cart.rb", load_paths: ["/w/app"])
+    assert_empty support.unnamed_requires([], "/w/app/cart.rb")
+  end
+
+  def test_a_missing_key_says_none_once_and_other_words_stay
+    key = support::Key.new("a")
+    assert_equal [key, "none", "1"], support.without_repeated_none([key, "none", "1", key, "none"])
+    assert_equal %w[1 none 1 none], support.without_repeated_none(%w[1 none 1 none])
+    assert_equal ["x", key], support.without_repeated_none(["x", key])
+  end
+
+  def test_a_block_and_an_empty_collection_beside_a_scalar_are_named
+    assert_equal "test_1_with_block_returns_1", support.test_names([pin(1, block: "{ |a| a }")]).first
+    assert_equal "test_1_returns_ok_empty_hash", support.test_names([pin([:ok, {}])]).first
+  end
+
+  def test_a_number_of_fifteen_digits_is_named_whole
+    assert_equal "100000000000000", support.number_word(10**14)
+    assert_equal "100e13", support.number_word(10**15)
+  end
+end

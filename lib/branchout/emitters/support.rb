@@ -529,7 +529,7 @@ module Branchout
         when Hash then ["hash", *value.keys.map { |key| Key.new(key.to_s) }]
         when Array
           if value.all? { |item| collection?(item) } then ["array", "of", value.length.to_s]
-          elsif value.any? { |item| collection?(item) } then value.flat_map { |item| collection?(item) && !item.empty? ? shape_words(item) : value_words(item) }
+          elsif value.any? { |item| collection?(item) } then value.flat_map { |item| collection?(item) ? shape_words(item) : value_words(item) }
           else value_words(value)
           end
         else value_words(value)

@@ -218,6 +218,15 @@ class CLITest < Minitest::Test
                                         "--inputs", write_inputs(dir, { "inputs" => [[1]] }))
       refute status.success?
       assert_includes stderr, "Kw#initialize requires the keywords main:, side:; give them in \"new\""
+      one = File.join(dir, "kw1.rb")
+      File.write(one, "class Kw\n  def initialize(size, main:) = @main = main\n  def pick(x) = x > 0 ? :pos : :neg\nend\n")
+      _stdout, stderr, _status = run_cli("explore", one, "Kw#pick", "--strategy", "inputs", "--random", "0",
+                                         "--inputs", write_inputs(dir, { "inputs" => [[1]] }))
+      assert_includes stderr, "Kw#initialize requires 1 argument and the keyword main:; give them in \"new\""
+      File.write(one, "class Kw\n  def initialize(main:) = @main = main\n  def pick(x) = x > 0 ? :pos : :neg\nend\n")
+      _stdout, stderr, _status = run_cli("explore", one, "Kw#pick", "--strategy", "inputs", "--random", "0",
+                                         "--inputs", write_inputs(dir, { "inputs" => [[1]] }))
+      assert_includes stderr, "Kw#initialize requires the keyword main:; give it in \"new\""
       path = write_inputs(dir, { "inputs" => [-1, 1].map { |x| { "args" => [x], "new" => { "kwargs" => { "main" => 1, "side" => 2 } } } } })
       stdout, stderr, status = run_cli("explore", target, "Kw#pick", "--strategy", "inputs", "--random", "0", "--inputs", path)
       assert status.success?, stderr

@@ -58,8 +58,6 @@ module Branchout
 
     def execute(input)
       check_receiver(input)
-      value = nil
-      error = nil
       begin
         value = invoke(input)
       rescue Exception => e # rubocop:disable Lint/RescueException
@@ -349,7 +347,8 @@ module Branchout
       clean = raw.gsub(/#<[^>]*>/, "#<obj>").gsub(/0x[0-9a-f]+/i, "0xID").gsub(/\s+/, " ").strip
       clean = clean[0, 180]
       pattern = frame_pattern(raw)
-      stable = pattern.nil? && raw.gsub(/\s+/, " ").strip == clean
+      whole = raw.gsub(/\s+/, " ").strip == clean
+      stable = pattern.nil? && whole
       loc = locate(exception, display_path, real_path)
       if loc.nil? && fallback_line && exception.is_a?(Timeout::Error)
         loc = "#{display_path}:#{fallback_line}"
@@ -357,7 +356,7 @@ module Branchout
       name = exception.is_a?(Timeout::Error) ? "Timeout::Error" : exception.class.name
       missing = exception.name if exception.is_a?(NameError) && exception.name.is_a?(Symbol)
       new(class_name: name, message: clean, loc: loc, stable_message: stable, name: missing, exact_message: (raw if stable),
-          message_pattern: (pattern if pattern && clean == raw.gsub(/\s+/, " ").strip))
+          message_pattern: (pattern if whole))
     end
 
     FRAME_LABEL = /(:\d+:in )[`'][^`'\n]*'/

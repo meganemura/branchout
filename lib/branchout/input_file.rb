@@ -34,7 +34,7 @@ module Branchout
 
     METHOD_NAME = /\A(?:[A-Za-z_][A-Za-z0-9_]*[?!=]?|<<|>>|\[\]=?|[-+*\/%&|^<>]|\*\*|<=>|==|!=|<=|>=|=~)\z/
 
-    def parse_entry(entry, label, keys = %w[args kwargs new setup note pin_keys])
+    def parse_entry(entry, label, keys = %w[args kwargs new setup note pin_keys block])
       case entry
       when Array
         Input.new(args: entry)
@@ -52,10 +52,15 @@ module Branchout
           raise Error, "#{label} pin_keys must be an array of key names"
         end
 
-        Input.new(args: entry["args"], kwargs: entry["kwargs"] || {}, receiver: receiver, setup: setup, pin_keys: pin_keys)
+        block = Code.block(entry["block"]) if entry.key?("block")
+        Input.new(args: entry["args"], kwargs: entry["kwargs"] || {}, receiver: receiver, setup: setup, pin_keys: pin_keys, block: block)
       else
         raise Error, "#{label} must be an array or an object"
       end
+    rescue Error => e
+      raise if e.message.start_with?(label)
+
+      raise Error, "#{label} #{e.message}"
     end
 
     def parse_setup(steps, label)

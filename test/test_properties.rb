@@ -33,13 +33,15 @@ class PropertyTest < Minitest::Test
   end
 
   def draw_input(tc, receiver: true)
-    args = tc.draw(arrays(json_values, max_size: 3))
+    code = sampled_from(["Loan.new(3)", "KeyError.new(\"sku\")", "{\"ruby\" => \"3.4\"}"]).map { |source| { "ruby" => source } }
+    args = tc.draw(arrays(one_of(json_values, code), max_size: 3))
     kwargs = tc.draw(hashes(text(min_size: 1, max_size: 3), json_values, max_size: 2))
     new_args = receiver && tc.draw(booleans) ? draw_input(tc, receiver: false) : nil
     names = sampled_from(%w[add << reset! empty? limit=])
     setup = receiver ? tc.draw(arrays(names, max_size: 2)) : []
     setup = setup.map { |name| Branchout::Input::SetupCall.new(name, draw_input(tc, receiver: false)) }
-    Branchout::Input.new(args: args, kwargs: kwargs, receiver: new_args, setup: setup)
+    block = Branchout::Code.block("{ |item| item * 2 }") if receiver && tc.draw(booleans)
+    Branchout::Input.new(args: args, kwargs: kwargs, receiver: new_args, setup: setup, block: block)
   end
 
   def test_canonical_json_parses_back_to_the_value

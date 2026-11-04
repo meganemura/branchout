@@ -626,6 +626,61 @@ class CLITest < Minitest::Test
     end
   end
 
+  # A record, an exception, or a block has no JSON form, so an input names
+  # the Ruby that builds it, such as a factory in a --require file; the
+  # emitted tests write that Ruby as it was given.
+  def test_an_input_builds_an_object_and_a_block_from_ruby_it_names
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, "factories.rb"), "Loan = Struct.new(:amount)\n\nmodule Factories\n  def self.loan(amount) = Loan.new(amount)\nend\n")
+      File.write(File.join(dir, "lending.rb"), <<~RUBY)
+        module Lending
+          def self.approve(loan, &rule)
+            return :failed if loan.is_a?(StandardError)
+
+            rule.call(loan.amount) ? :ok : :refused
+          end
+        end
+      RUBY
+      path = write_inputs(dir, { "inputs" => [
+        { "args" => [{ "ruby" => "Factories.loan(3)" }], "block" => "{ |amount| amount > 2 }" },
+        { "args" => [{ "ruby" => "Factories.loan(1)" }], "block" => "{ |amount| amount > 2 }" },
+        { "args" => [{ "ruby" => "KeyError.new(\"sku\")" }] }
+      ] })
+      args = ["explore", File.join(dir, "lending.rb"), "Lending.approve", "--require", File.join(dir, "factories.rb"),
+              "--strategy", "inputs", "--random", "0", "--inputs", path]
+      out, err, status = run_cli(*args)
+      assert status.success?, err
+      assert_includes out, "arms_covered: 4"
+      refute_includes out, "EXCEPTIONS\n  -"
+      %w[lending_test.rb lending_spec.rb].each do |name|
+        test = File.join(dir, name)
+        _out, err, status = run_cli(*args, "--emit-tests", test)
+        assert status.success?, err
+        assert_includes File.read(test), "Lending.approve(Factories.loan(3)) { |amount| amount > 2 }"
+        assert_includes File.read(test), "Lending.approve(KeyError.new(\"sku\"))"
+      end
+      _out, err, status = Open3.capture3(RbConfig.ruby, File.join(dir, "lending_test.rb"))
+      assert status.success?, err
+      spec = File.read(File.join(dir, "lending_spec.rb"))
+      assert_includes spec, "when loan is Factories.loan(3)"
+      _out, err, status = Open3.capture3(RbConfig.ruby, "-rrspec/autorun", "-e", "", File.join(dir, "lending_spec.rb"))
+      assert status.success?, err
+    end
+  end
+
+  def test_an_input_whose_ruby_does_not_parse_is_refused
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [{ "args" => [{ "ruby" => "Loan.new(" }] }] })
+      _out, err, status = run_cli("explore", "test/fixtures/scale.rb", "FixtureScale.scale", "--inputs", path)
+      refute status.success?
+      assert_match(/\Abranchout: .*inputs\[0\] Ruby "Loan.new\(" does not parse/, err)
+      path = write_inputs(dir, { "inputs" => [{ "args" => [1], "block" => "x + 1" }] })
+      _out, err, status = run_cli("explore", "test/fixtures/scale.rb", "FixtureScale.scale", "--inputs", path)
+      refute status.success?
+      assert_match(/\Abranchout: .*inputs\[0\] block "x \+ 1" is not a block such as/, err)
+    end
+  end
+
   def test_require_by_name_needs_emitted_tests
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [[1]] })

@@ -108,7 +108,7 @@ module Branchout
         else
           call_text(const, :new, input.receiver ? argument_list(input.receiver) : "", private_calls)
         end
-        call = ->(on) { call_text(on, target.method_name, argument_list(input), private_calls) }
+        call = ->(on) { with_block(call_text(on, target.method_name, argument_list(input), private_calls), input.block) }
         return [[], call.(receiver)] if input.setup.empty?
 
         name = receiver_name(target)
@@ -128,6 +128,10 @@ module Branchout
         end
 
         "#{on}.send(#{[method_name.to_sym.inspect, *(arguments unless arguments.empty?)].join(", ")})"
+      end
+
+      def with_block(call, block)
+        block ? "#{call} #{block.source}" : call
       end
 
       # The class name in snake case, as a reader would name the object.
@@ -164,6 +168,7 @@ module Branchout
         when Float then Canon.format_float(value)
         when String then mutable ? "+#{value.inspect}" : value.inspect
         when Symbol then value.inspect
+        when Code then value.source
         when Array
           "[#{value.map { |item| ruby_literal(item, mutable: mutable) }.join(", ")}]"
         when Hash
@@ -292,6 +297,7 @@ module Branchout
           out << [[:setup, index, :method], call.method_name]
           input_leaves(call.arguments).each { |path, value| out << [[:setup, index, *path], value] }
         end
+        out << [[:block], input.block] if input.block
         out
       end
 
@@ -466,6 +472,7 @@ module Branchout
         words += input.kwargs.flat_map { |key, value| [key.to_s, *argument_words(value)] }
         words += ["new", *input_words(input.receiver)] if input.receiver
         input.setup.each { |call| words += [call.method_name, *input_words(call.arguments)] }
+        words += %w[with block] if input.block
         words
       end
 

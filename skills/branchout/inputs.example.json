@@ -4,6 +4,7 @@
   "inputs": [
     {"args": [0, ""]},
     {"args": [1, "a"], "kwargs": {"flag": true}},
-    [2, "b"]
+    [2, "b"],
+    {"args": [{"ruby": "Factories.loan(3)"}, "c"], "block": "{ |amount| amount > 2 }"}
   ]
 }

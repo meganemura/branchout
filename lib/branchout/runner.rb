@@ -220,12 +220,13 @@ module Branchout
 
     def run_entry(input)
       args, kwargs = fresh_arguments(input)
+      block = evaluate("proc #{input.block.source}") if input.block
       run = proc do
         if @target.singleton
-          measure { @method.call(*args, **kwargs) }
+          measure { @method.call(*args, **kwargs, &block) }
         else
           receiver = prepared_receiver(input)
-          measure { @method.bind_call(receiver, *args, **kwargs) }
+          measure { @method.bind_call(receiver, *args, **kwargs, &block) }
         end
       end
       if @timeout
@@ -250,8 +251,23 @@ module Branchout
 
     # Each call gets its own mutable copy, as a literal in an emitted test
     # does, so the target cannot raise FrozenError or rewrite the input.
+    # Code is evaluated here, at the top level as an emitted test does, so
+    # each call gets its own object.
     def fresh_arguments(input)
-      [Marshal.load(Marshal.dump(input.args)), Marshal.load(Marshal.dump(input.kwargs)).transform_keys(&:to_sym)]
+      [built(Marshal.load(Marshal.dump(input.args))), built(Marshal.load(Marshal.dump(input.kwargs))).transform_keys(&:to_sym)]
+    end
+
+    def built(value)
+      case value
+      when Code then evaluate(value.source)
+      when Array then value.map! { |item| built(item) }
+      when Hash then value.transform_values! { |item| built(item) }
+      else value
+      end
+    end
+
+    def evaluate(source)
+      TOPLEVEL_BINDING.eval(source, "(input)")
     end
 
     def measure

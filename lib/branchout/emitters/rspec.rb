@@ -65,7 +65,7 @@ module Branchout
           @private_calls = private_calls
           @pin_keys = pin_keys
           @receiver = receiver_name
-          @subject = subject_name if pins.all? { |pin| pin.input.args.empty? && pin.input.kwargs.empty? }
+          @subject = subject_name if pins.all? { |pin| pin.input.args.empty? && pin.input.kwargs.empty? && pin.input.block.nil? }
           @one_argument = pins.all? { |pin| pin.input.args.length == 1 && pin.input.kwargs.empty? }
           @outcomes = Support.outcomes(pins, pin_keys)
           @short_outcomes = Support.outcomes(pins, pin_keys, short: true)
@@ -300,6 +300,7 @@ module Branchout
           leaves = []
           input.args.each_with_index { |arg, index| Support.collect_leaves(arg, [names[index] || "argument #{index + 1}"], leaves) }
           input.kwargs.each { |key, value| Support.collect_leaves(value, [key], leaves) }
+          leaves << [["block"], input.block] if input.block
           leaves.map { |leaf| Step.new(:fact, fact_label(leaf), nil, leaf) }
         end
 
@@ -355,7 +356,7 @@ module Branchout
 
         def entry_call(input = nil)
           arguments = input ? Support.argument_list(input) : ""
-          Support.call_text(receiver_expression, @target.method_name, arguments, @private_calls)
+          Support.with_block(Support.call_text(receiver_expression, @target.method_name, arguments, @private_calls), input&.block)
         end
 
         def receiver_name

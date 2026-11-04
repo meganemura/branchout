@@ -15,6 +15,7 @@ module Branchout
       when Float then format_float(obj)
       when String then JSON.generate(obj, ascii_only: true)
       when Symbol then JSON.generate(obj.to_s, ascii_only: true)
+      when Code then json({"ruby" => obj.source})
       when Array
         "[#{obj.map { |item| json(item) }.join(",")}]"
       when Hash

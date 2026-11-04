@@ -129,6 +129,11 @@ ruby bin/branchout baselines examples/magic_value.rb MagicValue.classify \
 各エントリの `note` も無視するので、その入力を選んだ理由をすぐ横に書ける。
 エントリの `pin_keys`（`{"args": [3], "pin_keys": ["tax"]}`）は、その入力のテストに限って `--pin-keys` の代わりになる。
 `"pin_keys": []` は、その Hash を丸ごと固定する。
+レコードや例外のように JSON で書けない値は、`{"ruby": "..."}` に Ruby で書く。
+`--require` したファイルのファクトリを呼ぶことが多い（`{"args": [{"ruby": "Factories.loan(3)"}]}`）。
+呼び出しごとにトップレベルで評価し直し、出力するテストは書いたとおりに写す（`Lending.approve(Factories.loan(3))`）。
+メソッドが受け取るブロックは、波かっこで `block` に書く（`{"args": [5], "block": "{ |amount| amount > 2 }"}`）。
+キーが `"ruby"` 1 つだけの Hash 引数も Ruby で書く（`{"ruby": "{\"ruby\" => \"3.4\"}"}`）。
 エントリは末尾へ足す。
 消したり並べ替えたりしない。
 

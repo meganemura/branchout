@@ -1021,4 +1021,11 @@ class EmitterTest < Minitest::Test
     assert_includes rspec, "require_relative \"../lib/all.rb\"\nrequire_relative \"../lib/foo.rb\"\n"
     assert_includes rspec, "    it \"discovers no inputs\" do\n      skip \"branchout did not discover an input\"\n    end\n"
   end
+
+  def test_a_path_with_no_key_is_named_by_its_whole_path
+    support = Branchout::Emitters::Support
+    assert_equal [0, 1], support.telling_path([0, 1], [[0, 1], [0, 2]])
+    assert_nil support.telling_key([0], [[0], ["status"]])
+    assert_equal ["returns", "1", support::Key.new("status"), "2"], support.outcome_entry_words([[[0], 1], [["status"], 2]])
+  end
 end

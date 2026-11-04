@@ -250,6 +250,31 @@ class TargetTest < Minitest::Test
     assert_match(/\Aduplicate T\.f in /, error.message)
   end
 
+  # A def in the block of Struct.new, Data.define, or Class.new belongs to
+  # the constant the block's class is assigned to, not the class around it.
+  def test_a_def_in_a_struct_block_belongs_to_the_struct_constant
+    source = <<~RUBY
+      class Box
+        Item = Struct.new(:size) do
+          def to_h = size > 2 ? {big: size} : {}
+        end
+        Mark = Data.define(:label) { def to_h = label.empty? ? {} : {label: label} }
+        Plain = Class.new(StandardError) do
+          def to_h = {}
+        end
+        Outer::Kind = Struct.new(:name) do
+          def to_h = {name: name}
+        end
+
+        def to_h = {box: true}
+      end
+    RUBY
+    { "Box#to_h" => 13..13, "Box::Item#to_h" => 3..3, "Box::Mark#to_h" => 5..5, "Box::Plain#to_h" => 7..7,
+      "Box::Outer::Kind#to_h" => 10..10 }.each do |entry, lines|
+      parse_source(source, entry) { |target| assert_equal [lines], target.ranges, entry }
+    end
+  end
+
   def test_mutual_recursion_is_parsed_once
     parse_source("module T\n  def self.f(x) = x > 0 ? g(x - 1) : 0\n  def self.g(x) = x > 5 ? f(x) : 1\nend\n", "T.f") do |target|
       assert_equal [2..2, 3..3], target.ranges

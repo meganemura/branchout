@@ -522,6 +522,10 @@ module Branchout
         end
       when :singleton_class_node
         collect_defs(node.body, stack, true, acc) if node.body
+      when :constant_write_node, :constant_path_write_node
+        body = class_block_body(node.value)
+        name = node.type == :constant_write_node ? node.name.to_s : node.target.slice.delete_prefix("::")
+        body ? collect_defs(body, stack + [name], false, acc) : collect_defs(node.value, stack, in_singleton, acc, functions)
       when :def_node
         singleton = in_singleton || node.receiver&.type == :self_node
         acc << DefInfo.new(const_name: stack.join("::"), singleton: singleton, node: node)
@@ -538,6 +542,17 @@ module Branchout
         end
         node.compact_child_nodes.each { |child| collect_defs(child, stack, in_singleton, acc, functions) }
       end
+    end
+
+    # The body of the block in Struct.new(...) do ... end, Data.define, or
+    # Class.new, whose defs are methods of the class the call builds.
+    CLASS_BUILDERS = { "Struct" => :new, "Data" => :define, "Class" => :new }.freeze
+
+    def class_block_body(value)
+      return unless value.type == :call_node && value.block&.type == :block_node && value.receiver
+
+      receiver = value.receiver.slice.delete_prefix("::")
+      value.block.body if CLASS_BUILDERS[receiver] == value.name
     end
 
     def source_line(line)

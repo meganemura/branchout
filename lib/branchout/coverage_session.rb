@@ -10,13 +10,7 @@ module Branchout
     module_function
 
     def install
-      return unless Coverage.state == :idle
-
-      previous = $VERBOSE
-      $VERBOSE = nil
-      Coverage.setup(lines: true, branches: true)
-    ensure
-      $VERBOSE = previous if defined?(previous)
+      Coverage.setup(lines: true, branches: true) if Coverage.state == :idle
     end
   end
 end

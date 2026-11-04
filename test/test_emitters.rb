@@ -1131,6 +1131,11 @@ class NameEdgeTest < Minitest::Test
     assert_equal "test_1_returns_ok_empty_hash", support.test_names([pin([:ok, {}])]).first
   end
 
+  def test_siblings_that_differ_in_their_block_are_named_by_it
+    names = support.test_names([pin(1, block: "{ |n| n > 2 }"), pin(1, block: "{ |n| n > 9 }")])
+    assert_equal %w[test_n_n_2_returns_1 test_n_n_9_returns_1], names
+  end
+
   def test_a_number_of_fifteen_digits_is_named_whole
     assert_equal "100000000000000", support.number_word(10**14)
     assert_equal "100e13", support.number_word(10**15)

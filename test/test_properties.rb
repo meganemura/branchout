@@ -210,6 +210,21 @@ class PropertyTest < Minitest::Test
     end
   end
 
+  # A number's word fits a name and keeps the fact: its sign, its leading
+  # digits, and how many digits it has.
+  def test_a_number_word_keeps_its_sign_leading_digits_and_size
+    Hegel.test do |tc|
+      value = tc.draw(integers(min_value: -10**60, max_value: 10**60))
+      word = Branchout::Emitters::Support.number_word(value)
+      digits = value.abs.to_s
+      assert_operator word.length, :<=, [digits.length, 9].max + 3
+      assert_equal value.negative?, word.start_with?("neg")
+      body = word.delete_prefix("neg")
+      assert digits.start_with?(body[/\A\d+/])
+      assert_equal digits.length, body.include?("e") ? 3 + body.split("e").last.to_i : body.length
+    end
+  end
+
   def test_an_emitted_class_name_is_a_constant
     Hegel.test do |tc|
       method_name = tc.draw(from_regex("[a-z_][a-z0-9_]{0,12}[?!=]?", fullmatch: true))

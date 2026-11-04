@@ -68,6 +68,8 @@ NOT COUNTED
 `Const#method` では、入力ごとに `Const.new` で新しいレシーバーを作る。
 `initialize` が引数を取るときは、各入力の `new` に入力と同じ形で書く。
 `{"args": [5], "new": [10]}` は `Const.new(10).method(5)` を呼ぶ。
+キーワードだけを渡す `new` は `args` を省ける。
+`{"args": [5], "new": {"kwargs": {"main": 1}}}` は `Const.new(main: 1).method(5)` を呼ぶ。
 メソッドが読む状態が `new` のあとの呼び出しで決まるときは、その呼び出しを順に `setup` へ書く。
 `{"args": [], "setup": [{"method": "add", "args": ["apple", 3]}]}` は、新しいレシーバーで `add("apple", 3)` を呼んでからメソッドを呼ぶ。
 各ステップは `method`、`args`、`kwargs` を取る。

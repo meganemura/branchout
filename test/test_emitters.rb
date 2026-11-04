@@ -222,7 +222,7 @@ class EmitterTest < Minitest::Test
         "explore", "test/fixtures/vault.rb", "FixtureVault#check", "--inputs", inputs, "--strategy", "inputs", "--random", "0"
       )
       refute status.success?
-      assert_includes err, "FixtureVault#initialize requires 1 arguments; give them in \"new\" on each input. " \
+      assert_includes err, "FixtureVault#initialize requires 1 argument; give it in \"new\" on each input. " \
                            "FixtureVault.new is private, so explore and the emitted tests call it through send."
     end
   end

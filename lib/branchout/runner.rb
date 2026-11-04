@@ -147,7 +147,7 @@ module Branchout
 
         @const = const
         @method = const.instance_method(@target.method_name)
-        @required_new_arguments = const.instance_method(:initialize).parameters.count { |kind, _name| kind == :req }
+        @required_new = required_text(const.instance_method(:initialize).parameters)
         @private_calls = [[const.singleton_class, :new], [const, @target.method_name]]
                          .reject { |owner, name| owner.public_method_defined?(name) }.map(&:last)
       end
@@ -211,14 +211,27 @@ module Branchout
       "#{owner.name || "#{holder.name} (an anonymous module)"}#{singleton ? "." : "#"}#{name}"
     end
 
+    # What an input has to give in "new": the required positional
+    # arguments and the required keywords of initialize, with their count,
+    # or nil when it needs neither.
+    def required_text(parameters)
+      count = parameters.count { |kind, _name| kind == :req }
+      keywords = parameters.filter_map { |kind, name| "#{name}:" if kind == :keyreq }
+      parts = []
+      parts << "#{count} argument#{"s" unless count == 1}" if count.positive?
+      parts << "the keyword#{"s" if keywords.size > 1} #{keywords.join(", ")}" unless keywords.empty?
+      [parts.join(" and "), count + keywords.size] unless parts.empty?
+    end
+
     def check_receiver(input)
       if @target.singleton
         raise Error, "#{@target.entry} is not an instance method, so its inputs take no \"new\"" if input.receiver
         raise Error, "#{@target.entry} is not an instance method, so its inputs take no \"setup\"" unless input.setup.empty?
-      elsif input.receiver.nil? && @required_new_arguments.positive?
+      elsif input.receiver.nil? && @required_new
+        text, count = @required_new
         private_new = " #{@target.const_name}.new is private, so explore and the emitted tests call it through send." if @private_calls.include?(:new)
-        raise Error, "#{@target.const_name}#initialize requires #{@required_new_arguments} arguments; " \
-                     "give them in \"new\" on each input.#{private_new} " \
+        raise Error, "#{@target.const_name}#initialize requires #{text}; " \
+                     "give #{count == 1 ? "it" : "them"} in \"new\" on each input.#{private_new} " \
                      "mutate and random fill \"new\" only when #{@target.display_path} defines initialize"
       end
     end

@@ -203,7 +203,25 @@ class CLITest < Minitest::Test
         "--strategy", "inputs", "--random", "0", "--inputs", path
       )
       refute status.success?
-      assert_includes stderr, "FixtureAccount#initialize requires 1 arguments; give them in \"new\""
+      assert_includes stderr, "FixtureAccount#initialize requires 1 argument; give it in \"new\""
+    end
+  end
+
+  # A required keyword is a required argument too: without "new" every
+  # input would raise ArgumentError from initialize, not from the entry.
+  # A "new" with only keywords needs no "args".
+  def test_required_constructor_keywords_need_new
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "kw.rb")
+      File.write(target, "class Kw\n  def initialize(main:, side:) = @main = main\n  def pick(x) = x > 0 ? :pos : :neg\nend\n")
+      _stdout, stderr, status = run_cli("explore", target, "Kw#pick", "--strategy", "inputs", "--random", "0",
+                                        "--inputs", write_inputs(dir, { "inputs" => [[1]] }))
+      refute status.success?
+      assert_includes stderr, "Kw#initialize requires the keywords main:, side:; give them in \"new\""
+      path = write_inputs(dir, { "inputs" => [-1, 1].map { |x| { "args" => [x], "new" => { "kwargs" => { "main" => 1, "side" => 2 } } } } })
+      stdout, stderr, status = run_cli("explore", target, "Kw#pick", "--strategy", "inputs", "--random", "0", "--inputs", path)
+      assert status.success?, stderr
+      assert_includes stdout, "arms_covered: 2\narms_total: 2\nexceptions: 0\n"
     end
   end
 

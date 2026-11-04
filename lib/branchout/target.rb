@@ -532,14 +532,13 @@ module Branchout
     def pass_evidence(call, params, evidence)
       return unless params
 
-      names = (params.requireds + params.optionals).map { |param| param.respond_to?(:name) ? param.name : nil }
+      names = (params.requireds + params.optionals).map { |param| param.name if param.respond_to?(:name) }
       Array(call.arguments&.arguments).each_with_index do |arg, index|
-        break if index >= names.length || %i[splat_node keyword_hash_node block_argument_node].include?(arg.type)
+        # Past a splat, an argument's position no longer names its parameter.
+        break if arg.type == :splat_node
 
         name = lvar_name(arg)
-        next unless name && names[index] && name != names[index]
-
-        evidence[names[index]].each { |kind, count| evidence[name][kind] += count }
+        evidence[names[index]].each { |kind, count| evidence[name][kind] += count } if name
       end
     end
 

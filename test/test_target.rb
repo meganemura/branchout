@@ -174,6 +174,9 @@ class TargetTest < Minitest::Test
     "def self.f(doc) = doc.dig(:tests, 0)" => "hash",
     "def self.f(a) = a[0]" => "int",
     "def self.f(x) = g(x)\ndef self.g(v) = v == LIMIT\nLIMIT = 1.5" => "float",
+    "def self.f(x) = g(1, x)\ndef self.g(a, b = nil) = b.strip" => "string",
+    "def self.f(x) = g(*[], x)\ndef self.g(a, b = nil) = b.strip" => "int",
+    "def self.f(x) = g(x, x)\ndef self.g(a, b) = a.strip || b.first || b.last" => "array",
     "def self.f(x) = g(x)\ndef self.g(v) = v == OPEN\nOPEN = \"open\".freeze" => "string"
   }.freeze
 

@@ -277,6 +277,8 @@ BRANCHOUT=1 bundle exec rspec spec/models/loan_explore_spec.rb
 ActiveRecord が読み込まれていれば、各入力はセーブポイントの中で動き、最後にロールバックされる。
 そのため、ある入力が書いた行を別の入力は見ず、テスト自身の行もそのまま残る。
 `around:` に、入力をブロックとして受け取るラムダを渡すと、これを置き換えられる。
+凍結した String で `FrozenError` を起こした入力を凍結していない String でもう一度実行するのは、`around:` が書き込みを取り消すときだけである。
+そのため `around: Branchout::RUN_ONLY` では `FrozenError` を固定する。
 戦略は `strategies:` で変えない限り `inputs` だけで、`timeout:` は指定しない限り 1 秒である（`nil` で切る）。
 `target:`、`emit_tests:`、`format:`、`json:`、`pin_keys:`、`requires:`、`seed:`、`random:`、`mutate_cap:` は、CLI の同名のフラグと同じ意味である。
 minitest では、同じ呼び出しを `ActiveSupport::TestCase` のテストに書き、`BRANCHOUT=1 bin/rails test` で動かす。

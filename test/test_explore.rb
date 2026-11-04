@@ -63,6 +63,23 @@ class ExploreTest < Minitest::Test
     end
   end
 
+  # Without a rollback the run with frozen Strings keeps its row, so a
+  # second run would pin a value no fresh test sees. The FrozenError stays.
+  def test_an_input_that_keeps_its_rows_is_not_run_again_with_unfrozen_strings
+    Dir.mktmpdir do |dir|
+      env = {"EMIT_TO" => File.join(dir, "restock_test.rb"), "REPORT_TO" => File.join(dir, "report.txt"),
+             "BRANCHOUT_AROUND" => "run_only"}
+      stdout, stderr, status = run_suite("#{SUITE}/pantry_restock_explore_test.rb", env)
+      assert status.success?, stdout + stderr
+      report = File.read(env["REPORT_TO"])
+      assert_includes report, "class: FrozenError"
+      assert_includes report, "rows left: 1\n"
+      emitted = File.read(env["EMIT_TO"])
+      assert_includes emitted, "pantry.restock(\"jam\")"
+      refute_includes emitted, "+\"jam\""
+    end
+  end
+
   def test_the_emitted_test_requires_the_suite_helper_and_runs_in_the_suite
     Dir.mktmpdir do |dir|
       report, emitted = explore_pantry(dir)

@@ -54,10 +54,13 @@ module Branchout
     # An input runs with frozen Strings, as an emitted test's literals are.
     # Only when that raises FrozenError and unfrozen Strings do not does
     # it keep the unfrozen run, which the emitted test then writes as +"".
+    # RUN_ONLY keeps what the first run wrote, which a second run would see
+    # and no emitted test would, so there the FrozenError stays.
     def execute(input)
       check_receiver(input)
       frozen = attempt(input, false)
       return frozen unless frozen.error&.class_name == "FrozenError"
+      return frozen if @host&.around.equal?(RUN_ONLY)
 
       thawed = attempt(input, true)
       thawed.error&.class_name == "FrozenError" ? frozen : thawed

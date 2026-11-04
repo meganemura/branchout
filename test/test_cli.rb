@@ -307,6 +307,55 @@ class CLITest < Minitest::Test
     end
   end
 
+  # A receiver an input's Ruby builds, such as a saved record from a
+  # factory, takes the name the emitted test gives it, so its arguments can
+  # be read from it.
+  def test_a_receiver_built_by_ruby_is_named_for_its_arguments
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [
+        { "receiver" => { "ruby" => "FixtureAccount.new(10)" }, "args" => [{ "ruby" => "fixture_account.withdraw(4)" }] },
+        { "receiver" => { "ruby" => "FixtureAccount.new(1, limit: 2)" }, "args" => [5] }
+      ] })
+      minitest = File.join(dir, "account_test.rb")
+      rspec = File.join(dir, "account_spec.rb")
+      [minitest, rspec].each do |out|
+        stdout, stderr, status = run_cli(
+          "explore", "test/fixtures/account.rb", "FixtureAccount#withdraw",
+          "--strategy", "inputs", "--inputs", path, "--emit-tests", out
+        )
+        assert status.success?, stderr
+        assert_includes stdout, "arms_covered: 2\n"
+        assert_includes stdout, 'input: {"args":[{"ruby":"fixture_account.withdraw(4)"}],"kwargs":{},"receiver":{"ruby":"FixtureAccount.new(10)"}}'
+      end
+      assert_includes File.read(minitest), "    fixture_account = FixtureAccount.new(10)\n" \
+                                           "    assert_equal 4, fixture_account.withdraw(fixture_account.withdraw(4))\n"
+      assert_includes File.read(rspec), "let(:fixture_account) { FixtureAccount.new(10) }"
+      assert_includes File.read(rspec), "expect(fixture_account.withdraw(fixture_account.withdraw(4))).to eq(4)"
+      [minitest, rspec].each do |out|
+        command = out.end_with?("_spec.rb") ? ["-S", "rspec", out] : [out]
+        stdout, stderr, status = Open3.capture3(RbConfig.ruby, *command, chdir: ROOT)
+        assert status.success?, stdout + stderr
+      end
+    end
+  end
+
+  def test_a_receiver_is_ruby_and_replaces_new
+    {
+      { "args" => [1], "receiver" => "FixtureAccount.new(1)" } => "inputs[0] receiver must be Ruby such as {\"ruby\": \"create(:loan)\"}",
+      { "args" => [1], "new" => [1], "receiver" => { "ruby" => "FixtureAccount.new(1)" } } =>
+        "inputs[0] gives both new and receiver; receiver builds the object itself"
+    }.each do |entry, message|
+      Dir.mktmpdir do |dir|
+        path = write_inputs(dir, { "inputs" => [entry] })
+        _stdout, stderr, status = run_cli(
+          "explore", "test/fixtures/account.rb", "FixtureAccount#withdraw", "--strategy", "inputs", "--inputs", path
+        )
+        refute status.success?
+        assert_includes stderr, message
+      end
+    end
+  end
+
   def test_a_module_function_runs_as_a_class_method
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [[1], [0], [-1]] })

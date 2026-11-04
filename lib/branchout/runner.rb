@@ -227,7 +227,7 @@ module Branchout
 
     def check_receiver(input)
       if @target.singleton
-        raise Error, "#{@target.entry} is not an instance method, so its inputs take no \"new\"" if input.receiver
+        raise Error, "#{@target.entry} is not an instance method, so its inputs take no \"new\" or \"receiver\"" if input.receiver
         raise Error, "#{@target.entry} is not an instance method, so its inputs take no \"setup\"" unless input.setup.empty?
       elsif input.receiver.nil? && @required_new
         text, count = @required_new
@@ -256,13 +256,14 @@ module Branchout
     end
 
     def run_entry(input)
-      args, kwargs = fresh_arguments(input)
-      block = evaluate("proc #{input.block.source}") if input.block
+      scope = new_scope
       run = proc do
+        receiver = prepared_receiver(input, scope) unless @target.singleton
+        args, kwargs = fresh_arguments(input, scope)
+        block = scope.eval("proc #{input.block.source}", "(input)") if input.block
         if @target.singleton
           measure { @method.call(*args, **kwargs, &block) }
         else
-          receiver = prepared_receiver(input)
           measure { @method.bind_call(receiver, *args, **kwargs, &block) }
         end
       end
@@ -276,11 +277,19 @@ module Branchout
     # Each input gets a new receiver, as an emitted test does, so one input
     # cannot change the state the next input sees. new and the setup calls
     # run outside coverage: the arms they take are not the entry's.
-    def prepared_receiver(input)
-      new_args, new_kwargs = input.receiver ? fresh_arguments(input.receiver) : [[], {}]
-      receiver = @const.send(:new, *new_args, **new_kwargs)
+    # A receiver the input's Ruby builds gets the name the emitted test
+    # gives it, so the arguments can be read from it, as in
+    # "room.participants.first".
+    def prepared_receiver(input, scope)
+      if input.receiver.is_a?(Code)
+        receiver = scope.eval(input.receiver.source, "(input)")
+        scope.local_variable_set(Emitters::Support.built_receiver_name(@target), receiver)
+      else
+        new_args, new_kwargs = input.receiver ? fresh_arguments(input.receiver, scope) : [[], {}]
+        receiver = @const.send(:new, *new_args, **new_kwargs)
+      end
       input.setup.each do |call|
-        call_args, call_kwargs = fresh_arguments(call.arguments)
+        call_args, call_kwargs = fresh_arguments(call.arguments, scope)
         receiver.public_send(call.method_name, *call_args, **call_kwargs)
       end
       receiver
@@ -288,23 +297,26 @@ module Branchout
 
     # Each call gets its own mutable copy, as a literal in an emitted test
     # does, so the target cannot raise FrozenError or rewrite the input.
-    # Code is evaluated here, at the top level as an emitted test does, so
-    # each call gets its own object.
-    def fresh_arguments(input)
-      [built(Marshal.load(Marshal.dump(input.args))), built(Marshal.load(Marshal.dump(input.kwargs))).transform_keys(&:to_sym)]
+    # Code is evaluated here, as an emitted test does, so each call gets
+    # its own object.
+    def fresh_arguments(input, scope)
+      [built(Marshal.load(Marshal.dump(input.args)), scope),
+       built(Marshal.load(Marshal.dump(input.kwargs)), scope).transform_keys(&:to_sym)]
     end
 
-    def built(value)
+    def built(value, scope)
       case value
-      when Code then evaluate(value.source)
-      when Array then value.map! { |item| built(item) }
-      when Hash then value.transform_values! { |item| built(item) }
+      when Code then scope.eval(value.source, "(input)")
+      when Array then value.map! { |item| built(item, scope) }
+      when Hash then value.transform_values! { |item| built(item, scope) }
       else value
       end
     end
 
-    def evaluate(source)
-      TOPLEVEL_BINDING.eval(source, "(input)")
+    # Where one input's Ruby runs: the top level, as in an emitted test.
+    # A binding of its own keeps one input's locals from the next.
+    def new_scope
+      TOPLEVEL_BINDING.eval("binding", __FILE__, __LINE__)
     end
 
     def measure

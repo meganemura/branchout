@@ -289,10 +289,7 @@ module Branchout
             input = pin.input
             steps = []
             unless @target.singleton
-              arguments = input.receiver ? Support.argument_list(input.receiver) : ""
-              plain = input.receiver ? Support.argument_list(input.receiver, mutable: false) : ""
-              code = Support.call_text(@const, :new, arguments, @private_calls)
-              steps << Step.new(:let, plain.empty? ? "with new" : "with new(#{plain})", code)
+              steps << Step.new(:let, receiver_label(input), Support.receiver_text(input, @const, @private_calls))
             end
             # A setup call that may be the one that raised stays inside the
             # expect block, so the example still pins the error.
@@ -365,6 +362,14 @@ module Branchout
           @target.positional.map { |param| param.name.to_s }
         end
 
+        # "with new(10)", or "with create(:loan)" for a receiver the input builds.
+        def receiver_label(input)
+          return "with #{input.receiver.source}" if input.receiver.is_a?(Code)
+
+          plain = input.receiver ? Support.argument_list(input.receiver, mutable: false) : ""
+          plain.empty? ? "with new" : "with new(#{plain})"
+        end
+
         def receiver_expression
           @target.singleton ? @const : @receiver
         end
@@ -375,8 +380,7 @@ module Branchout
         end
 
         def receiver_name
-          name = Support.receiver_name(@target)
-          name == "subject" || TAKEN_NAMES.include?(name) ? "object" : name
+          Support.built_receiver_name(@target)
         end
 
         # The method's name, when it reads as a plain local name; false for

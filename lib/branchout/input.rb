@@ -38,8 +38,9 @@ module Branchout
     end
 
     # +receiver+ is the Input whose arguments go to new for a Const#method
-    # entry, or nil to call new with none. +setup+ lists the SetupCalls
-    # that build the receiver's state. +pin_keys+, when not nil, replaces
+    # entry, the Code that builds the receiver itself (a factory call that
+    # returns a saved record), or nil to call new with none. +setup+ lists
+    # the SetupCalls that build the receiver's state. +pin_keys+, when not nil, replaces
     # --pin-keys for this input's test. It is not part of the call, so it is
     # not in to_h. +block+ is the Code of the block the entry gets, or nil.
     attr_reader :args, :kwargs, :receiver, :setup, :pin_keys, :block
@@ -67,7 +68,11 @@ module Branchout
 
     def to_h
       hash = {"args" => args, "kwargs" => kwargs}
-      hash["new"] = receiver.to_h if receiver
+      if receiver.is_a?(Code)
+        hash["receiver"] = receiver
+      elsif receiver
+        hash["new"] = receiver.to_h
+      end
       hash["setup"] = setup.map(&:to_h) unless setup.empty?
       hash["block"] = block.source if block
       hash
@@ -88,7 +93,7 @@ module Branchout
     def weight
       args.sum { |value| self.class.weight_of(value) } +
         kwargs.values.sum { |value| self.class.weight_of(value) } +
-        (receiver ? receiver.weight : 0) +
+        self.class.weight_of(receiver) +
         setup.sum { |call| 1 + call.arguments.weight } +
         (block ? block.source.length : 0)
     end
@@ -99,6 +104,7 @@ module Branchout
       when Float then value.abs
       when String then value.length
       when Code then value.source.length
+      when Input then value.weight
       when Array then value.length + value.sum { |item| weight_of(item) }
       when Hash then value.length + value.values.sum { |item| weight_of(item) }
       else 0

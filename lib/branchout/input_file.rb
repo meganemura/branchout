@@ -34,7 +34,7 @@ module Branchout
 
     METHOD_NAME = /\A(?:[A-Za-z_][A-Za-z0-9_]*[?!=]?|<<|>>|\[\]=?|[-+*\/%&|^<>]|\*\*|<=>|==|!=|<=|>=|=~)\z/
 
-    def parse_entry(entry, label, keys = %w[args kwargs new setup note pin_keys block])
+    def parse_entry(entry, label, keys = %w[args kwargs new receiver setup note pin_keys block])
       case entry
       when Array
         Input.new(args: entry)
@@ -45,6 +45,14 @@ module Branchout
 
         receiver = parse_entry(entry["new"], "#{label} new", %w[args kwargs new]) if entry.key?("new")
         raise Error, "#{label} new cannot have its own new" if receiver&.receiver
+        if entry.key?("receiver")
+          raise Error, "#{label} gives both new and receiver; receiver builds the object itself" if receiver
+
+          built = entry["receiver"]
+          raise Error, "#{label} receiver must be Ruby such as {\"ruby\": \"create(:loan)\"}" unless built.is_a?(Hash) && code?(built)
+
+          receiver = Code.parse(built["ruby"])
+        end
 
         setup = parse_setup(entry.fetch("setup", []), "#{label} setup")
         pin_keys = entry["pin_keys"]
@@ -61,6 +69,10 @@ module Branchout
       raise if e.message.start_with?(label)
 
       raise Error, "#{label} #{e.message}"
+    end
+
+    def code?(value)
+      value.keys == ["ruby"] && value["ruby"].is_a?(String)
     end
 
     def parse_setup(steps, label)

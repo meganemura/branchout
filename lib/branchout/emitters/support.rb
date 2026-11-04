@@ -125,17 +125,25 @@ module Branchout
         receiver = if target.singleton
           const
         else
-          call_text(const, :new, input.receiver ? argument_list(input.receiver) : "", private_calls)
+          receiver_text(input, const, private_calls)
         end
         call = ->(on) { with_block(call_text(on, target.method_name, argument_list(input), private_calls), input.block) }
-        return [[], call.(receiver)] if input.setup.empty?
+        return [[], call.(receiver)] if input.setup.empty? && !input.receiver.is_a?(Code)
 
-        name = receiver_name(target)
+        name = input.receiver.is_a?(Code) ? built_receiver_name(target) : receiver_name(target)
         statements = ["#{name} = #{receiver}"]
         input.setup.each do |setup_call|
           statements << call_text(name, setup_call.method_name, argument_list(setup_call.arguments), [])
         end
         [statements, call.(name)]
+      end
+
+      # How the receiver of an instance method's input is built: the Code
+      # the input gives, or new with the input's arguments for it.
+      def receiver_text(input, const, private_calls)
+        return input.receiver.source if input.receiver.is_a?(Code)
+
+        call_text(const, :new, input.receiver ? argument_list(input.receiver) : "", private_calls)
       end
 
       def call_text(on, method_name, arguments, private_calls)
@@ -151,6 +159,14 @@ module Branchout
 
       def with_block(call, block)
         block ? "#{call} #{block.source}" : call
+      end
+
+      # The name a receiver built by the input's Ruby takes in every format,
+      # which RSpec's own method names cannot take, so that the input's
+      # arguments can name it while explore runs and in the emitted test.
+      def built_receiver_name(target)
+        name = receiver_name(target)
+        name == "subject" || Emitters::RSpec::TAKEN_NAMES.include?(name) ? "object" : name
       end
 
       # The class name in snake case, as a reader would name the object.
@@ -348,7 +364,11 @@ module Branchout
         out = []
         input.args.each_with_index { |arg, index| collect_leaves(arg, [:args, index], out) }
         input.kwargs.each { |key, value| collect_leaves(value, [:kwargs, key], out) }
-        input_leaves(input.receiver).each { |path, value| out << [[:new, *path], value] } if input.receiver
+        if input.receiver.is_a?(Code)
+          out << [[:receiver], input.receiver]
+        elsif input.receiver
+          input_leaves(input.receiver).each { |path, value| out << [[:new, *path], value] }
+        end
         input.setup.each_with_index do |call, index|
           out << [[:setup, index, :method], call.method_name]
           input_leaves(call.arguments).each { |path, value| out << [[:setup, index, *path], value] }
@@ -539,7 +559,11 @@ module Branchout
       def input_words(input)
         words = input.args.flat_map { |arg| argument_words(arg) }
         words += input.kwargs.flat_map { |key, value| [key.to_s, *argument_words(value)] }
-        words += ["new", *input_words(input.receiver)] if input.receiver
+        if input.receiver.is_a?(Code)
+          words += ["receiver", *value_words(input.receiver)]
+        elsif input.receiver
+          words += ["new", *input_words(input.receiver)]
+        end
         input.setup.each { |call| words += [call.method_name, *input_words(call.arguments)] }
         words += %w[with block] if input.block
         words

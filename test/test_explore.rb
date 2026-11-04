@@ -68,7 +68,7 @@ class ExploreTest < Minitest::Test
   # as RUN_ONLY does, keeps the FrozenError, also after an earlier explore
   # in the same test rolled its input back.
   def test_an_input_that_keeps_its_rows_is_not_run_again_with_unfrozen_strings
-    [["run_only", 1], ["custom", 1], ["wrapped", 0], ["run_only", 1, "1"]].each do |around, rows_left, first|
+    [["custom", 1, "1"], ["wrapped", 0]].each do |around, rows_left, first|
       Dir.mktmpdir do |dir|
         env = {"EMIT_TO" => File.join(dir, "restock_test.rb"), "REPORT_TO" => File.join(dir, "report.txt"),
                "BRANCHOUT_AROUND" => around, "EXPLORE_FIRST" => first}

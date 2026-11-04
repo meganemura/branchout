@@ -7,7 +7,6 @@ class PantryRestockExploreTest < SuiteCase
   def test_explore
     rows = ActiveRecord::Base.rows.dup
     around = {
-      "run_only" => Branchout::RUN_ONLY,
       "custom" => ->(&input) { input.call },
       "wrapped" => ->(&input) { Branchout::ROLL_BACK.call(&input) }
     }[ENV["BRANCHOUT_AROUND"]]

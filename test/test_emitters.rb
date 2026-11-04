@@ -1194,6 +1194,18 @@ class NameFactsTest < Minitest::Test
     inputs = [[{ "groups" => [[1], [2]] }], [{ "groups" => [{ "id" => 1 }, { "id" => 2 }] }]]
     names = support.test_names(inputs.map { |args| pin(:ok, args) })
     assert_equal %w[test_groups_1__groups_2__id_none_returns_ok test_id_1__id_2_returns_ok], names
+
+    inputs = [[{ "groups" => [[1]] }], [{ "groups" => { "id" => 1 } }]]
+    names = support.test_names(inputs.map { |args| pin(:ok, args) })
+    assert_equal %w[test_groups_1__id_none_returns_ok test_id_1_returns_ok], names
+  end
+
+  # An item missing from an Array of positional arguments is "none", even
+  # when another argument holds a Hash at the same depth.
+  def test_a_missing_item_of_an_argument_says_none_beside_a_hash_argument
+    inputs = [[[1, [2]]], [[3], { "c" => { "d" => 3 } }]].map { |args| Branchout::Input.new(args: args) }
+    words = support.differing_words(inputs).map { |list| list.map { |word| word.is_a?(support::Key) ? "#{word.text}:" : word } }
+    assert_equal [%w[1 2 d: none], %w[3 none d: 3]], words
   end
 end
 

@@ -513,8 +513,7 @@ module Branchout
         until pairs.empty? || chosen.length == 3
           told = paths.to_h { |path| [path, pairs.count { |a, b| leaves_differ?(a, b, path) }] }
           spread = paths.to_h { |path| [path, distinct.map { |map| map.fetch(path, MISSING) }.uniq.length] }
-          best = paths.each_with_index.max_by { |path, index| [told[path].positive? && !echoed[path] ? 1 : 0, told[path].positive? && shared[path] ? 1 : 0, told[path], spread[path], -index] }&.first
-          break if best.nil? || told[best].zero?
+          best = paths.each_with_index.max_by { |path, index| [told[path].positive? && !echoed[path] ? 1 : 0, told[path].positive? && shared[path] ? 1 : 0, told[path], spread[path], -index] }.first
           break if chosen.any? && distinct.any? { |map| outcome_length(entries.(map, chosen + [best])) > OUTCOME_LIMIT }
 
           chosen << best
@@ -702,7 +701,7 @@ module Branchout
           taken += 1
         end
         last, cut = units[taken - 1], units[taken]
-        return text.delete_suffix("__#{last[1]}") if taken > 1 && last[0] == "__" && cut && cut[0] == "_"
+        return text.delete_suffix("__#{last[1]}") if last[0] == "__" && cut && cut[0] == "_"
 
         text
       end

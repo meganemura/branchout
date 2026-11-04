@@ -124,6 +124,10 @@ class ExploreTest < Minitest::Test
       error = assert_raises(Branchout::Error) { Branchout.explore(entry, within: self, inputs: inputs) }
       assert_equal message, error.message
     end
+    error = assert_raises(Branchout::Error) do
+      Branchout.explore("ExploreTest#run_suite", within: self, inputs: [], emit_tests: "x_test.rb", format: :tap)
+    end
+    assert_equal "format must be minitest or rspec", error.message
   end
 
   def test_a_receiver_that_is_not_ruby_source_is_refused

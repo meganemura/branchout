@@ -57,6 +57,7 @@ module Branchout
     target ||= defining_file(entry)
     user_inputs, type_overrides = inputs.is_a?(String) ? InputFile.load(inputs) : [parse_inputs(inputs), nil]
     requires ||= [loaded_helper].compact
+    format = Emitters.resolve(format&.to_s, emit_tests) if emit_tests
     if emit_tests && requires.empty?
       raise Error, "the suite loaded no #{HELPERS.join(", ")} from #{Dir.pwd}, so an emitted test would not load the app; " \
                    "pass the helper file as requires:"
@@ -68,7 +69,7 @@ module Branchout
       strategies: strategies, random: random, mutate_cap: mutate_cap, timeout: timeout, requires: requires, host: host
     )
     if emit_tests
-      Emitters.write(Emitters.resolve(format, emit_tests), result, Target.parse(target, entry, type_overrides: type_overrides),
+      Emitters.write(format, result, Target.parse(target, entry, type_overrides: type_overrides),
                      emit_tests, require_by_name: true, pin_keys: pin_keys)
     end
     json ? Report.json(result) : Report.text(result)

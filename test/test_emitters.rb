@@ -1169,6 +1169,17 @@ class NameEdgeTest < Minitest::Test
     assert_equal ["x", key], support.without_repeated_none(["x", key])
   end
 
+  # An item of an Array has no key to say "none" after, so an input that
+  # holds a Hash where a sibling's Array has items is named by the Hash,
+  # and the missing items of a shorter Array say "none" once.
+  def test_a_missing_array_item_is_not_a_run_of_none
+    inputs = [[["ok", [1, 2]]], [["ok", { "id" => 1, "name" => "x" }]], [[{ "a" => 1 }, { "b" => 2 }]]]
+    names = support.test_names(inputs.map { |args| pin(:ok, args: args) })
+    assert_equal %w[test_ok_1_2__id_none__name_none__b_none_returns_ok test_ok__id_1__name_x__b_none_returns_ok
+                    test_id_none__name_none__a_1__b_2_returns_ok], names
+    assert_equal %w[1 none], support.without_repeated_none(%w[1 none none none])
+  end
+
   def test_a_block_and_an_empty_collection_beside_a_scalar_are_named
     assert_equal "test_1_with_block_returns_1", support.test_names([pin(1, block: "{ |a| a }")]).first
     assert_equal "test_1_returns_ok_empty_hash", support.test_names([pin([:ok, {}])]).first

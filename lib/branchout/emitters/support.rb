@@ -287,6 +287,11 @@ module Branchout
             # So does one that holds another shape under the leaf's last key.
             held = path.rindex { |step| step.is_a?(String) }
             next [] if !map.key?(path) && held && map.keys.any? { |other| other.first(held + 1) == path.first(held + 1) }
+            # An item of an Array has no key to say "none" after, so a Hash
+            # that the input holds in that Array's place names it.
+            parent = path[0...-1]
+            next [] if !map.key?(path) && path.last.is_a?(Integer) &&
+                       map.keys.any? { |other| other.first(parent.length) == parent && other[parent.length].is_a?(String) }
 
             key = telling_key(path, paths)
             rest = map[path].is_a?(String) ? tokens(map[path]).drop(shared[path]) : []
@@ -301,7 +306,8 @@ module Branchout
       end
 
       # A key that several leaves of an absent collection end in says
-      # "none" once.
+      # "none" once, and so do the missing items at the end of a shorter
+      # Array, which have no key.
       def without_repeated_none(words)
         out = []
         index = 0
@@ -310,6 +316,8 @@ module Branchout
             pair = words[index, 2]
             out.concat(pair) unless out.each_cons(2).include?(pair)
             index += 2
+          elsif words[index] == "none" && out.last == "none" && !out[-2].is_a?(Key)
+            index += 1
           else
             out << words[index]
             index += 1

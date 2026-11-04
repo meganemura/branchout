@@ -166,7 +166,7 @@ module Branchout
       # arguments can name it while explore runs and in the emitted test.
       def built_receiver_name(target)
         name = receiver_name(target)
-        name == "subject" || Emitters::RSpec::TAKEN_NAMES.include?(name) ? "object" : name
+        Emitters::RSpec::TAKEN_NAMES.include?(name) ? "object" : name
       end
 
       # The class name in snake case, as a reader would name the object.

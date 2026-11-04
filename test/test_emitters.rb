@@ -258,6 +258,10 @@ class EmitterTest < Minitest::Test
       target.const_name = const
       assert_equal name, support.receiver_name(target), const
     end
+    { "Class" => "object", "Example" => "object", "Loan" => "loan" }.each do |const, name|
+      target.const_name = const
+      assert_equal name, support.built_receiver_name(target), const
+    end
     target.const_name = "Foo::Bar"
     target.singleton = true
     assert_equal "FooBarBazPredicateCharacterizationTest", support.class_name_for(target)

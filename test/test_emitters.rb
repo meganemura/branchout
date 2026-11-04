@@ -550,6 +550,18 @@ class EmitterTest < Minitest::Test
                   'require_relative "../app/models/cart.rb"'], lines
   end
 
+  # A directory outside the working directory is named from its project's
+  # root, and the root itself is ".".
+  def test_a_load_path_outside_the_working_directory_is_named_from_its_project
+    support = Branchout::Emitters::Support
+    Dir.mktmpdir do |dir|
+      repo = File.join(dir, "repo")
+      FileUtils.mkdir_p(File.join(repo, "lib"))
+      File.write(File.join(repo, "Gemfile"), "")
+      assert_equal ["lib (in repo)", ". (in repo)", "/"], [File.join(repo, "lib"), repo, "/"].map { |path| support.shown_directory(path) }
+    end
+  end
+
   # A private constant cannot be named bare where a test loads, so both
   # formats reach it as explore resolved it.
   def test_a_private_constant_is_reached_through_const_get

@@ -708,6 +708,33 @@ class CLITest < Minitest::Test
     end
   end
 
+  # A class method's callee is named with a dot. Ruby's own prelude
+  # methods, methods the target file defines without def, and a name Ruby
+  # cannot find are not callees in other files.
+  def test_not_counted_names_class_methods_and_skips_what_is_not_another_file
+    Dir.mktmpdir do |dir|
+      parent = File.join(dir, "parent.rb")
+      child = File.join(dir, "child.rb")
+      File.write(parent, "class Parent\n  def self.checked(x) = x.positive? ? x : 0\nend\n")
+      File.write(child, <<~RUBY)
+        class Child < Parent
+          define_singleton_method(:local) { |x| x }
+
+          def self.build(x)
+            missing_thing if x == 99
+            loop { break }
+            local(checked(x))
+          end
+        end
+      RUBY
+      path = write_inputs(dir, { "inputs" => [[1]] })
+      stdout, stderr, status = run_cli("explore", child, "Child.build", "--require", parent, "--strategy", "inputs", "--random", "0",
+                                       "--inputs", path, "--json")
+      assert status.success?, stderr
+      assert_equal [{ "callee" => "Parent.checked", "loc" => "#{parent}:2", "arms" => 2 }], JSON.parse(stdout)["not_counted"]
+    end
+  end
+
   # Two inputs that are the same value run once. The person who wrote both
   # learns it, because inputs_ran alone does not say why it is lower.
   def test_a_repeated_input_runs_once_and_says_so

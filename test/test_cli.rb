@@ -770,6 +770,25 @@ class CLITest < Minitest::Test
     end
   end
 
+  # jitcatch copies a test under .jitcatch/ to the root of each checkout,
+  # and its rerun line loads the test where it was written. Only a require
+  # through the load path names the same checkout from both places.
+  def test_a_test_under_jitcatch_requires_the_target_by_name
+    Dir.mktmpdir do |dir|
+      FileUtils.mkdir_p(File.join(dir, "lib"))
+      target = File.join(dir, "lib/scale.rb")
+      FileUtils.cp(File.join(ROOT, "test/fixtures/scale.rb"), target)
+      path = write_inputs(dir, { "inputs" => [[1]] })
+      { ".jitcatch/scale_test.rb" => "require \"scale\"\n", "candidates/scale_test.rb" => "require_relative \"../lib/scale.rb\"\n" }.each do |name, line|
+        out = File.join(dir, name)
+        _out, err, status = run_cli("explore", target, "FixtureScale.scale", "--strategy", "inputs", "--random", "0",
+                                    "--inputs", path, "--emit-tests", out)
+        assert status.success?, err
+        assert_includes File.read(out), line
+      end
+    end
+  end
+
   def test_require_by_name_needs_emitted_tests
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [[1]] })

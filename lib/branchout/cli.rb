@@ -36,7 +36,8 @@ module Branchout
                             through the load path, named from the first -I directory or
                             --require file's directory that holds each (with neither, the
                             nearest lib directory above the target); a file none holds is
-                            required by path, and the test and stderr say so
+                            required by path, and the test and stderr say so; on by
+                            default for a test under a .jitcatch directory
         --help
         --version
     TEXT
@@ -133,6 +134,10 @@ module Branchout
       end
       if opts[:emit_tests]
         opts[:format] = Emitters.resolve(opts[:format], opts[:emit_tests])
+        # jitcatch copies a test under .jitcatch/ to the root of each
+        # checkout, and its rerun line loads the test where it was written.
+        # A require_relative names a different file from each place.
+        opts[:require_by_name] ||= File.expand_path(opts[:emit_tests]).split("/").include?(".jitcatch")
       end
 
       user_inputs = []

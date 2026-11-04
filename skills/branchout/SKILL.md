@@ -180,15 +180,16 @@ branchout baselines TARGET.rb Const.method \
 
 ## Use with the other tools
 
-Emitted minitest files work as jitcatch candidate tests. jitcatch copies each candidate into `.jitcatch/` of a base and a head checkout and runs it with `-Ilib`. Emit from a checkout of the base revision with `--require-by-name`, so the test loads the library of the checkout it runs in. Without it, a test emitted outside the checkout requires one fixed path, and base and head both load that same file, so every row is `no_signal`.
+Emitted minitest files work as jitcatch candidate tests. jitcatch copies each candidate into `.jitcatch/` of a base and a head checkout and runs it with `-Ilib`. Emit from a checkout of the base revision with `--require-by-name`, so the test loads the library of the checkout it runs in. A test emitted under a `.jitcatch` directory gets this without the flag. Without it, a test emitted outside the checkout requires one fixed path, and base and head both load that same file, so every row is `no_signal`. A `require_relative` in `.jitcatch/` of the base checkout gives the right rows, but the rerun line loads the test from the base checkout, where that path names the base's library: the line passes on head, and jitcatch prints a `warning:` that says so.
 
 ```sh
 git -C REPO archive BASE | tar -x -C base-checkout
 cd base-checkout
 branchout explore lib/foo/parser.rb Foo::Parser.parse --require lib/foo.rb \
   --inputs inputs.json --strategy inputs --random 0 \
-  --emit-tests TESTS_DIR/foo_parse_test.rb --require-by-name
-jitcatch run --repo REPO BASE HEAD TESTS_DIR
+  --emit-tests .jitcatch/foo_parse_test.rb
+cd ..
+jitcatch run --repo REPO BASE HEAD base-checkout/.jitcatch
 ```
 
 For an RSpec project, emit `--format rspec` to a `*_spec.rb` file in TESTS_DIR. jitcatch runs each example as one row, named by its full description, and the row's `rerun:` line runs that one example from the repository root. On branchout itself, with jitcatch fe33733 and a spec that branchout 256128a emitted on the base checkout:

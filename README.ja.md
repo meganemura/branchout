@@ -95,7 +95,7 @@ NOT COUNTED
 | `--emit-tests PATH` | | 特徴づけテストを書く。`explore` のみ |
 | `--format NAME` | `minitest` | `minitest` か `rspec`。`--emit-tests` が要る。省くと、パスが `_spec.rb` で終わるときだけ RSpec |
 | `--pin-keys LIST` | | キーのカンマ区切り。戻り値の Hash はこのキーだけを固定する（minitest は `slice`、RSpec は `include`）。後からキーが増えてもテストは落ちない。`--emit-tests` が要る |
-| `--require-by-name` | オフ | 出力するテストは `--require` のファイルと対象を、ロードパス経由で `require` する。名前は、そのファイルを含む最初の `-I` ディレクトリか `--require` ファイルのディレクトリから作る（`require "shop/cart"`）。どちらもないときは、対象より上で最も近い `lib` ディレクトリか、対象自身のディレクトリから作る。どのディレクトリにも入らないファイルはパスで読み込み、その上のコメントと標準エラーの 1 行がそう伝える。require の上の `# Load path: -I lib` というコメントが、テストに要るロードパスのディレクトリを示す。RSpec のファイルは、rspec が自分で入れる `spec` と `lib` を挙げない。`--emit-tests` が要る |
+| `--require-by-name` | オフ | 出力するテストは `--require` のファイルと対象を、ロードパス経由で `require` する。名前は、そのファイルを含む最初の `-I` ディレクトリか `--require` ファイルのディレクトリから作る（`require "shop/cart"`）。どちらもないときは、対象より上で最も近い `lib` ディレクトリか、対象自身のディレクトリから作る。どのディレクトリにも入らないファイルはパスで読み込み、その上のコメントと標準エラーの 1 行がそう伝える。require の上の `# Load path: -I lib` というコメントが、テストに要るロードパスのディレクトリを示す。RSpec のファイルは、rspec が自分で入れる `spec` と `lib` を挙げない。`--emit-tests` が要る。`.jitcatch` ディレクトリの下に出すテストは、このフラグがなくてもこうなる。jitcatch はそのテストを各チェックアウトにコピーし、rerun の行は書いた場所から読み込むので、`require_relative` では場所ごとに別のファイルを読み込むからである |
 | `--entry ENTRY` | 位置引数 | `Const.method` か `Const#method` |
 
 | 戦略 | 実行するもの |

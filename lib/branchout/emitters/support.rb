@@ -53,8 +53,9 @@ module Branchout
       # directory above the target names it, or the target's own directory,
       # as for a library's entry file. A file under none of them keeps its
       # path, behind a comment that says why. A comment above the requires
-      # names, as -I, each directory a require by name needs.
-      def require_lines(requires, target_path, destination, by_name: false, load_paths: [])
+      # names, as -I, each directory a require by name needs and the
+      # runner does not put on the load path itself (+runner_load_paths+).
+      def require_lines(requires, target_path, destination, by_name: false, load_paths: [], runner_load_paths: [])
         roots = require_roots(requires, load_paths)
         roots = [load_root(target_path)] if roots.empty? && target_path
         used = []
@@ -70,6 +71,7 @@ module Branchout
           note = "# Required by path: no -I or --require directory holds #{relative}." if by_name
           [*note, "require_relative #{relative.inspect}"]
         end
+        used -= runner_load_paths.map { |dir| "#{File.expand_path(dir)}/" }
         used.empty? ? lines : ["# Load path: #{used.map { |dir| "-I #{shown_directory(dir.chomp("/"))}" }.join(" ")}", *lines]
       end
 

@@ -17,6 +17,8 @@ module Branchout
       end
       # The longest description or context text.
       LIMIT = 80
+      # rspec puts these on the load path of a run from the project root.
+      RUNNER_LOAD_PATHS = %w[spec lib].freeze
       CALLS = %i[before inline].freeze
       # The steps whose code runs in a context, so an input that still has
       # one gets a context of its own.
@@ -36,7 +38,8 @@ module Branchout
         lines = Support.header(target, "specs", destination)
         lines << ""
         lines.concat(Support.require_lines(result.requires, (target.path unless result.target_required), destination,
-                                          by_name: require_by_name, load_paths: result.load_paths))
+                                          by_name: require_by_name, load_paths: result.load_paths,
+                                          runner_load_paths: RUNNER_LOAD_PATHS))
         lines << ""
         const = result.const_expression || target.const_name
         # A private constant cannot be named bare at load time, so the

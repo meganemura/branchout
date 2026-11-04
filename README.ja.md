@@ -95,7 +95,7 @@ NOT COUNTED
 | `--emit-tests PATH` | | 特徴づけテストを書く。`explore` のみ |
 | `--format NAME` | `minitest` | `minitest` か `rspec`。`--emit-tests` が要る。省くと、パスが `_spec.rb` で終わるときだけ RSpec |
 | `--pin-keys LIST` | | キーのカンマ区切り。戻り値の Hash はこのキーだけを固定する（minitest は `slice`、RSpec は `include`）。後からキーが増えてもテストは落ちない。`--emit-tests` が要る |
-| `--require-by-name` | オフ | 出力するテストは `--require` のファイルと対象を、ロードパス経由で `require` する。名前は、そのファイルを含む最初の `-I` ディレクトリか `--require` ファイルのディレクトリから作る（`require "shop/cart"`）。どちらもないときは、対象より上で最も近い `lib` ディレクトリか、対象自身のディレクトリから作る。どのディレクトリにも入らないファイルはパスで読み込み、その上のコメントと標準エラーの 1 行がそう伝える。require の上の `# Load path: -I lib` というコメントが、テストに要るロードパスのディレクトリを示す。`--emit-tests` が要る |
+| `--require-by-name` | オフ | 出力するテストは `--require` のファイルと対象を、ロードパス経由で `require` する。名前は、そのファイルを含む最初の `-I` ディレクトリか `--require` ファイルのディレクトリから作る（`require "shop/cart"`）。どちらもないときは、対象より上で最も近い `lib` ディレクトリか、対象自身のディレクトリから作る。どのディレクトリにも入らないファイルはパスで読み込み、その上のコメントと標準エラーの 1 行がそう伝える。require の上の `# Load path: -I lib` というコメントが、テストに要るロードパスのディレクトリを示す。RSpec のファイルは、rspec が自分で入れる `spec` と `lib` を挙げない。`--emit-tests` が要る |
 | `--entry ENTRY` | 位置引数 | `Const.method` か `Const#method` |
 
 | 戦略 | 実行するもの |
@@ -280,6 +280,7 @@ minitest では、同じ呼び出しを `ActiveSupport::TestCase` のテスト�
 指定しないと `emit_tests:` を断る。
 モデルはアプリが読み込むので require しない。
 minitest のテストは、探索したテストの基底クラス（`ActiveSupport::TestCase` など）を継承する。
+rspec はプロジェクトの `spec` と `lib` を自分でロードパスに入れるので、RSpec のファイルの `# Load path:` コメントはこの 2 つを挙げない。
 他のテストと同じく、`BRANCHOUT` なしで実行する。
 
 Coverage が数えるのは、`branchout/coverage` の後に読み込まれたファイルだけである。

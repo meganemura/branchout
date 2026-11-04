@@ -721,7 +721,11 @@ module Branchout
       # Says why the Strings of a thawed input carry a +, which a reader of
       # a frozen_string_literal file would otherwise take for noise.
       def thawed_comment(pin, indent)
-        pin.thawed ? ["#{indent}# With frozen Strings this input raised FrozenError, so its Strings are unfrozen (+\"...\")."] : []
+        return [] unless pin.thawed
+
+        ["#{indent}# With frozen Strings this input raised FrozenError, so its Strings are unfrozen (+\"...\").",
+         "#{indent}# This value is from a second run, which saw what the first run changed before it raised and no " \
+         "savepoint undid, such as a global, a class variable, or a file."]
       end
 
       def write_file(destination, content)

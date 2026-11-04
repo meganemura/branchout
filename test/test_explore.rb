@@ -54,8 +54,7 @@ class ExploreTest < Minitest::Test
       assert_includes report, "EXCEPTIONS\n(none)"
       assert_includes report, "rows left: 0\n"
       emitted = File.read(env["EMIT_TO"])
-      assert_includes emitted, "FrozenError, so its Strings are unfrozen (+\"...\").\n" \
-                               "    pantry = Pantry.new(owner)\n    assert_equal :first, pantry.restock(+\"jam\")\n"
+      assert_includes emitted, "a class variable, or a file.\n    pantry = Pantry.new(owner)\n    assert_equal :first, pantry.restock(+\"jam\")\n"
 
       stdout, stderr, status = run_suite(env["EMIT_TO"])
       assert status.success?, stdout + stderr
@@ -64,19 +63,28 @@ class ExploreTest < Minitest::Test
   end
 
   # Without a rollback the run with frozen Strings keeps its row, so a
-  # second run would pin a value no fresh test sees. The FrozenError stays.
+  # second run would pin a value no fresh test sees. Only an input that ran
+  # in ROLL_BACK's savepoint runs again; a custom around that keeps its rows,
+  # as RUN_ONLY does, keeps the FrozenError.
   def test_an_input_that_keeps_its_rows_is_not_run_again_with_unfrozen_strings
-    Dir.mktmpdir do |dir|
-      env = {"EMIT_TO" => File.join(dir, "restock_test.rb"), "REPORT_TO" => File.join(dir, "report.txt"),
-             "BRANCHOUT_AROUND" => "run_only"}
-      stdout, stderr, status = run_suite("#{SUITE}/pantry_restock_explore_test.rb", env)
-      assert status.success?, stdout + stderr
-      report = File.read(env["REPORT_TO"])
-      assert_includes report, "class: FrozenError"
-      assert_includes report, "rows left: 1\n"
-      emitted = File.read(env["EMIT_TO"])
-      assert_includes emitted, "pantry.restock(\"jam\")"
-      refute_includes emitted, "+\"jam\""
+    { "run_only" => 1, "custom" => 1, "wrapped" => 0 }.each do |around, rows_left|
+      Dir.mktmpdir do |dir|
+        env = {"EMIT_TO" => File.join(dir, "restock_test.rb"), "REPORT_TO" => File.join(dir, "report.txt"),
+               "BRANCHOUT_AROUND" => around}
+        stdout, stderr, status = run_suite("#{SUITE}/pantry_restock_explore_test.rb", env)
+        assert status.success?, stdout + stderr
+        report = File.read(env["REPORT_TO"])
+        assert_includes report, "rows left: #{rows_left}\n", around
+        emitted = File.read(env["EMIT_TO"])
+        if rows_left.zero?
+          assert_includes report, "EXCEPTIONS\n(none)", around
+          assert_includes emitted, "assert_equal :first, pantry.restock(+\"jam\")", around
+        else
+          assert_includes report, "class: FrozenError", around
+          assert_includes emitted, "pantry.restock(\"jam\")", around
+          refute_includes emitted, "+\"jam\"", around
+        end
+      end
     end
   end
 

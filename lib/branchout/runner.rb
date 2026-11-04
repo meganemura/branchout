@@ -54,13 +54,14 @@ module Branchout
     # An input runs with frozen Strings, as an emitted test's literals are.
     # Only when that raises FrozenError and unfrozen Strings do not does
     # it keep the unfrozen run, which the emitted test then writes as +"".
-    # RUN_ONLY keeps what the first run wrote, which a second run would see
+    # In a suite, an around that did not run the input in ROLL_BACK, such as
+    # RUN_ONLY, keeps what the first run wrote, which a second run would see
     # and no emitted test would, so there the FrozenError stays.
     def execute(input)
       check_receiver(input)
       frozen = attempt(input, false)
       return frozen unless frozen.error&.class_name == "FrozenError"
-      return frozen if @host&.around.equal?(RUN_ONLY)
+      return frozen if @host && !@rolled_back
 
       thawed = attempt(input, true)
       thawed.error&.class_name == "FrozenError" ? frozen : thawed
@@ -325,7 +326,12 @@ module Branchout
       return quietly { run_entry(input, thawed) } unless @host
 
       value = nil
-      quietly { @host.around.call { value = run_entry(input, thawed) } }
+      Thread.current[:branchout_rolled_back] = false
+      begin
+        quietly { @host.around.call { value = run_entry(input, thawed) } }
+      ensure
+        @rolled_back = Thread.current[:branchout_rolled_back]
+      end
       value
     end
 

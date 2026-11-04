@@ -40,8 +40,11 @@ module Branchout
 
   # Each input runs in a savepoint that is rolled back, so no input sees the
   # rows another wrote, and the example's own rows are left as they were.
+  # It marks the input as rolled back, also when an around calls it, so the
+  # Runner knows that a second run of the input starts from the same rows.
   ROLL_BACK = lambda do |&input|
     ActiveRecord::Base.transaction(requires_new: true) do
+      Thread.current[:branchout_rolled_back] = true
       input.call
       raise ActiveRecord::Rollback
     end

@@ -170,6 +170,10 @@ String の引数は素のリテラルで書き、ファイルの `frozen_string_
 `explore` も凍結した String を渡す。
 凍結した String では `FrozenError` を起こし、凍結していない String では起こさない入力だけは、凍結していない方の実行を残す。
 そのテストは各 String を `+"..."` と書き、その理由をコメントで示す。
+この実行は 2 回目で、1 回目の実行が例外の前に変えたものを見ている。
+セーブポイントは行を取り消すが、グローバル、クラス変数、ファイルはどの実行も取り消さない。
+コメントもこのことを示す。
+その値は、出力したテストを単独で実行して確かめる。
 `private_constant` で隠したクラスやモジュールは `const_get` でたどり（`Shop.const_get(:Ledger)`）、RSpec の describe はその名前を文字列で書く。
 minitest のテスト名は入力と結果から作る。
 `test_24_12_raises_zero_division_error` のようになる。
@@ -279,8 +283,10 @@ BRANCHOUT=1 bundle exec rspec spec/models/loan_explore_spec.rb
 ActiveRecord が読み込まれていれば、各入力はセーブポイントの中で動き、最後にロールバックされる。
 そのため、ある入力が書いた行を別の入力は見ず、テスト自身の行もそのまま残る。
 `around:` に、入力をブロックとして受け取るラムダを渡すと、これを置き換えられる。
-凍結した String で `FrozenError` を起こした入力を凍結していない String でもう一度実行するのは、`around:` が書き込みを取り消すときだけである。
-そのため `around: Branchout::RUN_ONLY` では `FrozenError` を固定する。
+凍結した String で `FrozenError` を起こした入力を凍結していない String でもう一度実行するのは、その入力が `Branchout::ROLL_BACK` の中で動いたときだけである。
+既定の場合と、`Branchout::ROLL_BACK` を呼ぶ `around:` の場合がそれにあたる。
+`Branchout::RUN_ONLY` などそれ以外の `around:` では `FrozenError` を固定する。
+その `around:` が 1 回目の実行の行を取り消したかどうかを branchout は判断できないためである。
 戦略は `strategies:` で変えない限り `inputs` だけで、`timeout:` は指定しない限り 1 秒である（`nil` で切る）。
 `target:`、`emit_tests:`、`format:`、`json:`、`pin_keys:`、`requires:`、`seed:`、`random:`、`mutate_cap:` は、CLI の同名のフラグと同じ意味である。
 minitest では、同じ呼び出しを `ActiveSupport::TestCase` のテストに書き、`BRANCHOUT=1 bin/rails test` で動かす。
@@ -372,6 +378,7 @@ ln -s /path/to/branchout/skills/branchout .agents/skills/branchout
 ## 限界
 
 - 対象は実際に実行される。対象の標準出力と標準エラーは、ロード時も呼び出しごとにも捨てる。ファイル、グローバル、ネットワークはサンドボックスしない。
+- `FrozenError` を起こして凍結していない String でもう一度実行した入力は、1 回目の後に同じプロセスで動く。1 回目の実行が変えたグローバル、クラス変数、ファイルは元に戻らない。
 - 対象は branchout と同じプロセスに読み込まれる。
   別のチェックアウトの branchout を読み込む対象や `--require` のファイルは、ツール自身のクラスを置き換えるので拒否する。
   branchout 自身のコードを調べるときは、そのチェックアウトの `bin/branchout` を使う。

@@ -6,7 +6,11 @@ require "branchout"
 class PantryRestockExploreTest < SuiteCase
   def test_explore
     rows = ActiveRecord::Base.rows.dup
-    around = ENV["BRANCHOUT_AROUND"] == "run_only" ? Branchout::RUN_ONLY : nil
+    around = {
+      "run_only" => Branchout::RUN_ONLY,
+      "custom" => ->(&input) { input.call },
+      "wrapped" => ->(&input) { Branchout::ROLL_BACK.call(&input) }
+    }[ENV["BRANCHOUT_AROUND"]]
     report = Branchout.explore("Pantry#restock", within: self, around: around, emit_tests: ENV.fetch("EMIT_TO"), format: :minitest, inputs: [
       {receiver: {ruby: "Pantry.new(owner)"}, args: ["jam"]}
     ])

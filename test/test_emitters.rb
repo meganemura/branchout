@@ -96,7 +96,7 @@ class EmitterTest < Minitest::Test
       assert status.success?, err
       assert_includes stdout, "input: [[],\"a\"]"
       assert_includes stdout, "EXCEPTIONS\n(none)"
-      assert_includes File.read(test), "    #{THAWED_COMMENT}\n    assert_equal :one, FixtureGrow.add([], +\"a\")\n"
+      assert_includes File.read(test), "#{thawed_comment("    ")}    assert_equal :one, FixtureGrow.add([], +\"a\")\n"
 
       _out, err, status = Open3.capture3(RbConfig.ruby, test)
       assert status.success?, err
@@ -157,7 +157,11 @@ class EmitterTest < Minitest::Test
     end
   end
 
-  THAWED_COMMENT ="# With frozen Strings this input raised FrozenError, so its Strings are unfrozen (+\"...\")."
+  THAWED_COMMENT = ["# With frozen Strings this input raised FrozenError, so its Strings are unfrozen (+\"...\").",
+                    "# This value is from a second run, which saw what the first run changed before it raised and no " \
+                    "savepoint undid, such as a global, a class variable, or a file."].freeze
+
+  def thawed_comment(indent) = THAWED_COMMENT.map { |line| "#{indent}#{line}\n" }.join
 
   # A String reaches the target frozen, as a literal in an emitted test
   # does, so only a target that changes its argument gets an unfrozen copy.
@@ -200,7 +204,7 @@ class EmitterTest < Minitest::Test
       assert_includes stdout, "class: FrozenError"
       source = File.read(test)
       assert_includes source, "FixtureLabel.stamp(\"a\")"
-      refute_includes source, THAWED_COMMENT
+      refute_includes source, "FrozenError, so"
     end
   end
 
@@ -915,9 +919,9 @@ class EmitterTest < Minitest::Test
     result = Branchout::Engine::Result.new(pins: [thawed], requires: [], load_paths: [], private_calls: [])
     minitest = Branchout::Emitters.render("minitest", result, target, File.join(ROOT, "test/cart_test.rb"))
     rspec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/cart_spec.rb"))
-    assert_includes minitest, "    #{THAWED_COMMENT}\n    cart = Shop::Cart.new(+\"EUR\")\n    cart.add(+\"apple\", qty: 2)\n"
+    assert_includes minitest, "#{thawed_comment("    ")}    cart = Shop::Cart.new(+\"EUR\")\n    cart.add(+\"apple\", qty: 2)\n"
     assert_includes rspec, "    let(:cart) { Shop::Cart.new(+\"EUR\") }\n\n    before do\n      cart.add(+\"apple\", qty: 2)\n    end\n\n" \
-                           "    it \"returns 7\" do\n      #{THAWED_COMMENT}\n      expect(total).to eq(7)\n"
+                           "    it \"returns 7\" do\n#{thawed_comment("      ")}      expect(total).to eq(7)\n"
   end
 
   def test_names_and_outcomes_of_keywords_nil_and_long_values

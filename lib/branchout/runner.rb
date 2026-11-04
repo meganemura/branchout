@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "rbconfig"
 require_relative "coverage_session"
 
 module Branchout
@@ -197,6 +198,7 @@ module Branchout
         file, line = method.source_location
         next if file.start_with?("<internal:")
         next if file == File.expand_path(@target.path)
+        next if installed_dirs.any? { |dir| file.start_with?(dir) }
 
         lines = Target.def_lines(file, line)
         arms = lines && branches[file]&.sum { |branch_key, arms_of| lines.cover?(branch_key[2]) ? arms_of.length : 0 }
@@ -208,6 +210,12 @@ module Branchout
         nil
       end
       found.uniq { |file, line, _callee| [file, line] }.sort_by { |file, line, _callee| [file, line] }.map(&:last)
+    end
+
+    # Where installed gems and Ruby's own library live. An app cannot move
+    # a check into one, so its methods hide none of the app's arms.
+    def installed_dirs
+      @installed_dirs ||= [*(Gem.path if defined?(Gem)), RbConfig::CONFIG["rubylibdir"]].map { |dir| File.join(File.expand_path(dir), "") }
     end
 
     # The class +const+ names where it is written, inside +namespace+, as

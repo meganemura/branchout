@@ -941,6 +941,28 @@ class CLITest < Minitest::Test
     end
   end
 
+  # An app cannot move a check into a gem, and a Rails model calls dozens
+  # of gem methods (an association reader, update!), so a callee whose file
+  # is in an installed gem is not named.
+  def test_not_counted_leaves_out_methods_of_installed_gems
+    Dir.mktmpdir do |dir|
+      shown = File.join(dir, "shown.rb")
+      File.write(shown, <<~RUBY)
+        require "minitest"
+
+        class Shown
+          include Minitest::Assertions
+
+          def show(x) = mu_pp(x).size > 3 ? :long : :short
+        end
+      RUBY
+      path = write_inputs(dir, { "inputs" => [[1]] })
+      stdout, stderr, status = run_cli("explore", shown, "Shown#show", "--strategy", "inputs", "--random", "0", "--inputs", path, "--json")
+      assert status.success?, stderr
+      assert_equal [], JSON.parse(stdout)["not_counted"]
+    end
+  end
+
   # A class method's callee is named with a dot. Ruby's own prelude
   # methods, methods the target file defines without def, and a name Ruby
   # cannot find are not callees in other files.

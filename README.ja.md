@@ -291,12 +291,15 @@ CLI でも、`RAILS_ENV=test` と `--require config/environment.rb` でアプリ
 別のファイルのメソッドは数えないので、その腕は `arms_total` に入らない。
 サブクラスのメソッドにあった検査を親クラスのヘルパーに移すと、ロジックは同じでも合計が小さくなる。
 `NOT COUNTED` はそういう callee を挙げる。
-数えたコードが裸呼び出しか `self.` で呼び、Ruby が別のファイル（親クラス、mixin、gem など）で見つけるメソッドである。
+数えたコードが裸呼び出しか `self.` で呼び、Ruby が別のファイル（親クラスや mixin など）で見つけるメソッドである。
 `Const.new` で作ったオブジェクトに呼ぶメソッドも挙げる。
 そのオブジェクトは、ローカル変数（`journal = Ledger.new`）か、クラスのメソッドが設定するインスタンス変数（`initialize` の `@ledger = Ledger.new`）に入っているものである。
 各項目には `callee`（`Register#required_sku`）、`loc`（その `def` のファイルと行）、`arms`（その `def` の中の分岐の腕の数）がある。
 そのファイルが coverage の開始より前に読み込まれたときや、`define_method` のように `def` がないときは、`arms` は `unknown` になる。
 その腕を通すには、callee を入口にして explore する。
+インストールした gem や Ruby 自身のライブラリのメソッドは挙げない。
+アプリはそこへ検査を移せないからである。
+Rails のモデルは、関連の reader や `update!` など、その種のメソッドを何十も呼ぶ。
 C で書かれたメソッド、Ruby 自身の prelude のメソッド、属性の reader と writer、腕のないメソッド、クラスがコードから分からないオブジェクトへの呼び出しは挙げない。
 
 腕の id は Coverage の分岐キーから作る `kind@行:列/arm@行:列` である。列は 0 始まり。`cond` は Prism の述語で、`when` または `in` の腕ではその行である。位置が一致しないときはソースの行を使う。

@@ -298,7 +298,9 @@ module Branchout
     def case_arm_line(node, arm_type, aline, acol)
       return unless node
 
-      arm = arm_type == :else ? node.else_clause : case_arm(node, aline, acol)
+      # prism before 1.0, the default gem of Ruby 3.3, names the else clause consequent.
+      else_clause = node.respond_to?(:else_clause) ? node.else_clause : node.consequent
+      arm = arm_type == :else ? else_clause : case_arm(node, aline, acol)
       arm&.location&.start_line
     end
 

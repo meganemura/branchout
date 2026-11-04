@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - queue
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Ruby ${{ matrix.ruby }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # hegeltest needs Ruby 3.4, so the floor leaves the property group
+          # out and test/test_properties.rb reports one skip.
+          - ruby: "3.3"
+            bundler: Gemfile.lock
+            without: property
+            bundle_version: lockfile
+          # Ruby 4.0's bundler would switch to the 2.6.9 that Gemfile.lock
+          # names. That bundler redefines constants of Ruby 4.0's RubyGems
+          # and warns in every Ruby the tests start, and the CLI tests
+          # require an empty stderr. The running bundler reads the same lock.
+          - ruby: "4.0"
+            bundler: default
+            without: ""
+            bundle_version: system
+    env:
+      BUNDLE_WITHOUT: ${{ matrix.without }}
+      BUNDLE_VERSION: ${{ matrix.bundle_version }}
+    # Actions are pinned to a commit. A tag can be moved to another commit.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler: ${{ matrix.bundler }}
+          bundler-cache: true
+      - name: Run the tests
+        run: bundle exec ruby test/run_all.rb
+      - name: Run the generated specs
+        run: bundle exec rspec spec/generated

@@ -551,11 +551,20 @@ module Branchout
           elsif value.any? { |item| collection?(item) } then "returns [#{value.map { |item| item_text(item) }.join(", ")}]"
           else "returns #{text[0, 37]}..."
           end
-        when String then "returns #{text[0, 37]}..."
+        when String then "returns #{text[0...word_end(text, 0, 37)]}..."
         else "returns #{text}"
         end
       end
 
+      # Where a cut of +text+ from +start+ to +finish+ ends: at +finish+,
+      # or, when that falls inside a word, before the word, unless that
+      # leaves fewer than 12 characters.
+      def word_end(text, start, finish)
+        return finish unless finish < text.length && text[finish - 1].match?(/\w/) && text[finish].match?(/\w/)
+
+        boundary = text.rindex(/\W/, finish - 1)
+        boundary && boundary - start >= 12 ? boundary : finish
+      end
 
       # An item of an Array that holds both scalars and collections: a
       # scalar as written, and a collection by its keys or its size.

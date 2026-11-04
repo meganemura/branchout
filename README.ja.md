@@ -217,6 +217,7 @@ context は、兄弟と見分けるのに要る値だけを述べる。
 別の葉も同じキーで終わるときは、見分けられるところまで上のキーも書く（`when result.status is "timeout"`）。
 40 文字を超える String とスカラーの配列の結果は、先頭を見せてから切る（`returns ["require_relative \"../lib/shop/cart...`）。
 長い文字列は、兄弟と分かれたところで切る。
+切れ目が単語の途中に来るときは、その単語の前で切る。
 それでも 80 文字を超える example は、見分けるのに要る値を残し、先頭の結果のほうを切る（`returns ["require \"shop\"",... when target_path is "app/cart.rb"`）。
 ダブルクォートを含む文は、エスケープが要らないようにシングルクォートで書く。
 文の中の String の値がバックスラッシュを含むときも同じである（`'returns 1 when x is "say \"hi\""'`）。

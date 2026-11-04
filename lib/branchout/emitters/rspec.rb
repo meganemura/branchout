@@ -354,8 +354,8 @@ module Branchout
           # An end "..." that would stand for no more than its own three
           # characters keeps the end instead.
           length = value.length - start <= 25 ? 25 : 22
-          piece = value[start, length]
-          Support.ruby_literal("#{"..." if start.positive?}#{piece}#{"..." if start + length < value.length}")
+          finish = Support.word_end(value, start, start + length)
+          Support.ruby_literal("#{"..." if start.positive?}#{value[start...finish]}#{"..." if finish < value.length}")
         end
 
         def peer_paths(root, peers)

@@ -761,6 +761,12 @@ class EmitterTest < Minitest::Test
                     "raise_error(ArgumentError, #{literal})"
   end
 
+  def test_a_long_returned_string_is_cut_before_a_word_it_would_split
+    pin = ->(value) { Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1]), value: value, error: nil, covers: []) }
+    assert_equal %(returns "a fairly long string that keeps...), Branchout::Emitters::Support.outcome_text(pin.("a fairly long string that keeps going and going"), [])
+    assert_equal %(returns "ab #{"c" * 33}...), Branchout::Emitters::Support.outcome_text(pin.("ab #{"c" * 50}"), [])
+  end
+
   # A text over the limit cuts its outcome before the facts that tell it
   # from its siblings: a cut there would leave two texts that read alike.
   def test_a_long_text_cuts_its_outcome_before_its_telling_fact
@@ -1262,13 +1268,13 @@ class EmitterTest < Minitest::Test
     assert_includes texts, "it '#{"returns 1 when x is \"...and going on\""}' do"
     assert_includes texts, "it '#{"returns 1 when x is \"...and going off\""}' do"
     assert_includes texts, "it '#{"returns 1 when x is \"an early part a fairly...\""}' do"
-    # A path is cut after a separator, and keeps an end that "..." would
-    # not shorten.
+    # A path is cut after a separator, keeps an end that "..." would not
+    # shorten, and ends where a word does.
     dir = "/srv/scratchpad/r13qd/sp ace/"
     texts = render.(target_for.("Box", :put, singleton: true), ["#{dir}recorded.qnt", "#{dir}missing.qntx", "#{dir}nothing.qntxy"].map { |arg| pin.(Branchout::Input.new(args: [arg])) })
     assert_includes texts, %q(it 'returns 1 when x is "...r13qd/sp ace/recorded.qnt"' do)
     assert_includes texts, %q(it 'returns 1 when x is "...r13qd/sp ace/missing.qntx"' do)
-    assert_includes texts, %q(it 'returns 1 when x is "...r13qd/sp ace/nothing.q..."' do)
+    assert_includes texts, %q(it 'returns 1 when x is "...r13qd/sp ace/nothing..."' do)
     # The directories of a path under the temporary directory differ per
     # machine, so a description names its file alone.
     dir = File.join(Dir.tmpdir, "r13qd/sp ace/")

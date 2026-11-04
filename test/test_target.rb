@@ -290,6 +290,35 @@ class TargetTest < Minitest::Test
     end
   end
 
+  # Calls on an object the counted code builds with Class.new are kept with
+  # the class text, so the runner can name the callee. An instance variable
+  # counts only when an instance method of the same class builds it.
+  def test_calls_on_built_objects_are_kept_with_their_class
+    source = <<~RUBY
+      class Shop
+        def initialize = @store = ::Store.new
+        def self.build = (@store = Wrong.new) && @store.save
+        def ring(n)
+          ledger = Ledger.new
+          ledger.post(n)
+          ledger.post(n)
+          @store.save
+          Ns::Box.new.open
+          def inner = Ledger.new.hidden
+          plain.call
+        end
+      end
+      class Other
+        def initialize = @store = Wrong.new
+      end
+    RUBY
+    parse_source(source, "Shop#ring") do |target|
+      assert_equal [["Shop", "Ledger", :post], ["Shop", "Store", :save], ["Shop", "Ns::Box", :open]],
+                   target.typed_calls
+    end
+    parse_source(source, "Shop.build") { |target| assert_equal [], target.typed_calls }
+  end
+
   def test_def_lines_are_the_lines_of_the_def_on_that_line
     source = "class A\n  def f(x)\n    x\n  end\n  def g = 1\n  define_method(:h) { 2 }\nend\n"
     parse_source(source, "A#f") do |_target, path|

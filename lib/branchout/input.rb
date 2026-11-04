@@ -26,6 +26,20 @@ module Branchout
     def to_s = source
   end
 
+  # A String input that names a path under the emitted test's project. The
+  # test writes it from its own directory (+from_test+), so it passes in a
+  # copy of the project on another machine. Its text is the path from the
+  # project root, which the test's names and descriptions say.
+  class ProjectPath < String
+    attr_reader :from_test
+
+    def initialize(from_root, from_test)
+      super(from_root)
+      @from_test = -from_test
+      freeze
+    end
+  end
+
   class Input
     # One call made on the receiver after new and before the entry.
     # +arguments+ is an Input with no receiver and no setup of its own.
@@ -124,7 +138,7 @@ module Branchout
 
     def normalize(value)
       case value
-      when nil, true, false, Integer
+      when nil, true, false, Integer, ProjectPath
         value
       when String, Symbol
         -value.to_s

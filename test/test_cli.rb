@@ -789,6 +789,51 @@ class CLITest < Minitest::Test
     end
   end
 
+  # A path under the test's project is written from the test's own file,
+  # so the test passes in a copy of the project on another machine. A
+  # file of this machine outside the project stays a literal, and stderr
+  # says which input names it.
+  def test_an_input_path_under_the_project_is_written_from_the_test_file
+    Dir.mktmpdir do |dir|
+      app = File.join(dir, "app")
+      FileUtils.mkdir_p(File.join(app, "lib"))
+      FileUtils.mkdir_p(File.join(app, "spec/fixtures"))
+      File.write(File.join(app, "Gemfile"), "")
+      File.write(File.join(app, "spec/fixtures/rates.csv"), "3\n")
+      File.write(File.join(app, "lib/sheet.rb"), <<~RUBY)
+        module Sheet
+          def self.rate(path) = File.exist?(path) ? File.read(path).to_i : :missing
+        end
+      RUBY
+      outside = File.join(dir, "elsewhere.csv")
+      File.write(outside, "4\n")
+      paths = [File.join(app, "spec/fixtures/rates.csv"), File.join(app, "spec/fixtures/none.csv"), outside]
+      inputs = write_inputs(dir, { "inputs" => paths.map { |path| [path] } })
+      %w[spec/sheet_test.rb spec/sheet_spec.rb].each do |name|
+        out = File.join(app, name)
+        _out, err, status = run_cli("explore", File.join(app, "lib/sheet.rb"), "Sheet.rate", "--strategy", "inputs", "--random", "0",
+                                    "--inputs", inputs, "--emit-tests", out)
+        assert status.success?, err
+        source = File.read(out)
+        assert_includes source, %q[Sheet.rate(File.expand_path("fixtures/rates.csv", __dir__))]
+        assert_includes source, %q[Sheet.rate(File.expand_path("fixtures/none.csv", __dir__))]
+        assert_includes source, "Sheet.rate(#{outside.inspect})"
+        refute_includes source, app
+        assert_equal "branchout: the emitted test passes #{outside}, a file of this machine outside the test's project, so the " \
+                     "test passes only here. Put the file under the project, and the test names it from its own directory.\n", err
+      end
+
+      moved = File.join(dir, "moved")
+      FileUtils.mv(app, moved)
+      %w[sheet_test.rb sheet_spec.rb].each do |name|
+        out = File.join(moved, "spec", name)
+        command = name.end_with?("_spec.rb") ? [RbConfig.ruby, "-rrspec/autorun", "-e", "", out] : [RbConfig.ruby, out]
+        output, err, status = Open3.capture3(*command)
+        assert status.success?, "#{File.read(out)}\n#{output}\n#{err}"
+      end
+    end
+  end
+
   def test_require_by_name_needs_emitted_tests
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [[1]] })

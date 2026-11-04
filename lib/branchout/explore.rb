@@ -75,8 +75,9 @@ module Branchout
       strategies: strategies, random: random, mutate_cap: mutate_cap, timeout: timeout, requires: requires, host: host
     )
     if emit_tests
-      Emitters.write(format, result, Target.parse(target, entry, type_overrides: type_overrides),
-                     emit_tests, require_by_name: true, pin_keys: pin_keys)
+      warnings = Emitters.write(format, result, Target.parse(target, entry, type_overrides: type_overrides),
+                                emit_tests, require_by_name: true, pin_keys: pin_keys)
+      warnings.each { |line| $stderr.puts line }
     end
     json ? Report.json(result) : Report.text(result)
   end

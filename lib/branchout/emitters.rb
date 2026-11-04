@@ -23,13 +23,22 @@ module Branchout
       "minitest"
     end
 
+    # Returns a warning for each path of this machine that the test passes
+    # as it is (Support.machine_paths), for the caller to print.
     def write(format, result, target, destination, require_by_name: false, pin_keys: [])
       Support.write_file(destination, render(format, result, target, destination, require_by_name: require_by_name, pin_keys: pin_keys))
+      paths = result.pins.flat_map { |pin| Support.machine_paths(Support.project_paths(pin.input, destination)) }.uniq
+      paths.map do |path|
+        "branchout: the emitted test passes #{path}, a file of this machine outside the test's project, so the test passes " \
+          "only here. Put the file under the project, and the test names it from its own directory."
+      end
     end
 
     # +pin_keys+ names the keys a returned Hash pins; empty pins it whole.
     def render(format, result, target, destination, require_by_name: false, pin_keys: [])
-      emitter_for(format).render(result, target, destination, require_by_name: require_by_name, pin_keys: pin_keys)
+      pins = result.pins.map { |pin| pin.dup.tap { |copy| copy.input = Support.project_paths(pin.input, destination) } }
+      emitter_for(format).render(result.dup.tap { |copy| copy.pins = pins }, target, destination,
+                                 require_by_name: require_by_name, pin_keys: pin_keys)
     end
 
     def emitter_for(format)

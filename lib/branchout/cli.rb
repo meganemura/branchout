@@ -177,8 +177,9 @@ module Branchout
         if opts[:emit_tests]
           parsed = Target.parse(target, entry, type_overrides: type_overrides)
           format = Emitters.resolve(opts[:format], opts[:emit_tests])
-          Emitters.write(format, result, parsed, opts[:emit_tests], require_by_name: opts[:require_by_name],
-                                                                     pin_keys: opts[:pin_keys])
+          warnings = Emitters.write(format, result, parsed, opts[:emit_tests], require_by_name: opts[:require_by_name],
+                                                                                pin_keys: opts[:pin_keys])
+          warnings.each { |line| $stderr.puts line }
           warn_unnamed(result, target) if opts[:require_by_name]
         end
       when "baselines"

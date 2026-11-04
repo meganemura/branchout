@@ -3,6 +3,7 @@
 require "digest"
 require "fileutils"
 require "pathname"
+require "tmpdir"
 
 module Branchout
   module Emitters
@@ -119,6 +120,56 @@ module Branchout
         relative.start_with?(".") ? relative : "./#{relative}"
       end
 
+      # +input+ with each String that names a path under the project of
+      # +destination+ as a ProjectPath. A String that File.expand_path
+      # would not give back as written, such as one with a trailing /, stays.
+      def project_paths(input, destination)
+        dir = File.dirname(File.expand_path(destination))
+        root = project_root(dir)
+        return input unless root
+
+        rewrite = lambda do |value|
+          case value
+          when ProjectPath then value
+          when String
+            next value unless value.start_with?("#{root}/")
+
+            # File.expand_path reads a leading ~ as a home directory.
+            from_test = relative_require(destination, value).sub(%r{\A\./(?!~)}, "")
+            File.expand_path(from_test, dir) == value ? ProjectPath.new(value.delete_prefix("#{root}/"), from_test) : value
+          when Array then value.map(&rewrite)
+          when Hash then value.transform_values(&rewrite)
+          else value
+          end
+        end
+        receiver = input.receiver.is_a?(Input) ? project_paths(input.receiver, destination) : input.receiver
+        setup = input.setup.map { |call| Input::SetupCall.new(call.method_name, project_paths(call.arguments, destination)) }
+        Input.new(args: rewrite.(input.args), kwargs: rewrite.(input.kwargs), receiver: receiver, setup: setup,
+                  pin_keys: input.pin_keys, block: input.block)
+      end
+
+      # The Strings of +input+ that name a file or directory of this
+      # machine: one that exists under the home or the temporary directory.
+      # /dev/null, or /tmp itself, is the same on every machine.
+      def machine_paths(input)
+        homes = [Dir.tmpdir, Dir.home].flat_map { |dir| ["#{dir}/", "#{File.realpath(dir)}/"] }.uniq
+        strings(input).select do |value|
+          File.absolute_path?(value) && File.exist?(value) && homes.any? { |home| value.start_with?(home) }
+        end
+      end
+
+      def strings(value)
+        case value
+        when ProjectPath then []
+        when String then [value]
+        when Array then value.flat_map { |item| strings(item) }
+        when Hash then strings(value.values)
+        when Input
+          [value.args, value.kwargs, value.receiver, *value.setup.map(&:arguments)].flat_map { |item| strings(item) }
+        else []
+        end
+      end
+
       # The statements that build the receiver, and the entry call. With no
       # setup calls the receiver is built inline and there is no statement.
       # A name in +private_calls+ (the entry, or new) is called through send,
@@ -203,6 +254,7 @@ module Branchout
         when false then "false"
         when Integer then value.to_s
         when Float then Canon.format_float(value)
+        when ProjectPath then "File.expand_path(#{value.from_test.inspect}, __dir__)"
         when String then thawed ? "+#{value.inspect}" : value.inspect
         when Symbol then value.inspect
         when Code then value.source

@@ -138,6 +138,12 @@ ruby bin/branchout baselines examples/magic_value.rb MagicValue.classify \
 呼び出しごとにトップレベルで評価し直し、出力するテストは書いたとおりに写す（`Lending.approve(Factories.loan(3))`）。
 メソッドが受け取るブロックは、波かっこで `block` に書く（`{"args": [5], "block": "{ |amount| amount > 2 }"}`）。
 キーが `"ruby"` 1 つだけの Hash 引数も Ruby で書く（`{"ruby": "{\"ruby\" => \"3.4\"}"}`）。
+出力するテストのプロジェクト（テストより上で最も近い、`Gemfile`、gemspec、`.git` のいずれかがあるディレクトリ）の下のパスを指す String は、テスト自身のディレクトリから書く（`File.expand_path("../fixtures/files/rates.csv", __dir__)`）。
+そのためテストは、jitcatch のコピーを含め、プロジェクトのどのチェックアウトでも通る。
+テストの名前と説明は、プロジェクトのルートからのパス（`spec/fixtures/files/rates.csv`）で書く。
+プロジェクトの外で、一時ディレクトリかホームディレクトリの下に実在するパスは書いたとおりに残し、標準エラーがそのパスを示す。
+そのテストはこのマシンでしか通らないからである。
+そうしたファイルは、たとえば `spec/fixtures/files` のようにプロジェクトの下に置く。
 エントリは末尾へ足す。
 消したり並べ替えたりしない。
 

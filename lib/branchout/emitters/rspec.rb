@@ -338,7 +338,7 @@ module Branchout
         # parts from the other Strings at its leaf, so two values that share
         # a long start do not read alike.
         def value_text(value, peer_values)
-          text = Support.ruby_literal(value)
+          text = Support.ruby_literal(value.is_a?(String) ? value.to_s : value)
           return text if text.length <= 30
           return "#{text[0, 27]}..." unless value.is_a?(String)
 

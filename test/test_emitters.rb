@@ -1483,4 +1483,54 @@ class NameEdgeTest < Minitest::Test
     assert_equal "100000000000000", support.number_word(10**14)
     assert_equal "100e13", support.number_word(10**15)
   end
+
+  # Every String an input passes is written from the test file when it
+  # names a path under the test's project, in a Hash, an Array, new, or a
+  # setup call too. One that File.expand_path would not give back as
+  # written stays a literal.
+  def test_paths_under_the_project_are_written_from_the_test_file
+    Dir.mktmpdir do |dir|
+      root = File.realpath(dir)
+      File.write(File.join(root, "Gemfile"), "")
+      at = ->(path) { File.join(root, path) }
+      input = Branchout::Input.new(
+        args: [at.("a.csv"), [at.("lib/b.rb")], { "c" => at.("c") }, "#{at.("d")}/", root, "#{root}x/e", "f", "~0", at.("spec/~x")],
+        kwargs: { "g" => at.("g") }, receiver: Branchout::Input.new(args: [at.("h")]),
+        setup: [Branchout::Input::SetupCall.new("i", Branchout::Input.new(args: [at.("i")]))]
+      )
+      written = Branchout::Emitters::Support.project_paths(input, at.("spec/x_spec.rb"))
+      expand = ->(path) { "File.expand_path(#{path.inspect}, __dir__)" }
+      assert_equal [expand.("../a.csv"), "[#{expand.("../lib/b.rb")}]", "{\"c\" => #{expand.("../c")}}", "#{at.("d")}/".inspect,
+                    root.inspect, "#{root}x/e".inspect, "f".inspect, "~0".inspect, expand.("./~x"), "g: #{expand.("../g")}"].join(", "),
+                   Branchout::Emitters::Support.argument_list(written)
+      assert_equal expand.("../h"), Branchout::Emitters::Support.argument_list(written.receiver)
+      assert_equal expand.("../i"), Branchout::Emitters::Support.argument_list(written.setup.first.arguments)
+      assert_equal ["a.csv", "lib/b.rb"], [written.args[0], written.args[1][0]].map(&:to_s)
+      assert_same input, Branchout::Emitters::Support.project_paths(input, "/x_spec.rb")
+    end
+  end
+
+  # Only an absolute path that exists under the temporary or the home
+  # directory is this machine's alone.
+  def test_machine_paths_are_existing_files_under_tmp_or_home
+    Dir.mktmpdir do |dir|
+      file = File.join(dir, "a.csv")
+      File.write(file, "")
+      project = Branchout::ProjectPath.new("b.csv", "../b.csv")
+      input = Branchout::Input.new(args: [file, [file], { "k" => file }, File.join(dir, "none.csv"), "/dev/null", Dir.tmpdir, project, "a.csv", false, nil],
+                                   receiver: Branchout::Input.new(args: [], kwargs: { "k" => "#{file}" }),
+                                   setup: [Branchout::Input::SetupCall.new("s", Branchout::Input.new(args: [dir]))])
+      Dir.chdir(dir) do
+        assert_equal [file, file, file, file, dir], Branchout::Emitters::Support.machine_paths(input)
+      end
+      pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [file]), value: 1, error: nil, covers: [])
+      result = Branchout::Engine::Result.new(pins: [pin, pin], requires: [], load_paths: [], private_calls: [])
+      target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                     .new(true, "Box", :put, "Box.put", "lib/x.rb", File.join(dir, "lib/x.rb"), [], [Struct.new(:name).new(:x)])
+      warnings = Branchout::Emitters.write("minitest", result, target, File.join(dir, "out/x_test.rb"))
+      assert_equal ["branchout: the emitted test passes #{file}, a file of this machine outside the test's project, so the test " \
+                    "passes only here. Put the file under the project, and the test names it from its own directory."], warnings
+      assert_includes File.read(File.join(dir, "out/x_test.rb")), "Box.put(#{file.inspect})"
+    end
+  end
 end

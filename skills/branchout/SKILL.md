@@ -178,7 +178,7 @@ branchout baselines TARGET.rb Const.method \
   --seed 1 --random 40
 ```
 
-`baselines` prints three rows: `random` only, `mutate` only, and `agent` (the inputs file only). Random integers are -3..12. Random strings have length 0..3 over `abc01.-`. Mutation tries each source literal and literal±1 in each slot, then a cartesian product of the first two numeric slots, cut by `--mutate-cap` (default 256). It does not solve a congruence or concatenate string literals. Full arm coverage is not the same as finding a fault inside an arm.
+`baselines` prints three rows: `random` only, `mutate` only, and `agent` (the inputs file only). Random integers are -3..12. Random strings have length 0..3 over `abc01.-`. Mutation tries each source literal and literal±1 in each slot (the literals of the entry and of the methods it calls in the same file, with a constant set to a literal counted as that literal), then a cartesian product of the first two numeric slots, cut by `--mutate-cap` (default 256). It does not solve a congruence or concatenate string literals. Full arm coverage is not the same as finding a fault inside an arm.
 
 ## Use with the other tools
 

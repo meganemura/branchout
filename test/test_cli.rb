@@ -34,6 +34,15 @@ class CLITest < Minitest::Test
     assert_equal "branchout #{Branchout::VERSION}\n", stdout
   end
 
+  def test_mutation_reaches_the_literals_a_private_helper_compares_against
+    stdout, stderr, status = run_cli(
+      "explore", "test/fixtures/ledger.rb", "FixtureLedger#label",
+      "--strategy", "mutate", "--random", "0"
+    )
+    assert status.success?, stderr
+    assert_includes stdout, "arms_covered: 6\narms_total: 6"
+  end
+
   def test_magic_mutation_covers_both_arms_and_is_byte_stable
     stdout, stderr, status = run_cli(
       "explore", "test/fixtures/magic.rb", "FixtureMagic.classify",

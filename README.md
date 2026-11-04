@@ -91,7 +91,7 @@ While searching, pass `--strategy inputs --random 0` and keep `--seed` fixed, so
 | Strategy | What it runs |
 | --- | --- |
 | `inputs` | Entries in the inputs file. Duplicate canonical JSON is dropped |
-| `mutate` | Each source literal, tried in each argument slot. Integers also include `0`, `1`, `-1`, and literal±1. Floats also include `0.0`, `1.0`, `-1.0`, and ±1. Strings also include `""`, `"a"`, the literal without its last character, and the literal plus `"1"`. When the first two positional parameters are numeric, those slots also get a cartesian product, cut by `--mutate-cap`. String literals are not concatenated |
+| `mutate` | Each source literal, tried in each argument slot. Integers also include `0`, `1`, `-1`, and literal±1. Floats also include `0.0`, `1.0`, `-1.0`, and ±1. Strings also include `""`, `"a"`, the literal without its last character, and the literal plus `"1"`. When the first two positional parameters are numeric, those slots also get a cartesian product, cut by `--mutate-cap`. String literals are not concatenated. The literals are those of the entry and of each method it calls in the same file, and a constant the file sets to a literal (`HOLD = "sanctions"`) counts as that literal. A slot's type comes from the same methods: an argument passed to a helper takes the type the helper's use of its parameter gives (`held?(reason)` with `def held?(text) = text == HOLD` makes `reason` a String), and `doc["key"]` or `doc.dig(:key)` makes `doc` a Hash |
 | `random` | Seeded Park-Miller samples. Integers are -3..12. Strings have length 0..3 over `abc01.-` |
 
 ```sh

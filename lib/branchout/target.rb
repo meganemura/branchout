@@ -64,6 +64,7 @@ module Branchout
 
       defs = []
       @superclasses = {}
+      @constant_values = Hash.new { |hash, key| hash[key] = [] }
       collect_defs(result.value, [], false, defs)
       index = {}
       defs.each do |info|
@@ -86,6 +87,7 @@ module Branchout
 
       @ranges = []
       @outside_calls = []
+      argument_edges = []
       @typed_calls = []
       @literals = Literals.new(ints: [], floats: [], strings: [])
       @conditions = {}
@@ -104,9 +106,14 @@ module Branchout
         index_conditions(body) if body
         built = info.singleton ? {} : built_ivars(defs, info.const_name)
         calls_on_built(body, built).each { |const, name| @typed_calls << [info.const_name, const, name] } if body
-        bare_calls(body).each do |name|
-          callee = find.(info.singleton, name)
-          callee ? queue << callee : @outside_calls << [info.singleton, name]
+        bare_calls(body).each do |call|
+          callee = find.(info.singleton, call.name)
+          if callee
+            queue << callee
+            argument_edges << [call, callee.node.parameters]
+          else
+            @outside_calls << [info.singleton, call.name]
+          end
         end
         next unless info.singleton
 
@@ -125,7 +132,7 @@ module Branchout
       @literals.ints = @literals.ints.uniq.sort
       @literals.floats = @literals.floats.uniq.sort
       @literals.strings = @literals.strings.uniq.sort
-      @parameters = build_parameters(entry_def.node.parameters, bodies, @type_overrides)
+      @parameters = build_parameters(entry_def.node.parameters, bodies, @type_overrides, argument_edges)
       # The parameters of initialize, which an input's "new" fills for an
       # instance method. Empty when this file does not define initialize.
       init = singleton ? nil : index[[const_name, false, :initialize]]
@@ -193,7 +200,7 @@ module Branchout
 
     private
 
-    def build_parameters(params_node, bodies, type_overrides)
+    def build_parameters(params_node, bodies, type_overrides, argument_edges = [])
       list = []
       return list unless params_node
 
@@ -214,6 +221,8 @@ module Branchout
 
       evidence = Hash.new { |hash, key| hash[key] = Hash.new(0) }
       bodies.each { |body| walk_evidence(body, evidence) }
+      # Reversed, so a helper's helper passes its evidence up the chain first.
+      argument_edges.reverse_each { |call, params| pass_evidence(call, params, evidence) }
       positional_params = list.select { |param| param.kind == :req || param.kind == :opt }
       if type_overrides
         unless type_overrides.length == positional_params.length
@@ -363,6 +372,8 @@ module Branchout
         @literals.floats << node.value if node.value.finite?
       when :string_node
         @literals.strings << node.unescaped
+      when :constant_read_node
+        Array(@constant_values[node.name]).each { |value| collect_literals(value) }
       end
       node.compact_child_nodes.each { |child| collect_literals(child) }
     end
@@ -373,7 +384,7 @@ module Branchout
 
       if node.type == :call_node
         receiver = node.receiver
-        acc << node.name if receiver.nil? || receiver.type == :self_node
+        acc << node if receiver.nil? || receiver.type == :self_node
       end
       node.compact_child_nodes.each { |child| bare_calls(child, acc) }
       acc
@@ -485,7 +496,7 @@ module Branchout
           evidence[receiver_name][:string] += 1
         elsif ARRAY_METHODS.include?(op)
           evidence[receiver_name][:array] += 1
-        elsif HASH_METHODS.include?(op)
+        elsif HASH_METHODS.include?(op) || (%i[[] dig].include?(op) && %i[string_node symbol_node].include?(first_arg(node)&.type))
           evidence[receiver_name][:hash] += 1
         elsif NUMERIC_OPS.include?(op)
           arg = first_arg(node)
@@ -515,6 +526,23 @@ module Branchout
       end
     end
 
+    # held?(code) with def held?(state) = state == "held" makes code a
+    # String too: a positional argument takes the evidence of the
+    # parameter it fills.
+    def pass_evidence(call, params, evidence)
+      return unless params
+
+      names = (params.requireds + params.optionals).map { |param| param.respond_to?(:name) ? param.name : nil }
+      Array(call.arguments&.arguments).each_with_index do |arg, index|
+        break if index >= names.length || %i[splat_node keyword_hash_node block_argument_node].include?(arg.type)
+
+        name = lvar_name(arg)
+        next unless name && names[index] && name != names[index]
+
+        evidence[names[index]].each { |kind, count| evidence[name][kind] += count }
+      end
+    end
+
     def first_arg(node)
       node.arguments&.arguments&.first
     end
@@ -528,6 +556,7 @@ module Branchout
     def contains?(node, type)
       return false unless node.is_a?(Prism::Node)
       return true if node.type == type
+      return true if node.type == :constant_read_node && Array(@constant_values[node.name]).any? { |value| value.type == type }
 
       node.compact_child_nodes.any? { |child| contains?(child, type) }
     end
@@ -573,6 +602,7 @@ module Branchout
       when :constant_write_node, :constant_path_write_node
         body = class_block_body(node.value)
         name = node.type == :constant_write_node ? node.name.to_s : node.target.slice.delete_prefix("::")
+        note_constant(node) if node.type == :constant_write_node
         body ? collect_defs(body, stack + [name], false, acc) : collect_defs(node.value, stack, in_singleton, acc, functions)
       when :def_node
         singleton = in_singleton || node.receiver&.type == :self_node
@@ -590,6 +620,14 @@ module Branchout
         end
         node.compact_child_nodes.each { |child| collect_defs(child, stack, in_singleton, acc, functions) }
       end
+    end
+
+    # NAME = literal, by name alone: a helper's comparison against CLOSED is
+    # a comparison against its literal, wherever the file sets CLOSED.
+    def note_constant(node)
+      value = node.value
+      value = value.receiver if value.type == :call_node && value.name == :freeze && value.receiver
+      @constant_values[node.name] << value if %i[integer_node float_node string_node].include?(value&.type)
     end
 
     # The body of the block in Struct.new(...) do ... end, Data.define, or

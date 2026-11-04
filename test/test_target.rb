@@ -169,7 +169,12 @@ class TargetTest < Minitest::Test
     "def self.f(x) = x + 1.5 || x + 1 || x - 1" => "int",
     %q{def self.f(s) = s.include?("a") || s.first || s.last} => "array",
     %q{def self.f(s) = s.include?("a") || s + 1 || s - 1} => "int",
-    "def self.f(h) = h.keys || h + 1.5 || h - 1.5" => "float"
+    "def self.f(h) = h.keys || h + 1.5 || h - 1.5" => "float",
+    %q{def self.f(doc) = Array(doc["names"])} => "hash",
+    "def self.f(doc) = doc.dig(:tests, 0)" => "hash",
+    "def self.f(a) = a[0]" => "int",
+    "def self.f(x) = g(x)\ndef self.g(v) = v == LIMIT\nLIMIT = 1.5" => "float",
+    "def self.f(x) = g(x)\ndef self.g(v) = v == OPEN\nOPEN = \"open\".freeze" => "string"
   }.freeze
 
   def test_type_inference_table

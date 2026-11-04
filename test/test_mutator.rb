@@ -19,6 +19,17 @@ class MutatorTest < Minitest::Test
     assert_includes inputs, [114513]
   end
 
+  # A private helper compares the argument it gets, under its own name,
+  # against a String or a constant.
+  def test_a_helper_types_the_argument_it_receives_and_lends_its_literals
+    target = Branchout::Target.parse(File.join(@root, "test/fixtures/ledger.rb"), "FixtureLedger#label")
+    assert_equal [[:code, "string"], [:cents, "int"]], target.positional.map { |param| [param.name, param.inferred_type] }
+    inputs = Branchout::Mutator.new(target, cap: 64).inputs.map(&:args)
+    assert_includes inputs, ["closed", 0]
+    assert_includes inputs, ["held", 0]
+    assert_includes inputs, ["", 501]
+  end
+
   def test_arithmetic_pool_does_not_solve_the_congruence
     target = Branchout::Target.parse(File.join(@root, "test/fixtures/arith.rb"), "FixtureArith.classify")
     inputs = Branchout::Mutator.new(target, cap: 256).inputs

@@ -836,6 +836,12 @@ class CLITest < Minitest::Test
       _stdout, stderr, status = run_cli("explore", target, "T.f", "--require", env, "--strategy", "inputs", "--random", "0")
       refute status.success?
       assert_equal "branchout: failed to load #{env}: DATABASE_URL is not set (RuntimeError at #{env}:2)\n", stderr
+
+      File.write(env, "ENV_LOADED = true\n")
+      File.write(target, "raise ArgumentError, \"no rate\" if ENV_LOADED\nclass T\n  def self.f(x) = x ? 1 : 2\nend\n")
+      _stdout, stderr, status = run_cli("explore", target, "T.f", "--require", env, "--strategy", "inputs", "--random", "0")
+      refute status.success?
+      assert_equal "branchout: failed to load #{target}: no rate (ArgumentError at #{target}:1)\n", stderr
     end
   end
 

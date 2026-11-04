@@ -102,7 +102,7 @@ module Branchout
         raise Error, "failed to load #{Target.display_path(loading)}: #{e.message.lines.first.strip} (#{e.class}).#{hint}"
       rescue StandardError => e
         raised = e.backtrace_locations&.first
-        at = " at #{Target.display_path(raised.absolute_path || raised.path)}:#{raised.lineno}" if raised
+        at = " at #{Target.display_path(raised.path)}:#{raised.lineno}" if raised
         raise Error, "failed to load #{Target.display_path(loading)}: #{e.message.lines.first&.strip} (#{e.class}#{at})"
       end
       resolve

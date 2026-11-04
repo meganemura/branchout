@@ -170,7 +170,7 @@ module Branchout
             text = member_text(member, steps, peers)
             text = member_text(member, telling(steps, others), peers) if text.length > LIMIT || member.is_a?(Node)
             text = member_text(member, telling(steps, others), peers, short: true) if text.length > LIMIT
-            [member, text.length > LIMIT ? "#{text[0, LIMIT - 3]}..." : text]
+            [member, text.length > LIMIT ? fitted(member, telling(steps, others), peers) : text]
           end
           repeated = texts.values.tally
           texts.to_h do |member, text|
@@ -197,6 +197,18 @@ module Branchout
           end
           chosen = facts.first(1) if chosen.empty? && steps.none? { |step| step.kind != :fact }
           steps.reject { |step| step.kind == :fact && !chosen.include?(step) }
+        end
+
+        # A text still over LIMIT. An example cuts its outcome, which leads,
+        # and keeps whole the facts that tell it from its siblings, while the
+        # outcome keeps a start to read; otherwise the end is cut.
+        def fitted(member, steps, peers)
+          text = member_text(member, steps, peers, short: true)
+          facts = label(steps, peers, short: true)
+          room = LIMIT - facts.length - " ...".length
+          return "#{text[0, LIMIT - 3]}..." unless member.is_a?(Example) && !facts.empty? && room >= 12
+
+          "#{@short_outcomes[member.pin][0, room]}... #{facts}"
         end
 
         def member_text(member, steps, peers, short: false)

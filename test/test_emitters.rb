@@ -609,6 +609,23 @@ class EmitterTest < Minitest::Test
                     "raise_error(ArgumentError, #{literal})"
   end
 
+  # A text over the limit cuts its outcome before the facts that tell it
+  # from its siblings: a cut there would leave two texts that read alike.
+  def test_a_long_text_cuts_its_outcome_before_its_telling_fact
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Box", :put, "Box.put", "lib/x.rb", File.join(ROOT, "lib/x.rb"), [],
+                        %i[requires target_path].map { |name| Struct.new(:name).new(name) })
+    rows = [[[["/w/repo/lib/shop.rb"], "/w/repo/app/models/cart.rb"], ['require "shop"', 'require "cart"']],
+            [[["/w/repo/lib/shop.rb"], "/w/repo/lib/shop/cart.rb"], ['require "shop"', 'require "shop/cart"']],
+            [[["/w/repo/lib/shop.rb"], "/w/repo/lib/shop/cart.rb", true], ['require_relative "../lib/shop.rb"', "x"]],
+            [[[], "/w/repo/lib/shop/cart.rb"], ['require "shop/cart"']]]
+    pins = rows.map { |args, value| Branchout::Engine::Pin.new(input: Branchout::Input.new(args: args), value: value, error: nil, arm_ids: []) }
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
+    texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *(?:it|context) '(.*)' do$/).flatten
+    assert_includes texts, 'returns ["require \"shop\"",... when target_path is "/w/repo/app/models/cart.rb"'
+    assert(texts.all? { |text| text.length <= 80 }, texts.inspect)
+  end
+
   # A setter or an operator in a setup call has no plain form that keeps
   # its arguments, so it goes through send.
   def test_a_setter_or_an_operator_is_called_through_send

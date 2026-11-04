@@ -303,11 +303,12 @@ module Branchout
         end
 
         # +short+ names the leaf from its deepest key (status), as a
-        # minitest name does, for a text that is still too long.
+        # minitest name does, for a text that is still too long. A key that
+        # ends another leaf's path too keeps the keys above it.
         def fact_label(leaf, peers = [], short: false)
           (root, *path), value = leaf
           deepest = path.rindex { |step| step.is_a?(String) }
-          name = if short && deepest then Support.path_text(path.drop(deepest))
+          name = if short && deepest then Support.path_text(Support.telling_path(path, peer_paths(root, peers)))
                  elsif path.empty? || !@one_argument then Support.path_text(path, root)
                  else Support.path_text(path)
                  end
@@ -331,6 +332,10 @@ module Branchout
           start = space + 1 if start.positive? && space && start - space <= 12
           piece = value[start, 22]
           Support.ruby_literal("#{"..." if start.positive?}#{piece}#{"..." if start + 22 < value.length}")
+        end
+
+        def peer_paths(root, peers)
+          peers.flat_map { |pin| steps_of(pin).filter_map { |step| step.leaf[0].drop(1) if step.kind == :fact && step.leaf[0][0] == root } }.uniq
         end
 
         def peer_values(leaf, peers)

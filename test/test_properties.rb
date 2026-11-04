@@ -196,6 +196,18 @@ class PropertyTest < Minitest::Test
     end
   end
 
+  # Two leaves whose Hash keys differ get different names, however one
+  # ends the other: id and items[0].id are never both "id".
+  def test_leaves_with_different_keys_get_different_key_names
+    Hegel.test do |tc|
+      step = one_of(sampled_from(%w[id items status result]), integers(min_value: 0, max_value: 1))
+      paths = tc.draw(arrays(arrays(step, min_size: 1, max_size: 4), min_size: 2, max_size: 5)).uniq
+      named = paths.reject { |path| path.grep(String).empty? }.uniq { |path| path.grep(String) }
+      names = named.map { |path| Branchout::Emitters::Support.telling_key(path, paths).text }
+      assert_equal names.uniq, names
+    end
+  end
+
   def test_an_emitted_class_name_is_a_constant
     Hegel.test do |tc|
       method_name = tc.draw(from_regex("[a-z_][a-z0-9_]{0,12}[?!=]?", fullmatch: true))

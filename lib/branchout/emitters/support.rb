@@ -242,14 +242,14 @@ module Branchout
             # items below it, does have the key; its own leaf names it.
             next [] if !map.key?(path) && map.keys.any? { |other| other.first(path.length) == path || path.first(other.length) == other }
 
-            key = path.reverse.find { |step| step.is_a?(String) }
+            key = telling_key(path, paths)
             rest = map[path].is_a?(String) ? tokens(map[path]).drop(shared[path]) : []
             value = if !map.key?(path) then ["none"]
             elsif map[path] == {} || map[path] == [] then ["empty"]
             elsif !rest.empty? then rest
             else value_words(map[path])
             end
-            key ? [Key.new(key), *value] : value
+            key ? [key, *value] : value
           end
         end
       end
@@ -323,7 +323,7 @@ module Branchout
         value = pin.value
         unless differing.empty?
           entries = differing.map do |path, item|
-            "#{path_text(short ? path.drop(path.rindex { |step| step.is_a?(String) }) : path)}: #{ruby_literal(item)}"
+            "#{path_text(short ? telling_path(path, differing.map(&:first)) : path)}: #{ruby_literal(item)}"
           end
           return "returns #{entries.join(", ")}"
         end
@@ -331,10 +331,13 @@ module Branchout
         text = ruby_literal(value)
         return "returns #{text}" if text.length <= 40
 
+        # A String or an Array of scalars says its start, as the minitest
+        # name says its first words.
         case value
         when Hash then "returns a Hash of #{value.keys.map(&:to_s).join(", ")}"
-        when Array then "returns an Array of #{value.length}"
-        when String then "returns a String of #{value.length} characters"
+        when Array
+          value.any? { |item| collection?(item) } ? "returns an Array of #{value.length}" : "returns #{text[0, 37]}..."
+        when String then "returns #{text[0, 37]}..."
         else "returns #{text}"
         end
       end
@@ -413,10 +416,11 @@ module Branchout
         !(a.key?(path) && b.key?(path) && a[path].eql?(b[path]))
       end
 
-      # "returns", then each entry's deepest key and its value.
+      # "returns", then each entry's key, as telling_key names it, and its
+      # value.
       def outcome_entry_words(entries)
         words = entries.flat_map do |path, item|
-          [Key.new(path.reverse.find { |step| step.is_a?(String) }), *(item == [] || item == {} ? ["empty"] : value_words(item))]
+          [telling_key(path, entries.map(&:first)), *(item == [] || item == {} ? ["empty"] : value_words(item))].compact
         end
         ["returns", *words]
       end
@@ -464,19 +468,50 @@ module Branchout
         end
       end
 
-      # A Hash argument is named by its values, and a collection inside an
-      # argument by its kind, so a tree of arguments does not fill the name.
+      # A Hash argument is named by its values, a collection in it by its
+      # key and size (groups_3, tags_empty), and an Array of collections by
+      # its size, so a tree of arguments does not fill the name and two
+      # trees of different sizes read apart.
       def argument_words(value)
-        items = value.is_a?(Hash) ? value.values : value
-        return value_words(value) unless items.is_a?(Array)
-
-        items.flat_map do |item|
-          case item
-          when Hash then ["hash"]
-          when Array then ["array"]
-          else value_words(item)
-          end
+        case value
+        when Hash
+          value.flat_map { |key, item| collection?(item) ? [key.to_s, item.empty? ? "empty" : item.length.to_s] : value_words(item) }
+        when Array
+          value.any? { |item| collection?(item) } ? ["array", "of", value.length.to_s] : value_words(value)
+        else value_words(value)
         end
+      end
+
+      def collection?(value)
+        value.is_a?(Hash) || value.is_a?(Array)
+      end
+
+      # The shortest end of +path+ that starts at a Hash key and ends no
+      # other path in +paths+, so id at the top and items[0].id read apart.
+      # With no key in +path+, the whole path.
+      def telling_path(path, paths)
+        starts = path.each_index.select { |index| path[index].is_a?(String) }
+        return path if starts.empty?
+
+        others = paths.reject { |other| other == path }
+        found = starts.reverse.find do |start|
+          tail = path.drop(start)
+          others.none? { |other| other.last(tail.length) == tail }
+        end
+        path.drop(found || starts.first)
+      end
+
+      # The fewest last Hash keys of +path+ that end the keys of no other
+      # path in +paths+, as one Key: items_id. Paths with the same keys,
+      # such as args[0].value and args[1].value, cannot be told apart by
+      # keys, so they do not lengthen each other's.
+      def telling_key(path, paths)
+        keys = path.grep(String)
+        return nil if keys.empty?
+
+        others = paths.map { |other| other.grep(String) }.reject { |other| other == keys }
+        length = (1..keys.length).find { |count| others.none? { |other| other.last(count) == keys.last(count) } }
+        Key.new(keys.last(length || keys.length).join(" "))
       end
 
       def value_words(value)

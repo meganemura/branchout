@@ -300,7 +300,7 @@ class EmitterTest < Minitest::Test
     error = Branchout::Runner::ExceptionInfo.new(class_name: "QuintDriver::Unsupported")
     tree = [{ "kind" => "name", "name" => "l" }, { "kind" => "app", "args" => [{ "kind" => "int", "value" => -1 }] }]
     nested = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: tree, kwargs: { "env" => 1 }), value: nil, error: error, arm_ids: [])
-    assert_match(/\Atest_name_l_app_array_env_1_raises_quint_driver\z/, Branchout::Emitters::Support.test_names([nested]).first)
+    assert_match(/\Atest_name_l_app_args_1_env_1_raises_quint_driver\z/, Branchout::Emitters::Support.test_names([nested]).first)
 
     point = Struct.new(:x)
     long_word = "a" * 50
@@ -464,7 +464,7 @@ class EmitterTest < Minitest::Test
     pins = [[], [{ "id" => "k01" }]].map do |constants|
       Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [{ "constants" => constants, "tests" => [1] }]), value: 0, error: nil, arm_ids: [])
     end
-    assert_equal %w[test_constants_empty_returns_0 test_id_k01_returns_0], Branchout::Emitters::Support.test_names(pins)
+    assert_equal %w[test_constants_empty_tests_1_returns_0 test_constants_1_tests_1_returns_0], Branchout::Emitters::Support.test_names(pins)
   end
 
   # --pin-keys keeps the named entries of a Hash, by name, and leaves any
@@ -663,11 +663,50 @@ class EmitterTest < Minitest::Test
     assert_match(/\Atest_1_k_2_returns_nil\z/, Branchout::Emitters::Support.test_names([keywords]).first)
     outcome = ->(value) { Branchout::Emitters::Support.outcomes([pin.(value)]).values.first }
     assert_equal "returns #{("a" * 38).inspect}", outcome.("a" * 38)
-    assert_equal "returns a String of 39 characters", outcome.("a" * 39)
-    assert_equal "returns an Array of 20", outcome.([1] * 20)
+    assert_equal "returns #{("a" * 36).inspect[0, 37]}...", outcome.("a" * 39)
+    assert_equal "returns [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, ...", outcome.([1] * 20)
+    assert_equal "returns an Array of 2", outcome.([[1] * 20, [2]])
     assert_equal "returns a Hash of #{(1..9).map { |n| "key#{n}" }.join(", ")}", outcome.((1..9).to_h { |n| [:"key#{n}", n] })
     assert_equal "returns a Set", outcome.(Set[1])
     assert_equal "returns an Object", outcome.(Object.new)
+  end
+
+  # A long Array of Strings says its first words in RSpec, as the minitest
+  # name does, rather than only its size.
+  def test_a_long_array_of_strings_says_its_start_in_both_formats
+    pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: ["../lib/shop/cart"]),
+                                     value: ["require_relative \"../lib/shop/cart_items\""], error: nil, arm_ids: [])
+    assert_equal 'returns ["require_relative \"../lib/shop/cart...', Branchout::Emitters::Support.outcomes([pin]).values.first
+    assert_equal "test_lib_shop_cart_returns_require_relative_lib", Branchout::Emitters::Support.test_names([pin]).first
+  end
+
+  # A collection inside an argument is named by its key and its size, so
+  # two inputs that differ only in how many groups they hold read apart.
+  def test_a_collection_in_an_argument_is_named_by_its_key_and_size
+    pin = lambda do |groups|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [{ "groups" => groups, "tags" => [], "env" => {}, "id" => 7 }]),
+                                 value: :ok, error: nil, arm_ids: [])
+    end
+    assert_equal %w[test_groups_3_tags_empty_env_empty_7_returns_ok test_groups_1_tags_empty_env_empty_7_returns_ok],
+                 Branchout::Emitters::Support.test_names([pin.([[1], [2], [3]]), pin.([[1]])])
+    assert_equal ["test_array_of_2_returns_ok"], Branchout::Emitters::Support.test_names([
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [[[1], [2]]]), value: :ok, error: nil, arm_ids: [])
+    ])
+  end
+
+  # A leaf is named by its deepest key only when no other leaf ends in that
+  # key: id at the top and items[0].id read apart.
+  def test_a_key_at_two_depths_is_named_by_the_path_that_tells_them_apart
+    pin = lambda do |id, item|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [{ "id" => id, "items" => [{ "id" => item }] }]),
+                                 value: :ok, error: nil, arm_ids: [])
+    end
+    assert_equal %w[test_items_id_k02_returns_ok test_items_id_k03_returns_ok],
+                 Branchout::Emitters::Support.test_names([pin.("k01", "k02"), pin.("k01", "k03")])
+    value = ->(id, item) { { "id" => id, "items" => [{ "id" => item }] } }
+    outcome_pins = [[1, 1], [1, 2], [2, 1]].map { |a, b| Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [a, b]), value: value.(a, b), error: nil, arm_ids: []) }
+    assert_equal ["returns id: 1, items[0].id: 1", "returns id: 1, items[0].id: 2", "returns id: 2, items[0].id: 1"],
+                 Branchout::Emitters::Support.outcomes(outcome_pins, short: true).values
   end
 
   # Inputs that share their first steps share a context with the let or
@@ -909,6 +948,11 @@ class EmitterTest < Minitest::Test
     assert_equal ['it "returns 1 when methods is [] and tests is []"', %q(context 'when methods[0].id is "m01"'),
                   %q(it 'returns 1 when tests[0].head.last_run.result.status is "failed"'),
                   %q(it 'returns 1 when status is "timed out after 30 seconds"')], texts
+
+    with_status = pins.drop(1).map { |pin| pin.dup.tap { |copy| copy.input = Branchout::Input.new(args: [{ "status" => "ready", **pin.input.args[0] }]) } }
+    result = Branchout::Engine::Result.new(pins: [pins[0], *with_status], requires: [], private_calls: [])
+    texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *((?:it|context) .*) do$/).flatten
+    assert_equal [%q(context 'when status is "ready"'), %q(it 'returns 1 when result.status is "timed out after 30 seconds"')], texts.values_at(1, 3)
   end
 
   def test_rspec_names_subjects_receivers_and_facts

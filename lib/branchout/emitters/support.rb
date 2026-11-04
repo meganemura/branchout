@@ -317,7 +317,10 @@ module Branchout
                        map.keys.any? { |other| other.first(parent.length) == parent && other[parent.length].is_a?(String) }
 
             key = telling_key(path, paths)
-            rest = map[path].is_a?(String) ? tokens(map[path]).drop(shared[path]) : []
+            # Ruby source keeps the word before the part, as the name it
+            # compares (limit_100), where a String drops its whole shared start.
+            kept = map[path].is_a?(Code) ? [shared[path] - 1, 0].max : shared[path]
+            rest = worded?(map[path]) ? tokens(map[path]).drop(kept) : []
             value = if !map.key?(path) then ["none"]
             elsif map[path] == {} || map[path] == [] then ["empty"]
             elsif !rest.empty? then rest
@@ -350,8 +353,11 @@ module Branchout
       end
 
       # How many leading words all of +values+ share, when they are Strings.
+      # A String, or the Ruby source of a receiver or argument, reads as words.
+      def worded?(value) = value.is_a?(String) || value.is_a?(Code)
+
       def shared_start(values)
-        return 0 unless values.all?(String)
+        return 0 unless values.all? { |value| worded?(value) }
 
         words = values.map { |value| tokens(value) }
         words.first.each_index.take_while { |index| words.all? { |list| list[index] == words.first[index] } }.length

@@ -1258,17 +1258,23 @@ class NameEdgeTest < Minitest::Test
 
   def test_siblings_that_differ_in_their_block_are_named_by_it
     names = support.test_names([pin(1, block: "{ |n| n > 2 }"), pin(1, block: "{ |n| n > 9 }")])
-    assert_equal %w[test_n_n_2_returns_1 test_n_n_9_returns_1], names
+    assert_equal %w[test_n_2_returns_1 test_n_9_returns_1], names
   end
 
   # An input names the receiver its Ruby builds, so inputs that differ
-  # only in it get names of their own.
+  # only in it get names of their own. Two long receivers whose names
+  # would be cut to the same text are named from where their source parts.
   def test_siblings_that_differ_in_a_built_receiver_are_named_by_it
     pins = ["create(:loan)", "create(:loan, :approved)"].map do |source|
       input = Branchout::Input.new(args: [1], receiver: Branchout::Code.parse(source))
       Branchout::Engine::Pin.new(input: input, value: :ok, error: nil, arm_ids: [])
     end
     assert_equal %w[test_1_receiver_create_loan_returns_ok test_1_receiver_create_loan_approved_returns_ok], support.test_names(pins)
+    long = [100, 200].map do |limit|
+      input = Branchout::Input.new(args: [1], receiver: Branchout::Code.parse("build(:loan, amount: 500, borrower: create(:borrower, limit: #{limit}))"))
+      Branchout::Engine::Pin.new(input: input, value: :ok, error: nil, arm_ids: [])
+    end
+    assert_equal %w[test_limit_100_returns_ok test_limit_200_returns_ok], support.test_names(long)
   end
 
   def test_a_number_of_fifteen_digits_is_named_whole

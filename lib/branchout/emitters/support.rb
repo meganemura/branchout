@@ -352,10 +352,10 @@ module Branchout
         out
       end
 
-      # How many leading words all of +values+ share, when they are Strings.
       # A String, or the Ruby source of a receiver or argument, reads as words.
       def worded?(value) = value.is_a?(String) || value.is_a?(Code)
 
+      # How many leading words all of +values+ share, when they read as words.
       def shared_start(values)
         return 0 unless values.all? { |value| worded?(value) }
 

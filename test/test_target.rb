@@ -401,6 +401,28 @@ class TargetTest < Minitest::Test
     parse_source("module T\n  def self.f(x)\n    def self.g = 9\n    x > 1\n  end\nend\n", "T.f") do |target|
       assert_equal [1], target.literals.ints
     end
+    source = <<~RUBY
+      class T
+        def self.f(x)
+          def self.g(x)
+            journal = Ledger.new
+            journal.audit(x) if x.upcase.empty?
+            new(x).apply
+            helper(x)
+          end
+          journal = x
+          journal.close
+          x ? :big : :small
+        end
+      end
+    RUBY
+    parse_source(source, "T.f") do |target|
+      assert_equal "x", target.condition_text(:if, 11, 4, :then, 11, 8)
+      assert_equal "journal.audit(x) if x.upcase.empty?", target.condition_text(:if, 5, 6, :then, 5, 6)
+      assert_empty target.outside_calls
+      assert_empty target.typed_calls
+      assert_equal ["int"], target.positional.map(&:inferred_type)
+    end
   end
 
   def test_condition_text_without_a_decision_node_is_the_source_line

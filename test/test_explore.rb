@@ -29,6 +29,7 @@ class ExploreTest < Minitest::Test
       report, emitted = explore_pantry(dir)
       assert_includes report, "arms_covered: 2\narms_total: 4\n"
       assert_includes report, "rows left: 0\n"
+      assert_includes report, "NOT COUNTED\ncallee: ShelfLabel#label\nloc: #{SUITE}/shelf_label.rb:4\narms: 2\n"
       assert_equal 3, emitted.scan("returns_first").length, emitted
     end
   end

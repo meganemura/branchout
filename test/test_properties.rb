@@ -105,7 +105,12 @@ class PropertyTest < Minitest::Test
       pins = pins.uniq { |pin| pin.input.canonical }
       names = Branchout::Emitters::Support.test_names(pins)
       assert_equal names.uniq, names
-      assert(names.all? { |name| name.match?(/\Atest_[a-z0-9_]+\z/) && name.length <= 90 })
+      assert(names.all? { |name| name.match?(/\Atest_[a-z0-9_]+\z/) && !name.include?("__") && name.length <= 104 }, names.inspect)
+      pins.zip(names) do |pin, name|
+        next if pin.error
+
+        assert_equal pin.value.nil?, name.match?(/_returns_nil(_\h{6})?(_\d+)?\z/), "#{name} for #{pin.value.inspect}"
+      end
       order = tc.draw(permutations((0...pins.length).to_a))
       assert_equal order.map { |index| names[index] }, Branchout::Emitters::Support.test_names(order.map { |index| pins[index] })
     end
@@ -129,7 +134,7 @@ class PropertyTest < Minitest::Test
   # cut falls between words, and a blank argument leaves the word blank.
   def test_emitted_test_names_cut_between_words
     vocabulary = %w[apple discount cents due lines qty sku raised ok]
-    shapes = %w[test returns raises hash array of empty blank nil true false foo bar error]
+    shapes = %w[test returns raises hash array of and empty blank nil true false foo bar error]
     word = one_of(sampled_from(vocabulary), sampled_from(["", " ", "  "]), integers(min_value: -99, max_value: 999))
     value = recursive(word, max_leaves: 6) do |inner|
       one_of(arrays(inner, max_size: 3), hashes(sampled_from(vocabulary), inner, max_size: 3))
@@ -147,14 +152,15 @@ class PropertyTest < Minitest::Test
     end
   end
 
-  # A Hash outcome names its first keys whole and in order, each after "__".
+  # A Hash outcome names its first keys whole and in order, each after the
+  # first after "and".
   def test_a_hash_outcome_names_its_first_keys_whole
     keys = sampled_from(%w[due line_items discount_cents a_b_c qty])
     Hegel.test do |tc|
       value = tc.draw(hashes(keys, integers(min_value: 0, max_value: 9), min_size: 1, max_size: 5))
       pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1]), value: value, error: nil, covers: [])
       name = Branchout::Emitters::Support.test_names([pin]).first
-      named = name.delete_prefix("test_1_returns_hash__").split("__")
+      named = name.delete_prefix("test_1_returns_hash_").split("_and_")
       refute_empty named, name
       assert_equal value.keys.first(named.length), named, name
     end
@@ -174,7 +180,7 @@ class PropertyTest < Minitest::Test
       names.zip(outcomes) do |name, outcome|
         next unless outcome.match?(/\Areturns [a-z]+: /)
 
-        assert_equal outcome.scan(/([a-z]+): /).flatten, name.split("_returns").last.scan(/__([a-z]+)_/).flatten, "#{name} / #{outcome}"
+        assert_equal outcome.scan(/([a-z]+): /).flatten, name.split("_returns").last.scan(/(?:\A_|_and_)([a-z]+)_\d/).flatten, "#{name} / #{outcome}"
       end
     end
   end

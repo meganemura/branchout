@@ -402,8 +402,8 @@ class EmitterTest < Minitest::Test
     expected = [
       /\Atest_blank_1_raises_argument_error\z/,
       /\Atest_empty_returns_ok\z/,
-      /\Atest_50_returns__discount_50\z/,
-      /\Atest_51_returns__discount_1\z/,
+      /\Atest_50_returns_discount_50\z/,
+      /\Atest_51_returns_discount_1\z/,
       /\Atest_1_returns_raised_argumenterror\z/,
       /\Atest_2_returns_array_of_2\z/,
       /\Atest_3_returns_empty_hash\z/
@@ -438,9 +438,9 @@ class EmitterTest < Minitest::Test
       pin.(["?"])
     ]
     names = Branchout::Emitters::Support.test_names(pins)
-    assert_equal "test_status_fail__error_class_minitest_returns_ok", names[0]
-    assert_equal "test_status_timeout__error_class_timeout_returns_ok", names[1]
-    assert_equal "test_status_pass__error_class_none_returns_ok", names[2]
+    assert_equal "test_status_fail_and_error_class_minitest_returns_ok", names[0]
+    assert_equal "test_status_timeout_and_error_class_timeout_returns_ok", names[1]
+    assert_equal "test_status_pass_and_error_class_none_returns_ok", names[2]
     assert_equal "test_1_returns_ok", names[3]
     assert_match(/\Atest_text_returns_ok_\h{6}\z/, names[4])
     assert_match(/\Atest_text_returns_ok_\h{6}\z/, names[5])
@@ -475,7 +475,7 @@ class EmitterTest < Minitest::Test
     pins = [[1, snapshot.(0, 1000)], [2, snapshot.(900, 100)], [3, :none]].map do |arg, value|
       Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [arg]), value: value, error: nil, covers: [])
     end
-    assert_equal %w[test_1_returns__due_cents_0 test_2_returns__due_cents_900 test_3_returns_none],
+    assert_equal %w[test_1_returns_due_cents_0 test_2_returns_due_cents_900 test_3_returns_none],
                  Branchout::Emitters::Support.test_names(pins)
   end
 
@@ -488,8 +488,8 @@ class EmitterTest < Minitest::Test
     pin = ->(arg, value) { Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [arg]), value: value, error: nil, covers: []) }
     snapshot = ->(due, discount, cents) { { lines: [], discount: discount, due_cents: due, discount_cents: cents } }
     pins = [[0, 0, 0], [0, 100, 1000], [900, 10, 100], [100, 10, 0], [150, 0, 0]].each_with_index.map { |due, index| pin.(index, snapshot.(*due)) }
-    assert_equal %w[test_0_returns__due_cents_0__discount_0 test_1_returns__due_cents_0__discount_100 test_2_returns__due_cents_900__discount_10
-                    test_3_returns__due_cents_100__discount_10 test_4_returns__due_cents_150__discount_0],
+    assert_equal %w[test_0_returns_due_cents_0_and_discount_0 test_1_returns_due_cents_0_and_discount_100 test_2_returns_due_cents_900_and_discount_10
+                    test_3_returns_due_cents_100_and_discount_10 test_4_returns_due_cents_150_and_discount_0],
                  support.test_names(pins)
     assert_equal ["returns due_cents: 0, discount: 0", "returns due_cents: 0, discount: 100", "returns due_cents: 900, discount: 10",
                   "returns due_cents: 100, discount: 10", "returns due_cents: 150, discount: 0"],
@@ -497,7 +497,7 @@ class EmitterTest < Minitest::Test
 
     doc = ->(discarded) { { "tests" => [{ "id" => "t1" }], "counts" => { "generated" => 1, "discarded" => discarded, "reported" => 1 - discarded } } }
     pins = [pin.(1, doc.(0)), pin.(2, doc.(1))]
-    assert_equal %w[test_1_returns__discarded_0 test_2_returns__discarded_1], support.test_names(pins)
+    assert_equal %w[test_1_returns_discarded_0 test_2_returns_discarded_1], support.test_names(pins)
     assert_equal ["returns counts.discarded: 0", "returns counts.discarded: 1"], support.outcomes(pins).values
 
     # The line items tell more pairs apart, but the due says something about every cart.
@@ -528,7 +528,7 @@ class EmitterTest < Minitest::Test
   end
 
   # At most three leaves name a Hash outcome, a leaf that would make a
-  # minitest outcome longer than 45 characters is not taken, and an empty
+  # minitest outcome longer than 51 characters is not taken, and an empty
   # collection says empty.
   def test_hash_outcome_leaves_stop_at_three_and_at_the_length_limit
     support = Branchout::Emitters::Support
@@ -536,10 +536,10 @@ class EmitterTest < Minitest::Test
     base = { a: 0, b: 0, c: 0, d: 0 }
     pins = [pin.(0, base)] + %i[a b c d].each_with_index.map { |key, index| pin.(index + 1, base.merge(key => 1)) }
     assert_equal [3], support.outcomes(pins).values.map { |text| text.count(":") }.uniq
-    long = :a_very_long_key_name_that_goes_on
+    long = :a_very_long_key_name_that_goes_on_and_on
     pins = [[0, 0], [1, 0], [2, 0], [0, 1]].each_with_index.map { |(a, x), index| pin.(index, { a: a, long => x }) }
     assert_equal ["returns a: 0", "returns a: 1", "returns a: 2", "returns a: 0"], support.outcomes(pins).values
-    assert_equal %w[test_1_returns__tags_empty test_2_returns__tags_empty], support.test_names([pin.(1, { tags: [] }), pin.(2, { tags: {} })])
+    assert_equal %w[test_1_returns_tags_empty test_2_returns_tags_empty], support.test_names([pin.(1, { tags: [] }), pin.(2, { tags: {} })])
   end
 
   # A scalar deep in a Hash argument reaches the name: 7 % 0, -7 % 3, and
@@ -550,7 +550,7 @@ class EmitterTest < Minitest::Test
       Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [modulo.(a, b)], receiver: Branchout::Input.new(args: [[], []])),
                                  value: :ok, error: nil, covers: [])
     end
-    assert_equal %w[test_value_7__value_0_returns_ok test_value_neg7__value_3_returns_ok test_value_7__value_3_returns_ok],
+    assert_equal %w[test_value_7_and_value_0_returns_ok test_value_neg7_and_value_3_returns_ok test_value_7_and_value_3_returns_ok],
                  Branchout::Emitters::Support.test_names(pins)
   end
 
@@ -597,7 +597,7 @@ class EmitterTest < Minitest::Test
     end
     assert_equal ["returns total: 6", "returns total: 2"], support.outcomes(pins).values
     assert_equal ["returns tax: 1", "returns tax: 0"], support.outcomes(pins, %w[tax]).values
-    assert_equal %w[test_1_returns__tax_1 test_2_returns__tax_0], support.test_names(pins, %w[tax])
+    assert_equal %w[test_1_returns_tax_1 test_2_returns_tax_0], support.test_names(pins, %w[tax])
     own = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1], pin_keys: %w[id]), value: value, error: nil, covers: [])
     assert_equal ["returns {\"id\" => \"r\"}"], support.outcomes([own], %w[tax]).values
     assert_equal %w[id], support.keys_for(own, %w[tax])
@@ -831,9 +831,10 @@ class EmitterTest < Minitest::Test
     assert_equal "ab_c", support.clip(%w[ab c], 4)
     assert_equal "ab", support.clip(%w[ab cd], 4)
     key = Branchout::Emitters::Support::Key
-    assert_equal "returns__due_cents_0", support.clip(["returns", key.new("due_cents"), "0", key.new("discount_cents"), "1000"], 30)
-    assert_equal "returns__due_cents_0", support.clip(["returns", key.new("due_cents"), "0", key.new("discount_cents"), "1000"], 36)
-    assert_equal "hash__lines__discount", support.clip(["hash", key.new("lines"), key.new("discount"), key.new("due_cents")], 25)
+    assert_equal "returns_due_cents_0", support.clip(["returns", key.new("due_cents"), "0", key.new("discount_cents"), "1000"], 30)
+    assert_equal "returns_due_cents_0", support.clip(["returns", key.new("due_cents"), "0", key.new("discount_cents"), "1000"], 36)
+    assert_equal "hash_lines_and_discount", support.clip(["hash", key.new("lines"), key.new("discount"), key.new("due_cents")], 25)
+    assert_equal "returns_a_1", support.clip(["returns", key.new("a"), "1", key.new("b"), "longvalue"], 21)
   end
 
   def test_an_emitted_file_creates_its_directory
@@ -949,7 +950,7 @@ class EmitterTest < Minitest::Test
     pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: ["../lib/shop/cart"]),
                                      value: ["require_relative \"../lib/shop/cart_items\""], error: nil, covers: [])
     assert_equal 'returns ["require_relative \"../lib/shop/cart...', Branchout::Emitters::Support.outcomes([pin]).values.first
-    assert_equal "test_lib_shop_cart_returns_require_relative_lib", Branchout::Emitters::Support.test_names([pin]).first
+    assert_equal "test_lib_shop_cart_returns_array_require_relative", Branchout::Emitters::Support.test_names([pin]).first
   end
 
   # A collection inside an argument is named by its key and its size, so
@@ -1331,8 +1332,16 @@ class NameFactsTest < Minitest::Test
   def test_an_array_of_a_scalar_and_a_hash_says_both
     value = [:ok, { "id" => 1, "name" => "a name long enough to pass forty" }]
     assert_equal "returns [:ok, a Hash of id, name]", support.outcomes([pin(value)]).values.first
-    assert_equal "test_1_returns_ok_hash__id__name", support.test_names([pin(value)]).first
+    assert_equal "test_1_returns_ok_hash_id_and_name", support.test_names([pin(value)]).first
     assert_equal "returns an Array of 2", support.outcomes([pin([[1] * 20, [2]])]).values.first
+  end
+
+  # An Array of scalars is not named as its item, and a Hash outcome's
+  # first key follows "returns" with one underscore.
+  def test_an_array_holding_nil_is_not_named_nil
+    assert_equal %w[test_1_returns_array_nil test_2_returns_nil test_3_returns_k_7 test_4_returns_k_8],
+                 support.test_names([pin([nil], [1]), pin(nil, [2]), pin({ "k" => 7 }, [3]),
+                                     pin({ "k" => 8, "v" => 1 }, [4])])
   end
 
   # A Set has a literal, so both formats pin its members.
@@ -1347,7 +1356,7 @@ class NameFactsTest < Minitest::Test
   def test_a_long_integer_keeps_its_fact_in_the_name
     big = 1234567890123456789012345678901234567890123456789
     names = support.test_names([pin({ "total" => big }, [{ "n" => big }]), pin({ "total" => big - 1 }, [{ "n" => big - 1 }])])
-    names.each { |name| assert_match(/\Atest_n_123e46_returns__total_123e46_\h{6}\z/, name) }
+    names.each { |name| assert_match(/\Atest_n_123e46_returns_total_123e46_\h{6}\z/, name) }
     assert_equal "test_neg123e46_returns_ok", support.test_names([pin(:ok, [-big])]).first
   end
 
@@ -1356,11 +1365,11 @@ class NameFactsTest < Minitest::Test
   def test_a_key_that_holds_another_shape_is_not_none
     inputs = [[{ "groups" => [[1], [2]] }], [{ "groups" => [{ "id" => 1 }, { "id" => 2 }] }]]
     names = support.test_names(inputs.map { |args| pin(:ok, args) })
-    assert_equal %w[test_groups_1__groups_2__id_none_returns_ok test_id_1__id_2_returns_ok], names
+    assert_equal %w[test_groups_1_and_groups_2_and_id_none_returns_ok test_id_1_and_id_2_returns_ok], names
 
     inputs = [[{ "groups" => [[1]] }], [{ "groups" => { "id" => 1 } }]]
     names = support.test_names(inputs.map { |args| pin(:ok, args) })
-    assert_equal %w[test_groups_1__id_none_returns_ok test_id_1_returns_ok], names
+    assert_equal %w[test_groups_1_and_id_none_returns_ok test_id_1_returns_ok], names
   end
 
   # An item missing from an Array of positional arguments is "none", even
@@ -1456,15 +1465,15 @@ class NameEdgeTest < Minitest::Test
   def test_a_missing_array_item_is_not_a_run_of_none
     inputs = [[["ok", [1, 2]]], [["ok", { "id" => 1, "name" => "x" }]], [[{ "a" => 1 }, { "b" => 2 }]]]
     names = support.test_names(inputs.map { |args| pin(:ok, args: args) })
-    assert_equal %w[test_ok_1_2__id_none__name_none__b_none_returns_ok test_ok__id_1__name_x__b_none_returns_ok
-                    test_id_none__name_none__a_1__b_2_returns_ok], names
+    assert_equal %w[test_ok_1_2_id_none_and_name_none_and_b_none_returns_ok test_ok_id_1_and_name_x_and_b_none_returns_ok
+                    test_id_none_and_name_none_and_a_1_and_b_2_returns_ok], names
     assert_equal %w[1 none], support.without_repeated_none(%w[1 none none none])
   end
 
   # A leaf whose value is nil or false is a leaf too.
   def test_siblings_that_differ_by_a_nil_leaf_are_named
     names = support.test_names([[{ "a" => nil }], [{ "b" => nil }]].map { |args| pin(:ok, args: args) })
-    assert_equal %w[test_a_nil__b_none_returns_ok test_a_none__b_nil_returns_ok], names
+    assert_equal %w[test_a_nil_and_b_none_returns_ok test_a_none_and_b_nil_returns_ok], names
   end
 
   def test_a_block_and_an_empty_collection_beside_a_scalar_are_named

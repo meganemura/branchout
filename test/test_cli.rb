@@ -680,7 +680,7 @@ class CLITest < Minitest::Test
         assert status.success?, err
       end
       assert_includes File.read(test), "    assert_equal({total: 6, tax: 1}, Receipt.build(3).slice(:total, :tax))\n"
-      assert_includes File.read(test), "  def test_3_returns__total_6\n"
+      assert_includes File.read(test), "  def test_3_returns_total_6\n"
       assert_includes File.read(spec), "      expect(Receipt.build(3)).to include({total: 6, tax: 1})\n"
       File.write(target, "module Receipt\n  def self.build(n)\n    { total: n * 2, tax: n > 2 ? 1 : 0, id: \"r\", note: nil }\n  end\nend\n")
       _out, err, status = Open3.capture3(RbConfig.ruby, test)
@@ -938,7 +938,7 @@ class CLITest < Minitest::Test
         next if name.end_with?("_spec.rb")
 
         assert_equal %w[test_nothing_csv_raises_errno_enoent test_spec_fixtures_none_csv_raises_errno_enoent
-                        test_spec_fixtures_rates_csv_returns_spec_fixtures_rates], source.scan(/def (test_\w+)/).flatten.sort
+                        test_spec_fixtures_rates_csv_returns_array_spec_fixtures], source.scan(/def (test_\w+)/).flatten.sort
       end
 
       moved = File.join(dir, "moved")

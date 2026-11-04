@@ -634,8 +634,9 @@ module Branchout
       end
 
       MISSING = Object.new.freeze
-      # The longest minitest outcome part of a name, in characters.
-      OUTCOME_LIMIT = 45
+      # The longest minitest outcome part of a name, in characters: room for
+      # the "and" before each of the second and third leaves too.
+      OUTCOME_LIMIT = 51
 
       def outcome_length(entries)
         clip(outcome_entry_words(entries), Float::INFINITY).length
@@ -700,11 +701,13 @@ module Branchout
       def shape_words(value)
         case value
         when {}, [] then ["empty", value.is_a?(Hash) ? "hash" : "array"]
-        when Hash then ["hash", *value.keys.map { |key| Key.new(key.to_s) }]
+        when Hash then ["hash", *value.keys.each_with_index.map { |key, index| Key.new(key.to_s, index.positive?) }]
         when Array
           if value.all? { |item| collection?(item) } then ["array", "of", value.length.to_s]
           elsif value.any? { |item| collection?(item) } then value.flat_map { |item| collection?(item) ? shape_words(item) : value_words(item) }
-          else value_words(value)
+          # An Array of scalars says so, so [nil] is not named as nil and
+          # [3] not as 3.
+          else ["array", *value_words(value)]
           end
         else value_words(value)
         end
@@ -766,9 +769,16 @@ module Branchout
         when /\A\s+\z/ then ["blank"]
         when /\A[^A-Za-z0-9]+\z/ then ["text"]
         when Numeric then [value.to_s.sub(/\A-/, "neg")]
-        when String then [without_machine_directories(value)]
+        when String then literal_safe([without_machine_directories(value)])
+        when Symbol then literal_safe([value.to_s])
         else [value.to_s]
         end
+      end
+
+      # A String or a Symbol that reads as nil, true, or false says it is
+      # text, so a name does not claim the literal for it.
+      def literal_safe(words)
+        %w[nil true false].include?(tokens(words.first).join("_")) ? ["text", *words] : words
       end
 
       # +value+ as a name or a description says it: a path under the
@@ -808,20 +818,32 @@ module Branchout
         [class_name.gsub("::", "_").gsub(/([a-z\d])([A-Z])/, '\1_\2')]
       end
 
-      # A Hash key in a name. It is set off by "__" and never cut, so
-      # line_items reads as one key and not as the keys line and items.
-      Key = Data.define(:text)
+      # A Hash key in a name. It is one unit that a cut never splits, and a
+      # key that +follows+ another key of the same list comes after "and",
+      # so line_items reads as one key and not as the keys line and items.
+      # A key that starts a list, such as the first key of each Hash in an
+      # Array, does not follow the keys before it.
+      Key = Data.define(:text, :follows) do
+        def initialize(text:, follows: true) = super
+      end
 
       # Joins words into identifier characters, at most +limit+ long, cut
       # between words. Only a first word longer than +limit+ is cut inside.
       # A key whose value the cut drops goes too, so a name never ends in a
       # key that says nothing.
       def clip(words, limit)
+        listed = false
         units = words.flat_map do |word|
-          next tokens(word).map { |token| ["_", token] } unless word.is_a?(Key)
+          next tokens(word).map { |token| ["_", token, false] } unless word.is_a?(Key)
 
+          # A key with no letter or digit, such as "", still says it is a key,
+          # so its value is not read as the whole outcome.
           key = tokens(word.text).join("_")
-          key.empty? ? [] : [["__", key]]
+          key = "key" if key.empty?
+
+          joiner = listed && word.follows ? "_and_" : "_"
+          listed = true
+          [[joiner, key, true]]
         end
         return "" if units.empty?
 
@@ -836,7 +858,7 @@ module Branchout
           taken += 1
         end
         last, cut = units[taken - 1], units[taken]
-        return text.delete_suffix("__#{last[1]}") if last[0] == "__" && cut && cut[0] == "_"
+        return text.delete_suffix("#{last[0]}#{last[1]}") if last[2] && cut && !cut[2]
 
         text
       end

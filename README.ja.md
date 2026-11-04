@@ -191,7 +191,7 @@ String の引数は素のリテラルで書き、ファイルの `frozen_string_
 `private_constant` で隠したクラスやモジュールは `const_get` でたどり（`Shop.const_get(:Ledger)`）、RSpec の describe はその名前を文字列で書く。
 minitest のテスト名は入力と結果から作る。
 `test_24_12_raises_zero_division_error` のようになる。
-名前が同じになる入力どうしは、互いに異なる値で名付ける（`test_status_timeout__error_class_timeout_returns_ok` など）。
+名前が同じになる入力どうしは、互いに異なる値で名付ける（`test_status_timeout_and_error_class_timeout_returns_ok` など）。
 そのため、入力を足すとそれらの名前が変わることがある。
 先頭が同じ文字列どうしは、分かれたところからの単語で名付ける。
 `receiver` の 2 つのファクトリー呼び出しのように先頭が同じ Ruby のソースは、分かれる直前の単語も残す（`test_limit_100_returns_ok`）。
@@ -199,13 +199,16 @@ minitest のテスト名は入力と結果から作る。
 空白だけの文字列は `blank` になり、Hash の引数は値で名付ける。
 Hash の引数の中のコレクションは、キーと大きさで名付ける（`groups_3`、`tags_empty`）。
 コレクションの配列は大きさで名付ける（`array_of_2`）。
-スカラーとコレクションが混ざる配列は、各スカラーと各 Hash のキーで名付ける（`returns [:ok, a Hash of id, name]`、`returns_ok_hash__id__name`）。
+スカラーとコレクションが混ざる配列は、各スカラーと各 Hash のキーで名付ける（`returns [:ok, a Hash of id, name]`、`returns_ok_hash_id_and_name`）。
 16 桁以上の数は、先頭 3 桁と 10 の累乗で名付ける（`123e46`）。
 別の葉も同じキーで終わるときは、その上のキーも名前に入れる（`id` の隣の `items_id`）。
 Hash の結果は、兄弟どうしを見分けられる最少の葉で名付ける。
-入れ子の葉も対象になる（`returns__due_cents_0__discount_100`）。
+入れ子の葉も対象になる（`returns_due_cents_0_and_discount_100`）。
 minitest と RSpec は同じ葉を使う。
-兄弟がないときはキーで名付け、各キーの前に `__` を置く。
+兄弟がないときはキーで名付ける（`returns_hash_lines_and_discount_cents`）。
+2 つ目からのキーの前には `and` を置き、キーは途中で切らない。
+スカラーの配列は `array` を付けて名付ける（`[nil]` は `returns_array_nil`）。
+`nil`、`true`、`false` と読める文字列やシンボルには `text` を付ける（`returns_text_nil`）。
 対象のディレクトリの外に出力したテストは、対象を絶対パスで読み込む。
 `--require-by-name` を付け、`-I` か `--require` のディレクトリが対象を含むときは、ロードパス経由で読み込む。
 `--require` のファイルがすでに対象を読み込むときは、対象の require を書かない。

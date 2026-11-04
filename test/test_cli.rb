@@ -263,20 +263,20 @@ class CLITest < Minitest::Test
                               "\nmessage: quantity must be positive"
 
       source = File.read(test)
-      assert_includes source, "    fixture_cart = FixtureCart.new\n    fixture_cart.add(+\"apple\", 3)\n" \
+      assert_includes source, "    fixture_cart = FixtureCart.new\n    fixture_cart.add(\"apple\", 3)\n" \
                               "    assert_equal 100, fixture_cart.volume_discount_cents\n"
-      assert_includes source, "    fixture_cart = FixtureCart.new(+\"EUR\")\n    fixture_cart.add(+\"apple\", 5)\n" \
-                              "    fixture_cart.add(+\"pear\", 5, price: 50)\n" \
+      assert_includes source, "    fixture_cart = FixtureCart.new(\"EUR\")\n    fixture_cart.add(\"apple\", 5)\n" \
+                              "    fixture_cart.add(\"pear\", 5, price: 50)\n" \
                               "    assert_equal 500, fixture_cart.volume_discount_cents\n"
       assert_includes source, "    error = assert_raises(ArgumentError) do\n      fixture_cart = FixtureCart.new\n" \
-                              "      fixture_cart.add(+\"apple\", 0)\n      fixture_cart.volume_discount_cents\n    end\n"
+                              "      fixture_cart.add(\"apple\", 0)\n      fixture_cart.volume_discount_cents\n    end\n"
       _out, err, status = Open3.capture3(RbConfig.ruby, test)
       assert status.success?, err
       # The input that raises keeps its setup inside the expect block, so
       # the raise is pinned wherever it comes from.
       assert_includes File.read(spec), "    context \"with new\" do\n      let(:fixture_cart) { FixtureCart.new }\n\n" \
                                        "      it 'raises ArgumentError after add(\"apple\", 0)' do\n        expect {\n" \
-                                       "          fixture_cart.add(+\"apple\", 0)\n          volume_discount_cents\n" \
+                                       "          fixture_cart.add(\"apple\", 0)\n          volume_discount_cents\n" \
                                        "        }.to raise_error(ArgumentError, \"quantity must be positive\")\n"
       _out, err, status = Open3.capture3(RbConfig.ruby, "-rrspec/autorun", "-e", "", spec)
       assert status.success?, err

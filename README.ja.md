@@ -162,6 +162,10 @@ RSpec では、`Struct` と `Data` の値はクラスとメンバーで固定し
 minitest は `Struct` をクラスだけで固定する。
 期待する Hash は値そのもののキー順で書くので、失敗時の差分をキーごとに見比べられる。
 private や protected の入口と private な `new` は、`explore` と同じく `send` で呼ぶ。
+String の引数は素のリテラルで書き、ファイルの `frozen_string_literal` がそれを凍結する。
+`explore` も凍結した String を渡す。
+凍結した String では `FrozenError` を起こし、凍結していない String では起こさない入力だけは、凍結していない方の実行を残す。
+そのテストは各 String を `+"..."` と書き、その理由をコメントで示す。
 `private_constant` で隠したクラスやモジュールは `const_get` でたどり（`Shop.const_get(:Ledger)`）、RSpec の describe はその名前を文字列で書く。
 minitest のテスト名は入力と結果から作る。
 `test_24_12_raises_zero_division_error` のようになる。

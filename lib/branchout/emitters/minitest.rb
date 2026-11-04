@@ -31,7 +31,8 @@ module Branchout
       def example_lines(target, pin, name, private_calls, pin_keys, const = target.const_name)
         lines = ["  def #{name}"]
         lines.concat(Support.cover_comment(pin, "    "))
-        arrange, call = Support.arrange(target, pin.input, private_calls: private_calls, const: const)
+        lines.concat(Support.thawed_comment(pin, "    "))
+        arrange, call = Support.arrange(target, pin.input, private_calls: private_calls, const: const, thawed: pin.thawed)
         if pin.error
           lines << "    error = assert_raises(#{pin.error.class_name}) do"
           (arrange + [call]).each { |line| lines << "      #{line}" }

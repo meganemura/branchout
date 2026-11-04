@@ -96,10 +96,57 @@ class EmitterTest < Minitest::Test
       assert status.success?, err
       assert_includes stdout, "input: [[],\"a\"]"
       assert_includes stdout, "EXCEPTIONS\n(none)"
-      assert_includes File.read(test), "assert_equal :one, FixtureGrow.add([], +\"a\")"
+      assert_includes File.read(test), "    #{THAWED_COMMENT}\n    assert_equal :one, FixtureGrow.add([], +\"a\")\n"
 
       _out, err, status = Open3.capture3(RbConfig.ruby, test)
       assert status.success?, err
+    end
+  end
+
+  THAWED_COMMENT = "# With frozen Strings this input raised FrozenError, so its Strings are unfrozen (+\"...\")."
+
+  # A String reaches the target frozen, as a literal in an emitted test
+  # does, so only a target that changes its argument gets an unfrozen copy.
+  def test_a_string_argument_is_frozen_unless_the_target_changes_it
+    Dir.mktmpdir do |dir|
+      inputs = File.join(dir, "inputs.json")
+      File.write(inputs, JSON.generate({ "inputs" => [["a"], ["ab"]] }))
+      Dir.mktmpdir do |out|
+        test = File.join(out, "label_test.rb")
+        spec = File.join(out, "label_spec.rb")
+        [test, spec].each do |path|
+          _stdout, err, status = run_cli(
+            "explore", "test/fixtures/label.rb", "FixtureLabel.shout",
+            "--inputs", inputs, "--strategy", "inputs", "--random", "0", "--emit-tests", path
+          )
+          assert status.success?, err
+        end
+        source = File.read(test)
+        assert_includes source, "assert_equal \"A\", FixtureLabel.shout(\"a\")"
+        refute_includes source, "+\""
+        refute_includes source, "FrozenError"
+        assert_includes File.read(spec), "expect(FixtureLabel.shout(\"a\")).to eq(\"A\")"
+        refute_includes File.read(spec), "+\""
+        _out, err, status = Open3.capture3(RbConfig.ruby, test)
+        assert status.success?, err
+      end
+    end
+  end
+
+  def test_an_input_that_raises_frozen_error_on_its_own_code_stays_frozen
+    Dir.mktmpdir do |dir|
+      inputs = File.join(dir, "inputs.json")
+      File.write(inputs, JSON.generate({ "inputs" => [["a"]] }))
+      test = File.join(dir, "label_test.rb")
+      stdout, err, status = run_cli(
+        "explore", "test/fixtures/label.rb", "FixtureLabel.stamp",
+        "--inputs", inputs, "--strategy", "inputs", "--random", "0", "--emit-tests", test
+      )
+      assert status.success?, err
+      assert_includes stdout, "class: FrozenError"
+      source = File.read(test)
+      assert_includes source, "FixtureLabel.stamp(\"a\")"
+      refute_includes source, THAWED_COMMENT
     end
   end
 
@@ -209,7 +256,7 @@ class EmitterTest < Minitest::Test
       assert_includes sources, "let(:fixture_vault) { FixtureVault.send(:new, 3) }"
       assert_includes sources, "expect(fixture_vault.send(:peek, 3)).to eq(:match)"
       assert_includes sources, "assert_equal :shut, FixtureVault.send(:new, 3).unlock(4)"
-      assert_includes sources, 'expect(FixtureVault.send(:seal, +"")).to eq(:blank)'
+      assert_includes sources, 'expect(FixtureVault.send(:seal, "")).to eq(:blank)'
     end
   end
 
@@ -246,13 +293,14 @@ class EmitterTest < Minitest::Test
   def test_literals_calls_and_class_names
     support = Branchout::Emitters::Support
     assert_equal '{"b" => true, c: +"x", "a" => [nil, false], d?: 1, "e f": 2, "+": 3}',
-                 support.ruby_literal({ "b" => true, c: "x", "a" => [nil, false], d?: 1, "e f": 2, "+": 3 }, mutable: true)
+                 support.ruby_literal({ "b" => true, c: "x", "a" => [nil, false], d?: 1, "e f": 2, "+": 3 }, thawed: true)
     target = Struct.new(:singleton, :const_name, :method_name, :entry).new(true, "Foo::Bar", :baz?, "Foo::Bar.baz?")
     input = Branchout::Input.new(args: [1], kwargs: { "z" => 1, "a b" => "s" })
-    assert_equal [[], 'Foo::Bar.baz?(1, "a b": +"s", z: 1)'], support.arrange(target, input)
+    assert_equal [[], 'Foo::Bar.baz?(1, "a b": "s", z: 1)'], support.arrange(target, input)
+    assert_equal [[], 'Foo::Bar.baz?(1, "a b": +"s", z: 1)'], support.arrange(target, input, thawed: true)
     target.singleton = false
     setup = [Branchout::Input::SetupCall.new("<<", Branchout::Input.new(args: ["x"])), Branchout::Input::SetupCall.new("clear", Branchout::Input.new(args: []))]
-    assert_equal [["bar = Foo::Bar.new(2)", 'bar.send(:<<, +"x")', "bar.clear"], "bar.baz?"],
+    assert_equal [["bar = Foo::Bar.new(2)", 'bar.send(:<<, "x")', "bar.clear"], "bar.baz?"],
                  support.arrange(target, Branchout::Input.new(args: [], receiver: Branchout::Input.new(args: [2]), setup: setup))
     { "HTTPClient" => "http_client", "Class" => "subject", "Error" => "subject", "X" => "x" }.each do |const, name|
       target.const_name = const
@@ -791,23 +839,31 @@ class EmitterTest < Minitest::Test
     input = Branchout::Input.new(args: [], receiver: Branchout::Input.new(args: ["EUR"]), setup: setup)
     error = Branchout::Runner::ExceptionInfo.new(class_name: "KeyError", message: "m", stable_message: false)
     pins = [nil, error].map { |raised| Branchout::Engine::Pin.new(input: input, value: 7, error: raised, arm_ids: []) }
-    arrange = "cart = Shop::Cart.new(+\"EUR\")\n"
+    arrange = "cart = Shop::Cart.new(\"EUR\")\n"
     pins.each do |pin|
       result = Branchout::Engine::Result.new(pins: [pin], requires: [], load_paths: [], private_calls: [])
       minitest = Branchout::Emitters.render("minitest", result, target, File.join(ROOT, "test/cart_test.rb"))
       rspec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/cart_spec.rb"))
       if pin.error
-        assert_includes minitest, "    error = assert_raises(KeyError) do\n      #{arrange}      cart.add(+\"apple\", qty: 2)\n      cart.total\n    end\n"
-        assert_includes rspec, "    let(:cart) { Shop::Cart.new(+\"EUR\") }\n\n    it 'raises KeyError after add(\"apple\", qty: 2)' do\n" \
-                               "      expect {\n        cart.add(+\"apple\", qty: 2)\n        total\n      }.to raise_error(KeyError)\n"
+        assert_includes minitest, "    error = assert_raises(KeyError) do\n      #{arrange}      cart.add(\"apple\", qty: 2)\n      cart.total\n    end\n"
+        assert_includes rspec, "    let(:cart) { Shop::Cart.new(\"EUR\") }\n\n    it 'raises KeyError after add(\"apple\", qty: 2)' do\n" \
+                               "      expect {\n        cart.add(\"apple\", qty: 2)\n        total\n      }.to raise_error(KeyError)\n"
       else
-        assert_includes minitest, "    #{arrange}    cart.add(+\"apple\", qty: 2)\n    assert_equal 7, cart.total\n"
-        assert_includes rspec, "    subject(:total) { cart.total }\n\n    let(:cart) { Shop::Cart.new(+\"EUR\") }\n\n" \
-                               "    before do\n      cart.add(+\"apple\", qty: 2)\n    end\n\n    it \"returns 7\" do\n      expect(total).to eq(7)\n"
+        assert_includes minitest, "    #{arrange}    cart.add(\"apple\", qty: 2)\n    assert_equal 7, cart.total\n"
+        assert_includes rspec, "    subject(:total) { cart.total }\n\n    let(:cart) { Shop::Cart.new(\"EUR\") }\n\n" \
+                               "    before do\n      cart.add(\"apple\", qty: 2)\n    end\n\n    it \"returns 7\" do\n      expect(total).to eq(7)\n"
       end
     end
     name = Branchout::Emitters::Support.test_names(pins.take(1)).first
     assert_match(/\Atest_new_eur_add_apple_qty_2_returns_7\z/, name)
+
+    thawed = Branchout::Engine::Pin.new(input: input, value: 7, error: nil, arm_ids: [], thawed: true)
+    result = Branchout::Engine::Result.new(pins: [thawed], requires: [], load_paths: [], private_calls: [])
+    minitest = Branchout::Emitters.render("minitest", result, target, File.join(ROOT, "test/cart_test.rb"))
+    rspec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/cart_spec.rb"))
+    assert_includes minitest, "    #{THAWED_COMMENT}\n    cart = Shop::Cart.new(+\"EUR\")\n    cart.add(+\"apple\", qty: 2)\n"
+    assert_includes rspec, "    let(:cart) { Shop::Cart.new(+\"EUR\") }\n\n    before do\n      cart.add(+\"apple\", qty: 2)\n    end\n\n" \
+                           "    it \"returns 7\" do\n      #{THAWED_COMMENT}\n      expect(total).to eq(7)\n"
   end
 
   def test_names_and_outcomes_of_keywords_nil_and_long_values
@@ -897,14 +953,14 @@ class EmitterTest < Minitest::Test
 
             it 'raises ArgumentError after add("apple", 0) when tax is 1' do
               expect {
-                cart.add(+"apple", 0)
+                cart.add("apple", 0)
                 cart.total(1, true)
               }.to raise_error(ArgumentError, "m")
             end
 
             context 'after add("apple", 3)' do
               before do
-                cart.add(+"apple", 3)
+                cart.add("apple", 3)
               end
 
               it "returns 300 when tax is 1" do
@@ -917,7 +973,7 @@ class EmitterTest < Minitest::Test
 
               context 'after add("pear", 4)' do
                 before do
-                  cart.add(+"pear", 4)
+                  cart.add("pear", 4)
                 end
 
                 it "returns 700 when tax is 1" do
@@ -928,7 +984,7 @@ class EmitterTest < Minitest::Test
           end
 
           context 'with new("EUR")' do
-            let(:cart) { Shop::Cart.new(+"EUR") }
+            let(:cart) { Shop::Cart.new("EUR") }
 
             it "returns 5 when tax is 1" do
               expect(cart.total(1, true)).to eq(5)

@@ -10,31 +10,31 @@ require_relative "../../examples/version_parser.rb"
 class VersionParserParseCharacterizationTest < Minitest::Test
   def test_empty_returns_blank
     # covers: if@5:4/then@6:6
-    assert_equal :blank, VersionParser.parse(+"")
+    assert_equal :blank, VersionParser.parse("")
   end
 
   def test_text_returns_pre
     # covers: if@11:6/else@14:8, if@5:4/else@7:4, if@7:4/then@8:6, if@9:6/else@11:6
-    assert_equal :pre, VersionParser.parse(+"-")
+    assert_equal :pre, VersionParser.parse("-")
   end
 
   def test_0_returns_other
     # covers: if@16:4/else@19:6, if@5:4/else@7:4, if@7:4/else@16:4, unless@25:4/then@25:4
-    assert_equal :other, VersionParser.parse(+"0")
+    assert_equal :other, VersionParser.parse("0")
   end
 
   def test_0_beta1_returns_beta
     # covers: if@11:6/then@12:8, if@5:4/else@7:4, if@7:4/then@8:6, if@9:6/else@11:6
-    assert_equal :beta, VersionParser.parse(+"0-beta1")
+    assert_equal :beta, VersionParser.parse("0-beta1")
   end
 
   def test_0_rc1_returns_rc
     # covers: if@5:4/else@7:4, if@7:4/then@8:6, if@9:6/then@10:8
-    assert_equal :rc, VersionParser.parse(+"0-rc1")
+    assert_equal :rc, VersionParser.parse("0-rc1")
   end
 
   def test_0_0_0_returns_release
     # covers: if@16:4/then@17:6, if@5:4/else@7:4, if@7:4/else@16:4, unless@25:4/else@25:4
-    assert_equal :release, VersionParser.parse(+"0.0.0")
+    assert_equal :release, VersionParser.parse("0.0.0")
   end
 end

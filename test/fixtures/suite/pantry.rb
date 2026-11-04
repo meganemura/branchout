@@ -17,4 +17,10 @@ class Pantry
     ActiveRecord::Base.rows << [owner, label(item)]
     ActiveRecord::Base.rows.size == 1 ? :first : :more
   end
+
+  def restock(item)
+    ActiveRecord::Base.rows << [owner, item]
+    item << " (restocked)"
+    ActiveRecord::Base.rows.size == 1 ? :first : :more
+  end
 end

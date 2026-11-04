@@ -120,8 +120,9 @@ module Branchout
           pin = example.pin
           lines = ["#{indent}it #{quoted(text)} do"]
           lines.concat(Support.cover_comment(pin, "#{indent}  "))
+          lines.concat(Support.thawed_comment(pin, "#{indent}  "))
           inline = example.steps.select { |step| step.kind == :inline }.map(&:code)
-          call = @subject || (@subject == false ? "subject" : entry_call(pin.input))
+          call = @subject || (@subject == false ? "subject" : entry_call(pin.input, pin.thawed))
           if pin.error
             if inline.empty?
               lines << "#{indent}  expect { #{call} }.to #{error_matcher(pin.error)}"
@@ -293,14 +294,14 @@ module Branchout
             input = pin.input
             steps = []
             unless @target.singleton
-              steps << Step.new(:let, receiver_label(input), Support.receiver_text(input, @const, @private_calls))
+              steps << Step.new(:let, receiver_label(input), Support.receiver_text(input, @const, @private_calls, thawed: pin.thawed))
             end
             # A setup call that may be the one that raised stays inside the
             # expect block, so the example still pins the error.
             kind = pin.error ? :inline : :before
             input.setup.each do |call|
-              plain = Support.argument_list(call.arguments, mutable: false)
-              code = Support.call_text(receiver_expression, call.method_name, Support.argument_list(call.arguments), [])
+              plain = Support.argument_list(call.arguments)
+              code = Support.call_text(receiver_expression, call.method_name, Support.argument_list(call.arguments, thawed: pin.thawed), [])
               steps << Step.new(kind, "#{call.method_name}#{"(#{plain})" unless plain.empty?}", code)
             end
             steps + fact_steps(input)
@@ -370,7 +371,7 @@ module Branchout
         def receiver_label(input)
           return "with #{input.receiver.source}" if input.receiver.is_a?(Code)
 
-          plain = input.receiver ? Support.argument_list(input.receiver, mutable: false) : ""
+          plain = input.receiver ? Support.argument_list(input.receiver) : ""
           plain.empty? ? "with new" : "with new(#{plain})"
         end
 
@@ -378,8 +379,8 @@ module Branchout
           @target.singleton ? @const : @receiver
         end
 
-        def entry_call(input = nil)
-          arguments = input ? Support.argument_list(input) : ""
+        def entry_call(input = nil, thawed = false)
+          arguments = input ? Support.argument_list(input, thawed: thawed) : ""
           Support.with_block(Support.call_text(receiver_expression, @target.method_name, arguments, @private_calls), input&.block)
         end
 

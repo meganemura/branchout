@@ -7,7 +7,10 @@ module Branchout
   # Loads the target under Coverage and runs one input at a time.
   # Branch counters are cleared between calls. Load-time execution is discarded.
   class Runner
-    Execution = Struct.new(:input, :value, :error, :lines, :branches, :path_ids, :origin, keyword_init: true)
+    # +thawed+ is true when the input ran with unfrozen Strings, because
+    # with frozen ones, as literals in an emitted test are, it raised
+    # FrozenError.
+    Execution = Struct.new(:input, :value, :error, :lines, :branches, :path_ids, :origin, :thawed, keyword_init: true)
     # +name+ is the missing name of a NameError, which is stable where its
     # message is not: Ruby 3.4 reworded both NameError and NoMethodError.
     # +message+ has its whitespace folded for reports; a test pins
@@ -48,17 +51,28 @@ module Branchout
       @host ? attach : boot
     end
 
+    # An input runs with frozen Strings, as an emitted test's literals are.
+    # Only when that raises FrozenError and unfrozen Strings do not does
+    # it keep the unfrozen run, which the emitted test then writes as +"".
     def execute(input)
       check_receiver(input)
-      value, error = @host ? refusing_lets(input) { outcome(input) } : outcome(input)
-      data = extract(Coverage.result(stop: false, clear: true))
-      Execution.new(input: input, value: value, error: error, lines: data[:lines], branches: data[:branches])
+      frozen = attempt(input, false)
+      return frozen unless frozen.error&.class_name == "FrozenError"
+
+      thawed = attempt(input, true)
+      thawed.error&.class_name == "FrozenError" ? frozen : thawed
     end
 
     private
 
-    def outcome(input)
-      [invoke(input), nil]
+    def attempt(input, thawed)
+      value, error = @host ? refusing_lets(input) { outcome(input, thawed) } : outcome(input, thawed)
+      data = extract(Coverage.result(stop: false, clear: true))
+      Execution.new(input: input, value: value, error: error, lines: data[:lines], branches: data[:branches], thawed: thawed)
+    end
+
+    def outcome(input, thawed)
+      [invoke(input, thawed), nil]
     rescue Exception => e # rubocop:disable Lint/RescueException
       [nil, ExceptionInfo.from(e, @target.display_path, @target.path, fallback_line: @target.ranges.first&.begin)]
     end
@@ -304,19 +318,19 @@ module Branchout
       $stderr = previous_err
     end
 
-    def invoke(input)
-      return quietly { run_entry(input) } unless @host
+    def invoke(input, thawed)
+      return quietly { run_entry(input, thawed) } unless @host
 
       value = nil
-      quietly { @host.around.call { value = run_entry(input) } }
+      quietly { @host.around.call { value = run_entry(input, thawed) } }
       value
     end
 
-    def run_entry(input)
+    def run_entry(input, thawed)
       scope = new_scope
       run = proc do
-        receiver = prepared_receiver(input, scope) unless @target.singleton
-        args, kwargs = fresh_arguments(input, scope)
+        receiver = prepared_receiver(input, scope, thawed) unless @target.singleton
+        args, kwargs = fresh_arguments(input, scope, thawed)
         block = scope.eval("proc #{input.block.source}", "(input)") if input.block
         if @target.singleton
           measure { @method.call(*args, **kwargs, &block) }
@@ -337,35 +351,36 @@ module Branchout
     # A receiver the input's Ruby builds gets the name the emitted test
     # gives it, so the arguments can be read from it, as in
     # "room.participants.first".
-    def prepared_receiver(input, scope)
+    def prepared_receiver(input, scope, thawed)
       if input.receiver.is_a?(Code)
         receiver = scope.eval(input.receiver.source, "(input)")
         scope.local_variable_set(Emitters::Support.built_receiver_name(@target), receiver)
       else
-        new_args, new_kwargs = input.receiver ? fresh_arguments(input.receiver, scope) : [[], {}]
+        new_args, new_kwargs = input.receiver ? fresh_arguments(input.receiver, scope, thawed) : [[], {}]
         receiver = @const.send(:new, *new_args, **new_kwargs)
       end
       input.setup.each do |call|
-        call_args, call_kwargs = fresh_arguments(call.arguments, scope)
+        call_args, call_kwargs = fresh_arguments(call.arguments, scope, thawed)
         receiver.public_send(call.method_name, *call_args, **call_kwargs)
       end
       receiver
     end
 
-    # Each call gets its own mutable copy, as a literal in an emitted test
-    # does, so the target cannot raise FrozenError or rewrite the input.
-    # Code is evaluated here, as an emitted test does, so each call gets
-    # its own object.
-    def fresh_arguments(input, scope)
-      [built(Marshal.load(Marshal.dump(input.args)), scope),
-       built(Marshal.load(Marshal.dump(input.kwargs)), scope).transform_keys(&:to_sym)]
+    # Each call gets its own copy, so the target cannot rewrite the input.
+    # Its Strings are frozen, as literals in an emitted test are, unless
+    # +thawed+. Code is evaluated here, as an emitted test does, so each
+    # call gets its own object.
+    def fresh_arguments(input, scope, thawed)
+      [built(Marshal.load(Marshal.dump(input.args)), scope, thawed),
+       built(Marshal.load(Marshal.dump(input.kwargs)), scope, thawed).transform_keys(&:to_sym)]
     end
 
-    def built(value, scope)
+    def built(value, scope, thawed)
       case value
       when Code then scope.eval(value.source, "(input)")
-      when Array then value.map! { |item| built(item, scope) }
-      when Hash then value.transform_values! { |item| built(item, scope) }
+      when String then thawed ? value : value.freeze
+      when Array then value.map! { |item| built(item, scope, thawed) }
+      when Hash then value.transform_values! { |item| built(item, scope, thawed) }
       else value
       end
     end

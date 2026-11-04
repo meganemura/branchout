@@ -123,29 +123,29 @@ module Branchout
       # setup calls the receiver is built inline and there is no statement.
       # A name in +private_calls+ (the entry, or new) is called through send,
       # as explore called it. +const+ is the class as the test writes it.
-      def arrange(target, input, private_calls: [], const: target.const_name)
+      def arrange(target, input, private_calls: [], const: target.const_name, thawed: false)
         receiver = if target.singleton
           const
         else
-          receiver_text(input, const, private_calls)
+          receiver_text(input, const, private_calls, thawed: thawed)
         end
-        call = ->(on) { with_block(call_text(on, target.method_name, argument_list(input), private_calls), input.block) }
+        call = ->(on) { with_block(call_text(on, target.method_name, argument_list(input, thawed: thawed), private_calls), input.block) }
         return [[], call.(receiver)] if input.setup.empty? && !input.receiver.is_a?(Code)
 
         name = input.receiver.is_a?(Code) ? built_receiver_name(target) : receiver_name(target)
         statements = ["#{name} = #{receiver}"]
         input.setup.each do |setup_call|
-          statements << call_text(name, setup_call.method_name, argument_list(setup_call.arguments), [])
+          statements << call_text(name, setup_call.method_name, argument_list(setup_call.arguments, thawed: thawed), [])
         end
         [statements, call.(name)]
       end
 
       # How the receiver of an instance method's input is built: the Code
       # the input gives, or new with the input's arguments for it.
-      def receiver_text(input, const, private_calls)
+      def receiver_text(input, const, private_calls, thawed: false)
         return input.receiver.source if input.receiver.is_a?(Code)
 
-        call_text(const, :new, input.receiver ? argument_list(input.receiver) : "", private_calls)
+        call_text(const, :new, input.receiver ? argument_list(input.receiver, thawed: thawed) : "", private_calls)
       end
 
       def call_text(on, method_name, arguments, private_calls)
@@ -186,33 +186,33 @@ module Branchout
         when while yield error
       ].freeze
 
-      def argument_list(input, mutable: true)
-        args = input.args.map { |value| ruby_literal(value, mutable: mutable) }
+      def argument_list(input, thawed: false)
+        args = input.args.map { |value| ruby_literal(value, thawed: thawed) }
         kwargs = input.kwargs.keys.sort.map { |key|
-          "#{keyword_literal(key)}: #{ruby_literal(input.kwargs[key], mutable: mutable)}"
+          "#{keyword_literal(key)}: #{ruby_literal(input.kwargs[key], thawed: thawed)}"
         }
         (args + kwargs).join(", ")
       end
 
-      # An emitted test has frozen_string_literal, so a +mutable+ string is
+      # An emitted test has frozen_string_literal, so a +thawed+ string is
       # written with a leading + to match the copy the explore run passed.
-      def ruby_literal(value, mutable: false)
+      def ruby_literal(value, thawed: false)
         case value
         when nil then "nil"
         when true then "true"
         when false then "false"
         when Integer then value.to_s
         when Float then Canon.format_float(value)
-        when String then mutable ? "+#{value.inspect}" : value.inspect
+        when String then thawed ? "+#{value.inspect}" : value.inspect
         when Symbol then value.inspect
         when Code then value.source
-        when Set then "Set[#{value.map { |item| ruby_literal(item, mutable: mutable) }.join(", ")}]"
+        when Set then "Set[#{value.map { |item| ruby_literal(item, thawed: thawed) }.join(", ")}]"
         when Array
-          "[#{value.map { |item| ruby_literal(item, mutable: mutable) }.join(", ")}]"
+          "[#{value.map { |item| ruby_literal(item, thawed: thawed) }.join(", ")}]"
         when Hash
           # Insertion order, as the value prints: a failure diff then lines
           # up key by key, and Hash equality ignores order anyway.
-          "{#{value.map { |key, item| "#{hash_key_literal(key)} #{ruby_literal(item, mutable: mutable)}" }.join(", ")}}"
+          "{#{value.map { |key, item| "#{hash_key_literal(key)} #{ruby_literal(item, thawed: thawed)}" }.join(", ")}}"
         else
           raise Error, "cannot emit a literal for #{value.class}"
         end
@@ -716,6 +716,12 @@ module Branchout
         return [] if pin.arm_ids.empty?
 
         ["#{indent}# covers: #{pin.arm_ids.join(", ")}"]
+      end
+
+      # Says why the Strings of a thawed input carry a +, which a reader of
+      # a frozen_string_literal file would otherwise take for noise.
+      def thawed_comment(pin, indent)
+        pin.thawed ? ["#{indent}# With frozen Strings this input raised FrozenError, so its Strings are unfrozen (+\"...\")."] : []
       end
 
       def write_file(destination, content)

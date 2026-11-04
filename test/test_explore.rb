@@ -39,7 +39,27 @@ class ExploreTest < Minitest::Test
       report, emitted = explore_pantry(dir, around: "run_only")
       assert_includes report, "arms_covered: 4\narms_total: 4\n"
       assert_includes report, "rows left: 2\n"
-      assert_includes emitted, "assert_equal :full, pantry.stock(+\"salt\")"
+      assert_includes emitted, "assert_equal :full, pantry.stock(\"salt\")"
+    end
+  end
+
+  # The run with frozen Strings writes a row before it raises FrozenError,
+  # so the run with unfrozen ones sees that row only if it is not undone.
+  def test_an_input_retried_with_unfrozen_strings_sees_none_of_the_first_runs_rows
+    Dir.mktmpdir do |dir|
+      env = {"EMIT_TO" => File.join(dir, "restock_test.rb"), "REPORT_TO" => File.join(dir, "report.txt")}
+      stdout, stderr, status = run_suite("#{SUITE}/pantry_restock_explore_test.rb", env)
+      assert status.success?, stdout + stderr
+      report = File.read(env["REPORT_TO"])
+      assert_includes report, "EXCEPTIONS\n(none)"
+      assert_includes report, "rows left: 0\n"
+      emitted = File.read(env["EMIT_TO"])
+      assert_includes emitted, "FrozenError, so its Strings are unfrozen (+\"...\").\n" \
+                               "    pantry = Pantry.new(owner)\n    assert_equal :first, pantry.restock(+\"jam\")\n"
+
+      stdout, stderr, status = run_suite(env["EMIT_TO"])
+      assert status.success?, stdout + stderr
+      assert_includes stdout, "1 runs, 1 assertions, 0 failures, 0 errors"
     end
   end
 

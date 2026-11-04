@@ -18,7 +18,8 @@ module Branchout
       keyword_init: true
     )
 
-    Pin = Struct.new(:input, :value, :error, :arm_ids, keyword_init: true)
+    # +thawed+ marks an input that ran with unfrozen Strings (Runner::Execution).
+    Pin = Struct.new(:input, :value, :error, :arm_ids, :thawed, keyword_init: true)
     Finding = Struct.new(:class_name, :message, :loc, :input, :stable_message, keyword_init: true)
 
     def self.explore(target:, entry:, user_inputs: [], type_overrides: nil, seed: 0, strategies: STRATEGY_ORDER,
@@ -191,7 +192,8 @@ module Branchout
           input: execution.input,
           value: execution.value,
           error: execution.error,
-          arm_ids: covered_ids(execution)
+          arm_ids: covered_ids(execution),
+          thawed: execution.thawed
         )
       end
     end

@@ -57,7 +57,7 @@ class PropertyTest < Minitest::Test
     Hegel.test do |tc|
       value = Branchout::Input.new(args: [tc.draw(json_values)]).args.first
       assert_equal [value], [eval(Branchout::Emitters::Support.ruby_literal(value))] # rubocop:disable Security/Eval
-      assert_equal [value], [eval(Branchout::Emitters::Support.ruby_literal(value, mutable: true))] # rubocop:disable Security/Eval
+      assert_equal [value], [eval(Branchout::Emitters::Support.ruby_literal(value, thawed: true))] # rubocop:disable Security/Eval
     end
   end
 

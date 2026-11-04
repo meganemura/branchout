@@ -164,13 +164,13 @@ module Branchout
         out[File.expand_path(file)] = data[:branches] if data.is_a?(Hash) && data[:branches]
       end
       on_self = @target.outside_calls.map do |singleton, name|
-        -> { [singleton, singleton ? @owner.method(name) : @owner.instance_method(name)] }
+        -> { [singleton, @owner, singleton ? @owner.method(name) : @owner.instance_method(name)] }
       end
       on_built = @target.typed_calls.map do |namespace, const, name|
-        -> { [false, built_class(namespace, const).instance_method(name)] }
+        -> { built_class(namespace, const).then { |built| [false, built, built.instance_method(name)] } }
       end
       found = (on_self + on_built).filter_map do |lookup|
-        singleton, method = lookup.call
+        singleton, holder, method = lookup.call
         # An attribute reader or writer has no instructions, so no arms.
         next if RubyVM::InstructionSequence.of(method).nil?
 
@@ -185,7 +185,7 @@ module Branchout
         # A method with no arms hides none.
         next if arms&.zero?
 
-        [file, line, Callee.new(name: callee_name(method.owner, singleton, method.name), loc: "#{Target.display_path(file)}:#{line}", arms: arms)]
+        [file, line, Callee.new(name: callee_name(method.owner, holder, singleton, method.name), loc: "#{Target.display_path(file)}:#{line}", arms: arms)]
       rescue NameError
         nil
       end
@@ -203,10 +203,12 @@ module Branchout
       Object.const_get(const)
     end
 
-    def callee_name(owner, singleton, name)
-      return "#{owner.attached_object.name}.#{name}" if singleton && owner.singleton_class?
+    # +holder+ is the class the call is made on. A module with no name has
+    # only an inspect that carries its address, so it is named by +holder+.
+    def callee_name(owner, holder, singleton, name)
+      return "#{owner.attached_object.name}.#{name}" if owner.singleton_class?
 
-      "#{owner.name || owner.inspect}#{singleton ? "." : "#"}#{name}"
+      "#{owner.name || "#{holder.name} (an anonymous module)"}#{singleton ? "." : "#"}#{name}"
     end
 
     def check_receiver(input)

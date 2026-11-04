@@ -792,6 +792,24 @@ class CLITest < Minitest::Test
     end
   end
 
+  # A mixin with no name has no stable text, since its inspect carries an
+  # address, so the report names it by the class it is mixed into.
+  def test_a_callee_of_an_anonymous_module_has_a_stable_name
+    Dir.mktmpdir do |dir|
+      helpers = File.join(dir, "helpers.rb")
+      File.write(helpers, "$helpers = Module.new do\n  def checked(x) = x.positive? ? x : 0\nend\n")
+      child = File.join(dir, "child.rb")
+      File.write(child, "class Child\n  include $helpers\n  extend $helpers\n\n  def self.build(x) = checked(x)\n  def size(x) = checked(x) > 2 ? :big : :small\nend\n")
+      path = write_inputs(dir, { "inputs" => [[1]] })
+      { "Child#size" => "Child (an anonymous module)#checked", "Child.build" => "Child (an anonymous module).checked" }.each do |entry, name|
+        stdout, stderr, status = run_cli("explore", child, entry, "--require", helpers, "--strategy", "inputs", "--random", "0",
+                                         "--inputs", path, "--json")
+        assert status.success?, stderr
+        assert_equal [{ "callee" => name, "loc" => "#{helpers}:2", "arms" => 2 }], JSON.parse(stdout)["not_counted"]
+      end
+    end
+  end
+
   # A service object the entry builds with Const.new, kept in a local or
   # in an instance variable, runs logic the report does not count, so the
   # report names its methods. A call on an untyped value is not named.

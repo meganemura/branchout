@@ -48,5 +48,13 @@ jobs:
           bundler-cache: true
       - name: Run the tests
         run: bundle exec ruby test/run_all.rb
+      # The fork server loads branchout once for every CLI test, so a fault
+      # in how bin/branchout boots shows only when each run starts a Ruby.
+      # One Ruby and the CLI tests are enough; locally the step takes about 30 s.
+      - name: Run the CLI tests with each run spawned
+        if: matrix.ruby == '4.0'
+        env:
+          BRANCHOUT_TEST_SPAWN: "1"
+        run: bundle exec ruby test/run_all.rb -n "/^CLITest#/"
       - name: Run the generated specs
         run: bundle exec rspec spec/generated

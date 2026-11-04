@@ -18,7 +18,7 @@ ruby test/run_all.rb
 bundle exec rspec spec/generated
 ```
 
-In a checkout whose gems live only in the bundle, as in CI, run both under `bundle exec`. On Ruby 4.0 set `BUNDLE_VERSION=system` for `bundle install` and `bundle exec`. Otherwise bundler switches to the 2.6.9 that `Gemfile.lock` names, that bundler warns about Ruby 4.0's RubyGems constants in every Ruby the tests start, and the CLI tests that require an empty stderr fail. `.github/workflows/ci.yml` runs both on Ruby 3.3 (without the property group) and 4.0.
+In a checkout whose gems live only in the bundle, as in CI, run both under `bundle exec`. On Ruby 4.0 set `BUNDLE_VERSION=system` for `bundle install` and `bundle exec`. Otherwise bundler switches to the 2.6.9 that `Gemfile.lock` names, that bundler warns about Ruby 4.0's RubyGems constants in every Ruby the tests start, and the CLI tests that require an empty stderr fail. `.github/workflows/ci.yml` runs both on Ruby 3.3 (without the property group) and 4.0, and on 4.0 runs `CLITest` once more with `BRANCHOUT_TEST_SPAWN=1`.
 
 `test/run_all.rb` loads `test/test_*.rb` and `test/generated/*_test.rb`. Coverage is process-global, so each CLI test runs branchout in a process of its own: `test/support/cli.rb` forks it from a server that loaded branchout before any test ran, which saves the Ruby and prism boot of each run. Where fork does not exist, or with `BRANCHOUT_TEST_SPAWN=1`, each run spawns `bin/branchout` instead. `test/test_properties.rb` holds the hegeltest properties of the pure parts and of report determinism. On Ruby 3.3 it reports one skip.
 

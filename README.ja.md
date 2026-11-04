@@ -153,6 +153,7 @@ ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \
 Ruby 3.4 でメッセージの文言が変わったためである。
 バックトレースのフレーム（`lib/x.rb:3:in 'Box.run'`）を含むメッセージは正規表現で照合し、フレームのラベルだけはどちらの書式でも通す。
 Ruby 3.4 はラベルを `` `run' `` から `'Box.run'` に変えたためである。
+`raised in:` の行のように、フレームを含む String の戻り値も同じように照合する。
 `Set` は要素で固定する（`Set[1, 2]`）。
 `Object` のように Ruby のリテラルで書けない戻り値は、クラスだけを固定する。
 RSpec では、`Struct` と `Data` の値はクラスとメンバーで固定し、それを含む Array や Hash は要素ごとに固定する（`match([a_kind_of(Rule).and(have_attributes(action: "borrow"))])`）。

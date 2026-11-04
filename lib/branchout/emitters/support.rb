@@ -200,6 +200,13 @@ module Branchout
         end
       end
 
+      # A Regexp literal for a String that quotes a backtrace frame, whose
+      # label Ruby 3.4 writes in another form than 3.3, or nil.
+      def frame_pattern(value)
+        source = value.is_a?(String) && Runner::ExceptionInfo.frame_pattern(value)
+        Regexp.new(source).inspect if source
+      end
+
       def literal?(value)
         case value
         when nil, true, false, Integer, String, Symbol then true

@@ -626,6 +626,21 @@ class EmitterTest < Minitest::Test
     assert(texts.all? { |text| text.length <= 80 }, texts.inspect)
   end
 
+  # A returned String that quotes a frame, such as a "raised in:" line, is
+  # matched the same way as such a message.
+  def test_a_returned_string_that_quotes_a_frame_is_matched
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Box", :put, "Box.put", "lib/x.rb", File.join(ROOT, "lib/x.rb"), [], [Struct.new(:name).new(:x)])
+    value = "raised in: lib/x.rb:3:in 'block in Box.put'\n"
+    pins = [Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1]), value: value, error: nil, arm_ids: [])]
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
+    literal = %q(/\Araised in: lib\/x\.rb:3:in [`'][^`'\n]*'\n\z/)
+    assert_includes Branchout::Emitters.render("minitest", result, target, File.join(ROOT, "test/x_test.rb")),
+                    "    assert_match(#{literal}, Box.put(1))\n"
+    assert_includes Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")),
+                    "expect(Box.put(1)).to match(#{literal})"
+  end
+
   # A setter or an operator in a setup call has no plain form that keeps
   # its arguments, so it goes through send.
   def test_a_setter_or_an_operator_is_called_through_send

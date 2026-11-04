@@ -16,6 +16,7 @@ arms_covered: 4
 arms_total: 4
 exceptions: 1
 callees_not_counted: 0
+operators_not_counted: 1
 
 COVERED
 id: if@6:4/else@14:6
@@ -53,3 +54,8 @@ message: divided by 0
 
 NOT COUNTED
 (none)
+
+OPERATORS
+loc: examples/hidden_bug.rb:6:14
+op: &&
+text: a > 10 && b > 10

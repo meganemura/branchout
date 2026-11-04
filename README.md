@@ -35,6 +35,7 @@ arms_covered: 1
 arms_total: 2
 exceptions: 0
 callees_not_counted: 0
+operators_not_counted: 0
 
 COVERED
 id: if@5:4/else@8:6
@@ -56,6 +57,9 @@ EXCEPTIONS
 (none)
 
 NOT COUNTED
+(none)
+
+OPERATORS
 (none)
 ```
 
@@ -190,6 +194,8 @@ branchout loads the `--require` files and then the target after `Coverage.setup(
 
 A method in another file is not counted, so its arms are not in `arms_total`. When a check moves from a subclass's method into a parent class's helper, the total gets smaller while the logic stays the same. `NOT COUNTED` names each such callee: a method that the counted code calls by a bare call or `self.` and that Ruby finds in another file, such as a parent class or a mixin, and a method it calls on an object it builds with `Const.new`, kept in a local (`journal = Ledger.new`) or in an instance variable that a method of the class sets (`@ledger = Ledger.new` in `initialize`). Each entry has `callee` (`Register#required_sku`), `loc` (the file and line of its `def`), and `arms` (the branch arms in that `def`, or `unknown` when its file loaded before coverage started or the method has no `def`, as with `define_method`). Explore the callee as its own entry to cover those arms. Methods of an installed gem or of Ruby's own library are not listed, because an app cannot move a check into one: a Rails model calls dozens of them, such as an association reader or `update!`. Methods written in C, Ruby's own prelude methods, attribute readers and writers, methods with no arms, and calls on an object whose class the code does not show are not listed.
 
+Branch coverage counts no arm for `||`, `&&`, `||=`, or `&&=`, so it cannot say whether their right side ran. A method that branches only through them, as `user&.admin? || params[:force]` does past its `&.`, would report fewer arms than it has, or `arms_total: 0` that reads as fully covered. `OPERATORS` lists each one in the counted code, and `operators_not_counted` counts them: `loc` (the operator's line and column), `op`, and `text` (the whole expression, cut at 160 characters). Give inputs that make each left side truthy and falsy. When the entry has no arm but has such an operator, stderr says so. `&.` has arms of its own (`receiver-present`, `receiver-nil`).
+
 An arm id is `kind@line:column/arm@line:column`, from the Coverage branch key. Columns are 0-based. `cond` is the Prism predicate. For a `when` or `in` arm it is that line. If the locations do not match, the source line is used.
 
 The frontier is every arm whose count is 0. `parent: reached` means some input executed that decision. `nearest` is the one that reached it with the fewest taken arms, then the smallest weight (absolute numeric size, plus string and container length), then the smallest canonical JSON. `path` is the sorted set of arms that input took. Coverage does not record order. A loop count greater than 1 is written as `*count`.
@@ -238,7 +244,7 @@ ln -s /path/to/branchout/skills/branchout .agents/skills/branchout
 - The target loads into branchout's own process. A target or `--require` file that loads another checkout of branchout is refused, because it would replace the tool's classes. To explore branchout's own code, run that checkout's `bin/branchout`. When an argument names one of its own files, it sets coverage up before it loads itself, so that coverage measures the file without loading it again. A file that loaded before coverage was set up, such as one of Ruby's own library, is refused: loading it again would define its classes a second time, and an object built from the first ones would no longer be one of them.
 - The entry must be defined in the target file, under its constant or under a superclass declared in the same file. An inherited entry follows the subclass's overrides, as Ruby does.
 - A method that depends on time, randomness, or I/O will not produce a stable report.
-- A path is a set of arms, not an order. `&&` and `||` are not arms. `while` and `until` record a body arm; a condition that ran but did not enter the body is recovered from the line count.
+- A path is a set of arms, not an order. `&&`, `||`, `||=`, and `&&=` are not arms; `OPERATORS` lists them. `while` and `until` record a body arm; a condition that ran but did not enter the body is recovered from the line count.
 - A modifier `unless` can put `then` and `else` at the same location. The arm name in the id distinguishes them.
 - Only a bare call, a `self.` call, and a call on a bare `new(...)` in the same file are followed. A call on another receiver, such as `Other.new.check(x)`, is not. When the entry reaches no arm, `explore` warns on stderr; target the method that branches instead. `--emit-tests` still pins each input's return value or error.
 - `Timeout.timeout` does not stop every block. If the timeout backtrace has no target line, `loc` is the method definition line.

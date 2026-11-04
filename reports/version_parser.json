@@ -188,5 +188,6 @@
   ],
   "frontier": [],
   "exceptions": [],
-  "not_counted": []
+  "not_counted": [],
+  "operators_not_counted": []
 }

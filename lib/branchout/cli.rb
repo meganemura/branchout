@@ -167,7 +167,12 @@ module Branchout
           $stderr.puts "branchout: #{result.repeated_inputs} of #{user_inputs.length} inputs repeat an earlier input, " \
                        "so they did not run again."
         end
-        if result.covered.empty? && result.frontier.empty?
+        if result.covered.empty? && result.frontier.empty? && !result.operators.empty?
+          $stderr.puts "branchout: #{entry} and the methods it calls in #{result.target} have no arm that branch coverage counts, " \
+                       "but it branches at the operators OPERATORS lists, and coverage does not see which side of " \
+                       "||, &&, ||=, or &&= ran. Give inputs that make each left side truthy and falsy. " \
+                       "--emit-tests still pins the return value or error of each input."
+        elsif result.covered.empty? && result.frontier.empty?
           $stderr.puts "branchout: #{entry} and the methods it calls in #{result.target} have no branches. " \
                        "Only a bare call, a self. call, and a call on new are followed; target the method that branches. " \
                        "--emit-tests still pins the return value or error of each input."

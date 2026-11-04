@@ -93,5 +93,14 @@
       "message": "divided by 0"
     }
   ],
-  "not_counted": []
+  "not_counted": [],
+  "operators_not_counted": [
+    {
+      "loc": "examples/hidden_bug.rb:6:14",
+      "line": 6,
+      "column": 14,
+      "op": "&&",
+      "text": "a > 10 && b > 10"
+    }
+  ]
 }

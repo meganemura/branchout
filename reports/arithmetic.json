@@ -154,5 +154,14 @@
     }
   ],
   "exceptions": [],
-  "not_counted": []
+  "not_counted": [],
+  "operators_not_counted": [
+    {
+      "loc": "examples/arithmetic.rb:18:22",
+      "line": 18,
+      "column": 22,
+      "op": "&&",
+      "text": "x == 114514 && x == 0"
+    }
+  ]
 }

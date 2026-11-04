@@ -16,6 +16,7 @@ arms_covered: 2
 arms_total: 2
 exceptions: 0
 callees_not_counted: 0
+operators_not_counted: 0
 
 COVERED
 id: if@5:4/else@8:6
@@ -37,4 +38,7 @@ EXCEPTIONS
 (none)
 
 NOT COUNTED
+(none)
+
+OPERATORS
 (none)

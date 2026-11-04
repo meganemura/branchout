@@ -8,6 +8,8 @@ module Branchout
     Parameter = Struct.new(:kind, :name, :default, :inferred_type, keyword_init: true)
     Literals = Struct.new(:ints, :floats, :strings, keyword_init: true)
     DefInfo = Struct.new(:const_name, :singleton, :node, keyword_init: true)
+    # An operator that branches where branch coverage counts no arm.
+    Operator = Struct.new(:loc, :line, :column, :op, :text, keyword_init: true)
 
     STRING_METHODS = %i[
       include? start_with? end_with? split strip lstrip rstrip chomp
@@ -29,6 +31,9 @@ module Branchout
     # builds with Class.new, kept in a local or an instance variable.
     # +class+ is the constant as written, so Ruby resolves it in +namespace+.
     attr_reader :typed_calls
+    # Each ||, &&, ||=, and &&= of the counted code. Coverage sees no side of
+    # them, so a method that branches only through them has no arm at all.
+    attr_reader :operators
 
     def self.parse(path, entry, type_overrides: nil)
       new(path, entry, type_overrides: type_overrides).tap(&:parse)
@@ -114,6 +119,7 @@ module Branchout
         end
       end
 
+      @operators = bodies.flat_map { |body| operators_in(body) }.sort_by { |found| [found.line, found.column] }
       collect_literals(entry_def.node.parameters)
       bodies.each { |body| collect_literals(body) }
       @literals.ints = @literals.ints.uniq.sort
@@ -329,6 +335,21 @@ module Branchout
 
     def condition_node?(node)
       %i[if_node unless_node while_node until_node case_node case_match_node].include?(node.type)
+    end
+
+    def operators_in(node, acc = [])
+      return acc if node.type == :def_node
+
+      if node.type == :or_node || node.type == :and_node || node.type.to_s.end_with?("_or_write_node", "_and_write_node")
+        operator = node.operator_loc
+        text = squash(node.slice)
+        line = operator.start_line
+        column = operator.start_column
+        acc << Operator.new(loc: "#{display_path}:#{line}:#{column}", line: line, column: column, op: operator.slice,
+                            text: text.length > 160 ? "#{text[0, 157]}..." : text)
+      end
+      node.compact_child_nodes.each { |child| operators_in(child, acc) }
+      acc
     end
 
     def collect_literals(node)

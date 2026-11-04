@@ -108,7 +108,7 @@ The emitted test requires the helper the suite loaded (`require "rails_helper"`,
 
 ## Reading the frontier
 
-Stdout is the contract. Sections are `COVERED`, `FRONTIER`, `EXCEPTIONS`, and `NOT COUNTED`. Ids are sorted. There is no timestamp.
+Stdout is the contract. Sections are `COVERED`, `FRONTIER`, `EXCEPTIONS`, `NOT COUNTED`, and `OPERATORS`. Ids are sorted. There is no timestamp.
 
 - `id` is `kind@line:column/arm@line:column`. Columns are 0-based, matching Coverage and Prism. A loop count greater than 1 is appended as `*count`.
 - `loc` is `file:line:column`. Open that line. `cond` is the predicate, or the `when` / `in` line. Longer text is cut at 160 characters.
@@ -118,8 +118,9 @@ Stdout is the contract. Sections are `COVERED`, `FRONTIER`, `EXCEPTIONS`, and `N
 - `path` is the sorted set of arms `nearest` took. Order is not recorded. An empty set prints `(none)`; a missing path prints `null`.
 - `COVERED` uses `input` for the witness of that arm. `EXCEPTIONS` lists `class`, `loc`, `input`, and `message`. An empty frontier can still have exceptions, and a covered method can still raise.
 - `NOT COUNTED` lists the methods in other files that the counted code calls on self, such as a parent class's helper or a mixin's method, and the methods it calls on an object built with `Const.new` in a local or in an instance variable the class sets (`@ledger = Ledger.new`): `callee` (`Register#required_sku`), `loc` (its `def`), and `arms` (the arms in that `def`, or `unknown`). Their arms are not in `arms_total`, so an `arms_total` that dropped after a refactor can mean the logic moved there. Explore that callee as its own entry. Methods of installed gems and of Ruby's own library (an association reader, `update!`), C methods, attribute readers, methods with no arms, and calls on an object whose class the code does not show (a parameter, a method's return value) are not listed.
+- `OPERATORS` lists each `||`, `&&`, `||=`, and `&&=` in the counted code: `loc` (the operator), `op`, and `text`. Branch coverage counts no arm for them, so `arms_total` leaves them out and the report cannot say which side ran. `arms_total: 0` with an `OPERATORS` entry is not full coverage: give inputs that make each left side truthy and falsy, and let the pinned results show the difference. `&.` has its own arms.
 
-`--json` is the same report (`version`, counts, `covered`, `frontier`, `exceptions`, `not_counted`). Each frontier object has `id`, `loc`, `cond`, `sense`, `parent`, `nearest` (`{"args","kwargs"}`, plus `"new"` and `"setup"` when set, or null), and `path`.
+`--json` is the same report (`version`, counts, `covered`, `frontier`, `exceptions`, `not_counted`, `operators_not_counted`). Each frontier object has `id`, `loc`, `cond`, `sense`, `parent`, `nearest` (`{"args","kwargs"}`, plus `"new"` and `"setup"` when set, or null), and `path`.
 
 ## Rounds
 
@@ -213,7 +214,7 @@ A test that passes on base and fails on head is a changed return value or except
 - The entry must be defined in the target file, under that constant or a superclass declared in the same file. `BrokenLoans#borrow`, defined on `Loans`, runs `Loans#borrow` and follows `BrokenLoans`'s override of `limited?`, as Ruby does.
 - A method that depends on time, randomness, or I/O will not stay stable across runs.
 - A path is a set of arms, not an order. Two orders that take the same arms look the same. A modifier `unless` can put `then` and `else` at the same `loc`; the arm name in the id distinguishes them.
-- Only a bare call, a `self.` call, and a call on a bare `new(...)` in the same file are followed. `def self.apply(doc) = new(doc).apply` reaches `initialize` and `#apply`, and `new(path).tap(&:parse)` or `then(&:parse)` reaches `#parse`. `send`, another receiver, and other files are out of scope. When the entry reaches no arm, `explore` warns on stderr; target the method that branches. `--emit-tests` still pins each input's return value or error, so the warning does not block characterization.
+- Only a bare call, a `self.` call, and a call on a bare `new(...)` in the same file are followed. `def self.apply(doc) = new(doc).apply` reaches `initialize` and `#apply`, and `new(path).tap(&:parse)` or `then(&:parse)` reaches `#parse`. `send`, another receiver, and other files are out of scope. When the entry reaches no arm, `explore` warns on stderr: target the method that branches, or, when the warning names `OPERATORS`, vary each left side. `--emit-tests` still pins each input's return value or error, so the warning does not block characterization.
 - Emitted tests pin other exception messages exactly. A message that differs between Ruby versions fails on a Ruby other than the one that emitted it.
 - `Timeout.timeout` does not stop every block. If the timeout backtrace has no target line, `loc` is the method definition line.
 - An unsatisfiable condition stays on the frontier. Stop trying it.

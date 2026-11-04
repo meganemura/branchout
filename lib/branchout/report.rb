@@ -10,6 +10,7 @@ module Branchout
       section(lines, "FRONTIER", result.frontier) { |arm| frontier_lines(arm) }
       section(lines, "EXCEPTIONS", result.exceptions) { |finding| finding_lines(finding) }
       section(lines, "NOT COUNTED", Array(result.not_counted)) { |callee| callee_lines(callee) }
+      section(lines, "OPERATORS", Array(result.operators)) { |found| operator_lines(found) }
       "#{lines.join("\n")}\n"
     end
 
@@ -33,7 +34,8 @@ module Branchout
         "covered" => result.covered.map { |arm| covered_hash(arm) },
         "frontier" => result.frontier.map { |arm| frontier_hash(arm) },
         "exceptions" => result.exceptions.map { |finding| finding_hash(finding) },
-        "not_counted" => Array(result.not_counted).map { |callee| callee_hash(callee) }
+        "not_counted" => Array(result.not_counted).map { |callee| callee_hash(callee) },
+        "operators_not_counted" => Array(result.operators).map { |found| operator_hash(found) }
       }
       "#{Canon.pretty(body)}\n"
     end
@@ -116,7 +118,8 @@ module Branchout
         "arms_covered: #{result.covered.length}",
         "arms_total: #{result.covered.length + result.frontier.length}",
         "exceptions: #{result.exceptions.length}",
-        "callees_not_counted: #{Array(result.not_counted).length}"
+        "callees_not_counted: #{Array(result.not_counted).length}",
+        "operators_not_counted: #{Array(result.operators).length}"
       ]
     end
 
@@ -166,6 +169,14 @@ module Branchout
 
     def callee_lines(callee)
       ["callee: #{callee.name}", "loc: #{callee.loc}", "arms: #{callee.arms.nil? ? "unknown" : callee.arms}"]
+    end
+
+    def operator_lines(found)
+      ["loc: #{found.loc}", "op: #{found.op}", "text: #{found.text}"]
+    end
+
+    def operator_hash(found)
+      {"loc" => found.loc, "line" => found.line, "column" => found.column, "op" => found.op, "text" => found.text}
     end
 
     def callee_hash(callee)

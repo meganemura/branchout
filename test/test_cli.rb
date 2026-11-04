@@ -78,6 +78,7 @@ class CLITest < Minitest::Test
       arms_total: 2
       exceptions: 0
       callees_not_counted: 0
+      operators_not_counted: 0
 
       COVERED
       id: if@5:4/else@8:6
@@ -99,6 +100,9 @@ class CLITest < Minitest::Test
       (none)
 
       NOT COUNTED
+      (none)
+
+      OPERATORS
       (none)
     OUT
   end
@@ -445,6 +449,58 @@ class CLITest < Minitest::Test
         assert status.success?, stderr
         assert_includes stdout, "arms_total: 0\n", entry
       end
+    end
+  end
+
+  # Branch coverage counts no arm for ||, &&, ||=, or &&=, so a method that
+  # branches only through them would read as 0 of 0 arms, fully covered.
+  def test_operators_that_branch_without_an_arm_are_listed
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [[{ "paid" => true }]] })
+      stdout, stderr, status = run_cli(
+        "explore", "test/fixtures/operators.rb", "FixtureGate.ready?",
+        "--strategy", "inputs", "--random", "0", "--inputs", path
+      )
+      assert status.success?, stderr
+      assert_includes stdout, "arms_total: 0\nexceptions: 0\ncallees_not_counted: 0\noperators_not_counted: 2\n"
+      assert stdout.end_with?(<<~OUT), stdout
+        OPERATORS
+        loc: test/fixtures/operators.rb:5:17
+        op: &&
+        text: order[:paid] && !order[:cancelled]
+
+        loc: test/fixtures/operators.rb:5:39
+        op: ||
+        text: order[:paid] && !order[:cancelled] || order[:forced]
+      OUT
+      assert_equal "branchout: FixtureGate.ready? and the methods it calls in test/fixtures/operators.rb have no arm that " \
+                   "branch coverage counts, but it branches at the operators OPERATORS lists, and coverage does not see which side of " \
+                   "||, &&, ||=, or &&= ran. Give inputs that make each left side truthy and falsy. " \
+                   "--emit-tests still pins the return value or error of each input.\n", stderr
+    end
+  end
+
+  def test_operators_sit_beside_the_arms_of_safe_navigation_and_in_json
+    Dir.mktmpdir do |dir|
+      path = write_inputs(dir, { "inputs" => [[nil, true]] })
+      stdout, stderr, status = run_cli(
+        "explore", "test/fixtures/operators.rb", "FixtureGate.allow?",
+        "--strategy", "inputs", "--random", "0", "--inputs", path, "--json"
+      )
+      assert status.success?, stderr
+      report = JSON.parse(stdout)
+      assert_equal [2, 1], [report["arms_total"], report["arms_covered"]]
+      assert_equal [{ "loc" => "test/fixtures/operators.rb:9:24", "line" => 9, "column" => 24, "op" => "||",
+                      "text" => "user&.fetch(:admin) || force" }], report["operators_not_counted"]
+      assert_equal "", stderr
+
+      stdout, stderr, status = run_cli(
+        "explore", "test/fixtures/operators.rb", "FixtureGate.settle",
+        "--strategy", "inputs", "--random", "0", "--inputs", write_inputs(dir, { "inputs" => [[{}]] }), "--json"
+      )
+      assert status.success?, stderr
+      assert_equal [["||=", "options[:mode] ||= \"auto\""], ["&&=", "options[:trace] &&= options[:mode] == \"debug\""]],
+                   JSON.parse(stdout)["operators_not_counted"].map { |found| [found["op"], found["text"]] }
     end
   end
 
@@ -1053,6 +1109,9 @@ class CLITest < Minitest::Test
         callee: Parent#checked
         loc: #{parent}:4
         arms: 2
+
+        OPERATORS
+        (none)
       TEXT
 
       stdout, stderr, status = run_cli(*args, "--json")

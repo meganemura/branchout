@@ -965,6 +965,11 @@ class EmitterTest < Minitest::Test
     assert_equal ['it "returns 1 when methods is [] and tests is []"', %q(context 'when methods[0].id is "m01"'),
                   %q(it 'returns 1 when tests[0].head.last_run.result.status is "failed"'),
                   %q(it 'returns 1 when status is "timed out after 30 seconds"')], texts
+    # An instance method's receiver is a step too; it names no leaf.
+    target.singleton = false
+    texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *((?:it|context) .*) do$/).flatten
+    assert_includes texts, %q(it 'returns 1 when status is "timed out after 30 seconds"')
+    target.singleton = true
 
     with_status = pins.drop(1).map { |pin| pin.dup.tap { |copy| copy.input = Branchout::Input.new(args: [{ "status" => "ready", **pin.input.args[0] }]) } }
     result = Branchout::Engine::Result.new(pins: [pins[0], *with_status], requires: [], load_paths: [], private_calls: [])

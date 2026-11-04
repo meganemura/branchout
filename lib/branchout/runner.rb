@@ -160,9 +160,9 @@ module Branchout
     # Ruby's own prelude, or by a file loaded before that has no arms to
     # count here.
     def callees_in_other_files(loaded)
-      branches = loaded.each_with_object({}) do |(file, data), out|
-        out[File.expand_path(file)] = data[:branches] if data.is_a?(Hash) && data[:branches]
-      end
+      # CoverageSession measures lines and branches, so every file's data
+      # is a Hash that holds both.
+      branches = loaded.to_h { |file, data| [File.expand_path(file), data[:branches]] }
       on_self = @target.outside_calls.map do |singleton, name|
         -> { [singleton, @owner, singleton ? @owner.method(name) : @owner.instance_method(name)] }
       end
@@ -174,10 +174,10 @@ module Branchout
         # An attribute reader or writer has no instructions, so no arms.
         next if RubyVM::InstructionSequence.of(method).nil?
 
+        # require, require_relative, and the runner load files by absolute
+        # path, so the location is already absolute, as coverage keys are.
         file, line = method.source_location
         next if file.start_with?("<internal:")
-
-        file = File.expand_path(file)
         next if file == File.expand_path(@target.path)
 
         lines = Target.def_lines(file, line)

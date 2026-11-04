@@ -74,6 +74,24 @@ class PropertyTest < Minitest::Test
     end
   end
 
+  # A message that quotes frames matches its pattern with each label in
+  # either Ruby's form, and stops matching when any other part changes.
+  def test_a_frame_pattern_accepts_either_label_and_nothing_else
+    Hegel.test do |tc|
+      words = text(max_size: 6).filter { |part| !part.match?(/[`'\n]/) }
+      parts = tc.draw(arrays(words, min_size: 1, max_size: 3))
+      labels = parts.map { |part| ["'Box.#{part}'", "`#{part}'"] }
+      frames = parts.each_with_index.map { |_, index| "lib/x.rb:#{index + 1}:in " }
+      raw = frames.zip(labels).map { |frame, (new_label, _)| "#{frame}#{new_label}" }.join(" / ")
+      pattern = Regexp.new(Branchout::Runner::ExceptionInfo.frame_pattern("raised: #{raw}"))
+      old = frames.zip(labels).map { |frame, (_, old_label)| "#{frame}#{old_label}" }.join(" / ")
+      assert_match pattern, "raised: #{raw}"
+      assert_match pattern, "raised: #{old}"
+      refute_match pattern, "raised: #{raw.sub("lib/x.rb:1:", "lib/x.rb:9:")}"
+      refute_match pattern, "Raised: #{raw}"
+    end
+  end
+
   # The names depend on the set of inputs, not on their order, so the same
   # inputs file gives the same names.
   def test_emitted_test_names_are_unique_methods_whatever_the_input_order

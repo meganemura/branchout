@@ -8,6 +8,7 @@ module Branchout
       :command, :target, :entry, :seed, :strategies, :random, :mutate_cap, :timeout,
       :inputs_ran, :mutate_ran, :random_ran, :executions,
       :covered, :frontier, :exceptions, :pins, :requires, :load_paths, :target_required, :private_calls, :const_expression, :repeated_inputs, :not_counted,
+      :test_class,
       keyword_init: true
     )
 
@@ -21,16 +22,17 @@ module Branchout
     Finding = Struct.new(:class_name, :message, :loc, :input, :stable_message, keyword_init: true)
 
     def self.explore(target:, entry:, user_inputs: [], type_overrides: nil, seed: 0, strategies: STRATEGY_ORDER,
-                     random: 16, mutate_cap: 256, timeout: 1, command: "explore", requires: [], load_paths: [])
+                     random: 16, mutate_cap: 256, timeout: 1, command: "explore", requires: [], load_paths: [], host: nil)
       new(
         target: target, entry: entry, user_inputs: user_inputs, type_overrides: type_overrides,
         seed: seed, strategies: strategies, random: random, mutate_cap: mutate_cap,
-        timeout: timeout, command: command, requires: requires, load_paths: load_paths
+        timeout: timeout, command: command, requires: requires, load_paths: load_paths, host: host
       ).explore
     end
 
     def initialize(target:, entry:, user_inputs:, type_overrides:, seed:, strategies:, random:, mutate_cap:, timeout:, command:,
-                   requires:, load_paths:)
+                   requires:, load_paths:, host:)
+      @host = host
       @path = target
       @requires = requires.map { |path| File.expand_path(path) }
       @load_paths = load_paths.map { |dir| File.expand_path(dir) }
@@ -68,7 +70,7 @@ module Branchout
       enqueue.call(mutated, :mutate)
       enqueue.call(randoms, :random)
 
-      runner = Runner.new(target, timeout: @timeout, requires: @requires, load_paths: @load_paths)
+      runner = Runner.new(target, timeout: @timeout, requires: @requires, load_paths: @load_paths, host: @host)
       executions = plan.map do |input, origin|
         execution = runner.execute(input)
         execution.origin = origin
@@ -113,7 +115,8 @@ module Branchout
         private_calls: runner.private_calls,
         const_expression: runner.const_expression,
         repeated_inputs: repeated_inputs,
-        not_counted: runner.not_counted
+        not_counted: runner.not_counted,
+        test_class: @host&.test_class
       )
     end
 

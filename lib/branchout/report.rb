@@ -215,6 +215,8 @@ module Branchout
     end
 
     def format_timeout(value)
+      return "none" if value.nil?
+
       return value.to_i.to_s if value == value.to_i
 
       Canon.format_float(value.to_f)

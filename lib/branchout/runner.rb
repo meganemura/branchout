@@ -1,22 +1,8 @@
 # frozen_string_literal: true
 
-require "coverage"
+require_relative "coverage"
 
 module Branchout
-  module CoverageSession
-    module_function
-
-    def install
-      return unless Coverage.state == :idle
-
-      previous = $VERBOSE
-      $VERBOSE = nil
-      Coverage.setup(lines: true, branches: true)
-    ensure
-      $VERBOSE = previous if defined?(previous)
-    end
-  end
-
   # Loads the target under Coverage and runs one input at a time.
   # Branch counters are cleared between calls. Load-time execution is discarded.
   class Runner
@@ -48,12 +34,15 @@ module Branchout
     # library's entry file. They load after coverage starts, so the target
     # is measured even when one of them requires it. Each one's directory
     # joins the load path, as each +load_paths+ directory (-I) does.
-    def initialize(target, timeout:, requires: [], load_paths: [])
+    # +host+ is the test that runs explore from inside a suite, which loaded
+    # the target and the requires already.
+    def initialize(target, timeout:, requires: [], load_paths: [], host: nil)
       @target = target
       @timeout = timeout
       @requires = requires
       @load_paths = load_paths
-      boot
+      @host = host
+      @host ? attach : boot
     end
 
     def execute(input)
@@ -101,6 +90,25 @@ module Branchout
       resolve
       @not_counted = callees_in_other_files(Coverage.result(stop: false, clear: true))
       @template = extract(Coverage.result(stop: false, clear: false))
+    end
+
+    # Loading the target again would run its class body twice, and a
+    # Rails model declares validations and callbacks there, so the target
+    # is measured only when it loaded after branchout/coverage.
+    def attach
+      unless Coverage.state == :suspended
+        raise Error, "Coverage is #{Coverage.state}, so explore cannot measure #{@target.display_path}. " \
+                     "Require \"branchout/coverage\" first in the test helper, before the app loads, " \
+                     "and run without another coverage tool such as SimpleCov."
+      end
+      unless Coverage.peek_result[File.expand_path(@target.path)]&.key?(:branches)
+        raise Error, "#{@target.display_path} loaded before branchout/coverage, so Coverage has no arms for it. " \
+                     "Require \"branchout/coverage\" first in the test helper, before the app loads."
+      end
+      @target_required = true
+      resolve
+      @not_counted = callees_in_other_files(Coverage.result(stop: false, clear: true))
+      @template = extract(Coverage.peek_result)
     end
 
     # Another checkout's lib/branchout reopens the running tool's classes,
@@ -252,7 +260,11 @@ module Branchout
     end
 
     def invoke(input)
-      quietly { run_entry(input) }
+      return quietly { run_entry(input) } unless @host
+
+      value = nil
+      quietly { @host.around.call { value = run_entry(input) } }
+      value
     end
 
     def run_entry(input)
@@ -313,10 +325,11 @@ module Branchout
       end
     end
 
-    # Where one input's Ruby runs: the top level, as in an emitted test.
-    # A binding of its own keeps one input's locals from the next.
+    # Where one input's Ruby runs: the top level, as in an emitted test, or
+    # in a suite the test itself, so it reaches the test's factories,
+    # fixtures, and helpers. A string eval keeps this method's locals out.
     def new_scope
-      TOPLEVEL_BINDING.eval("binding", __FILE__, __LINE__)
+      @host ? @host.test.instance_eval("binding", __FILE__, __LINE__) : TOPLEVEL_BINDING.eval("binding", __FILE__, __LINE__)
     end
 
     def measure

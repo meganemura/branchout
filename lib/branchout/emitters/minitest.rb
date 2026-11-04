@@ -12,7 +12,7 @@ module Branchout
         lines.concat(Support.require_lines(result.requires, (target.path unless result.target_required), destination,
                                           by_name: require_by_name, load_paths: result.load_paths))
         lines << ""
-        lines << "class #{Support.class_name_for(target)} < Minitest::Test"
+        lines << "class #{Support.class_name_for(target)} < #{result.test_class || "Minitest::Test"}"
         if result.pins.empty?
           lines << "  def test_no_inputs_discovered"
           lines << '    skip "branchout did not discover an input"'

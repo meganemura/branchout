@@ -67,6 +67,26 @@ class MutatorTest < Minitest::Test
     end
   end
 
+  # A block and Ruby source are read from the entry, and a mistake in
+  # either names the entry once.
+  def test_input_file_reads_a_block_and_names_the_entry_of_bad_ruby
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "inputs.json")
+      File.write(path, JSON.generate({ "inputs" => [{ "args" => [{ "ruby" => "Loan.new(3)" }], "block" => "{ |a| a }" }] }))
+      inputs, _types = Branchout::InputFile.load(path)
+      assert_equal '{"args":[{"ruby":"Loan.new(3)"}],"block":"{ |a| a }","kwargs":{}}', inputs.first.canonical
+
+      { { "args" => [{ "ruby" => "Loan.new(" }] } => "#{path} inputs[0] Ruby \"Loan.new(\" does not parse",
+        { "args" => [1], "block" => "a" } => "#{path} inputs[0] block \"a\" is not a block such as \"{ |item| item.price > 2 }\"",
+        { "args" => [], "new" => { "args" => [{ "ruby" => "(" }] } } => "#{path} inputs[0] new Ruby \"(\" does not parse",
+        { "args" => [], "zzz" => 1 } => "#{path} inputs[0] has unknown keys: zzz" }.each do |entry, message|
+        File.write(path, JSON.generate({ "inputs" => [entry] }))
+        error = assert_raises(Branchout::Error) { Branchout::InputFile.load(path) }
+        assert_equal message, error.message
+      end
+    end
+  end
+
   def test_every_mutated_input_passes_the_required_keywords
     target = Branchout::Target.parse(File.join(@root, "test/fixtures/pools.rb"), "FixturePools.mix")
     inputs = Branchout::Mutator.new(target, cap: 256).inputs

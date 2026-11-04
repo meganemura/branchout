@@ -254,7 +254,7 @@ module Branchout
 
       def class_name_for(target)
         const_part = target.const_name.gsub("::", "")
-        method_part = target.method_name.to_s.gsub("?", "P").gsub("!", "B").gsub("=", "E")
+        method_part = target.method_name.to_s.sub(/[?!=]\z/, "?" => "_predicate", "!" => "_bang", "=" => "_writer")
         method_part = method_part.split("_").map { |word| word.sub(/\A[a-z]/, &:upcase) }.join
         "#{const_part}#{method_part}CharacterizationTest"
       end

@@ -260,9 +260,11 @@ class EmitterTest < Minitest::Test
     end
     target.const_name = "Foo::Bar"
     target.singleton = true
-    assert_equal "FooBarBazPCharacterizationTest", support.class_name_for(target)
-    target.method_name = :reset!
-    assert_equal "FooBarResetBCharacterizationTest", support.class_name_for(target)
+    assert_equal "FooBarBazPredicateCharacterizationTest", support.class_name_for(target)
+    target.method_name = :record_score!
+    assert_equal "FooBarRecordScoreBangCharacterizationTest", support.class_name_for(target)
+    target.method_name = :limit=
+    assert_equal "FooBarLimitWriterCharacterizationTest", support.class_name_for(target)
     target.const_name = "JitCatch::Render"
     target.method_name = :run_text
     assert_equal "JitCatchRenderRunTextCharacterizationTest", support.class_name_for(target)

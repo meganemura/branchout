@@ -147,11 +147,14 @@ group :test do
 end
 ```
 
-The first line of `spec/rails_helper.rb`, before the app loads (or of `spec/spec_helper.rb` or `test/test_helper.rb`):
+In `spec/rails_helper.rb` or `test/test_helper.rb`, right after the line that loads `config/environment`:
 
 ```ruby
+require_relative "../config/environment"
 require "branchout/coverage" if ENV["BRANCHOUT"]
 ```
+
+By then Rails and the gems are loaded, and the models load later, on first use, so Coverage instruments only the app's code. Set up before Rails, it instruments every gem too: a Rails suite's model tests then took about 25% longer, and after `config/environment` the difference was within noise. When the test environment eager-loads (`config.eager_load`, which Rails sets from `ENV["CI"]`), the models load inside `config/environment`, and explore refuses them; run without eager loading. In a suite without Rails, make it the first line of the helper, before the app's files load.
 
 ```ruby
 # spec/models/loan_explore_spec.rb

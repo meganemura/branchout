@@ -229,11 +229,21 @@ group :test do
 end
 ```
 
-`spec/rails_helper.rb`（または `spec/spec_helper.rb`、`test/test_helper.rb`）の先頭、アプリを読み込む前に次の行を置く。
+`spec/rails_helper.rb` または `test/test_helper.rb` の、`config/environment` を読み込む行のすぐ後に次の行を置く。
 
 ```ruby
+require_relative "../config/environment"
 require "branchout/coverage" if ENV["BRANCHOUT"]
 ```
+
+この時点で Rails と gem は読み込み済みで、モデルは最初に使うときに読み込まれる。
+そのため Coverage が計測の準備をするのはアプリのコードだけになる。
+Rails より前に置くと、すべての gem も計測の対象になる。
+ある Rails のスイートでは、モデルのテストが約 25% 長くなった。
+`config/environment` の後に置いたときの差は、ばらつきの範囲だった。
+テスト環境が eager load する（`config.eager_load`。Rails は `ENV["CI"]` から決める）と、モデルは `config/environment` の中で読み込まれ、explore はそれを断る。
+eager load なしで実行する。
+Rails のないスイートでは、アプリのファイルを読み込む前、ヘルパーの先頭に置く。
 
 ```ruby
 # spec/models/loan_explore_spec.rb

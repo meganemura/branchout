@@ -75,7 +75,7 @@ Run from the project root. `loc` and `target` print relative to the current dire
 Most methods of a Rails app run only inside its suite: they need the booted app, the database, factories, and a transaction per test. Explore those from inside a test with `Branchout.explore`, not with the CLI.
 
 1. Add the gem to the app's test group: `gem "branchout", group: :test, require: false`.
-2. Start coverage before the app loads. Make this the first line of `spec/rails_helper.rb` (or `spec/spec_helper.rb`, or `test/test_helper.rb`): `require "branchout/coverage" if ENV["BRANCHOUT"]`. Coverage counts a file only when it loads after that line. A model that loaded earlier is refused with `loaded before branchout/coverage`, not loaded again, because loading it again declares its validations twice.
+2. Start coverage before the app's code loads. In `spec/rails_helper.rb` or `test/test_helper.rb`, put `require "branchout/coverage" if ENV["BRANCHOUT"]` right after the line that loads `config/environment`: Rails and the gems are loaded by then, models load later on first use, and coverage set up before Rails makes the whole run about 25% slower. Run without eager loading (Rails turns it on when `CI` is set), or the models load inside `config/environment`. In a suite without Rails, make it the first line of the helper. Coverage counts a file only when it loads after that line. A model that loaded earlier is refused with `loaded before branchout/coverage`, not loaded again, because loading it again declares its validations twice.
 3. Write one example that explores, skipped unless `BRANCHOUT` is set:
 
 ```ruby

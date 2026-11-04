@@ -230,9 +230,6 @@ module Branchout
     end
 
     def choose_type(param, scores)
-      no_evidence = scores.nil? || scores.values.all?(&:zero?)
-      return type_from_default(param.default) if no_evidence && !param.default.nil?
-
       string = scores[:string]
       array = scores[:array]
       hash = scores[:hash]

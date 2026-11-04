@@ -90,6 +90,20 @@ class TargetTest < Minitest::Test
     end
   end
 
+  # Without module_function or extend self, a module's def is an instance
+  # method only, and so is a def above a bare module_function.
+  def test_a_plain_module_def_is_no_class_method
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "t.rb")
+      File.write(path, "module T\n  def f(x) = x\n  module_function :g\n  def g(x) = x\n  def h(x) = x\nend\n")
+      assert Branchout::Target.parse(path, "T.g")
+      %w[T.f T.h].each do |entry|
+        error = assert_raises(Branchout::Error) { Branchout::Target.parse(path, entry) }
+        assert_match(/cannot find #{entry}/, error.message)
+      end
+    end
+  end
+
   # Each source is the body of module T; the type is inferred for the first
   # positional parameter of T.f. Ties go string, hash, array, float, int.
   TYPE_CASES = {

@@ -626,6 +626,21 @@ class EmitterTest < Minitest::Test
     assert(texts.all? { |text| text.length <= 80 }, texts.inspect)
   end
 
+  # When the telling fact alone leaves too little room for the outcome, the
+  # end is cut instead, and a digest tells the two texts apart.
+  def test_a_text_whose_fact_leaves_no_room_cuts_its_end
+    key = "a_keyword_with_a_name_long_enough_to_fill_a_line"
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Box", :put, "Box.put", "lib/x.rb", File.join(ROOT, "lib/x.rb"), [], [])
+    pins = %w[first second].map do |word|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [], kwargs: { key => "#{word} #{"z" * 40}" }), value: "v" * 30, error: nil, arm_ids: [])
+    end
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
+    texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *it '(.*)' do$/).flatten
+    assert_equal ["returns \"#{"v" * 30}\" when a_keyword_with_a... (input b9dd46)",
+                  "returns \"#{"v" * 30}\" when a_keyword_with_a... (input f54c23)"], texts
+  end
+
   # A returned String that quotes a frame, such as a "raised in:" line, is
   # matched the same way as such a message.
   def test_a_returned_string_that_quotes_a_frame_is_matched

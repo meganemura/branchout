@@ -1262,6 +1262,13 @@ class EmitterTest < Minitest::Test
     assert_includes texts, "it '#{"returns 1 when x is \"...and going on\""}' do"
     assert_includes texts, "it '#{"returns 1 when x is \"...and going off\""}' do"
     assert_includes texts, "it '#{"returns 1 when x is \"an early part a fairly...\""}' do"
+    # A path is cut after a separator, and keeps an end that "..." would
+    # not shorten.
+    dir = "/tmp/scratchpad/r13qd/sp ace/"
+    texts = render.(target_for.("Box", :put, singleton: true), ["#{dir}recorded.qnt", "#{dir}missing.qntx", "#{dir}nothing.qntxy"].map { |arg| pin.(Branchout::Input.new(args: [arg])) })
+    assert_includes texts, %q(it 'returns 1 when x is "...r13qd/sp ace/recorded.qnt"' do)
+    assert_includes texts, %q(it 'returns 1 when x is "...r13qd/sp ace/missing.qntx"' do)
+    assert_includes texts, %q(it 'returns 1 when x is "...r13qd/sp ace/nothing.q..."' do)
 
     struct = Struct.new(:a)
     shaped = [pin.(Branchout::Input.new(args: [1]), { total: 1, tax: 0 }), pin.(Branchout::Input.new(args: [2]), [struct.new(1)]),

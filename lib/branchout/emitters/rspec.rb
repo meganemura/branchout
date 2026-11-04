@@ -346,11 +346,14 @@ module Branchout
             value.each_char.zip(other.each_char).take_while { |mine, theirs| mine == theirs }.length
           end
           start = (parts.max || 0) < 20 ? 0 : parts.max - 10
-          # Start at a word when one begins shortly before.
-          space = value.rindex(/\s/, start)
-          start = space + 1 if start.positive? && space && start - space <= 12
-          piece = value[start, 22]
-          Support.ruby_literal("#{"..." if start.positive?}#{piece}#{"..." if start + 22 < value.length}")
+          # Start at a word or a path segment when one begins shortly before.
+          separator = value.rindex(%r{[\s/]}, start)
+          start = separator + 1 if start.positive? && separator && start - separator <= 12
+          # An end "..." that would stand for no more than its own three
+          # characters keeps the end instead.
+          length = value.length - start <= 25 ? 25 : 22
+          piece = value[start, length]
+          Support.ruby_literal("#{"..." if start.positive?}#{piece}#{"..." if start + length < value.length}")
         end
 
         def peer_paths(root, peers)

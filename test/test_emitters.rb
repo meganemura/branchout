@@ -579,6 +579,36 @@ class EmitterTest < Minitest::Test
                     %(raise_error(ArgumentError, "bad\\n  x: 1"))
   end
 
+  # A message that quotes a backtrace frame names the method as Ruby labels
+  # it, and Ruby 3.4 changed labels from `run' to 'Box.run'. The test pins
+  # the rest of the message and lets the label be either form, so a test
+  # emitted on one Ruby passes on the other.
+  def test_a_message_that_quotes_a_frame_is_pinned_without_its_label
+    error = begin
+      [1].each { raise ArgumentError, "raised in: #{caller_locations(0, 1).first.to_s.delete_prefix("#{ROOT}/")}\nnext" }
+    rescue ArgumentError => e
+      Branchout::Runner::ExceptionInfo.from(e, "lib/x.rb", File.join(ROOT, "lib/x.rb"))
+    end
+    refute error.stable_message
+    line = __LINE__ - 5
+    pattern = Regexp.new(error.message_pattern)
+    ["test/test_emitters.rb:#{line}:in 'block in EmitterTest#test_a_message_that_quotes_a_frame_is_pinned_without_its_label'",
+     "test/test_emitters.rb:#{line}:in `block in test_a_message_that_quotes_a_frame_is_pinned_without_its_label'"].each do |frame|
+      assert_match pattern, "raised in: #{frame}\nnext"
+    end
+    refute_match pattern, "raised in: test/test_emitters.rb:#{line + 1}:in 'x'\nnext"
+
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Box", :put, "Box.put", "lib/x.rb", File.join(ROOT, "lib/x.rb"), [], [Struct.new(:name).new(:x)])
+    pins = [Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1]), value: nil, error: error, arm_ids: [])]
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
+    literal = pattern.inspect
+    assert_includes Branchout::Emitters.render("minitest", result, target, File.join(ROOT, "test/x_test.rb")),
+                    "    assert_match(#{literal}, error.message)\n"
+    assert_includes Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")),
+                    "raise_error(ArgumentError, #{literal})"
+  end
+
   # A setter or an operator in a setup call has no plain form that keeps
   # its arguments, so it goes through send.
   def test_a_setter_or_an_operator_is_called_through_send

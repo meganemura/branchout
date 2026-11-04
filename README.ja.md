@@ -151,6 +151,8 @@ ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \
 複数行のメッセージは、発生したときのまま固定する。
 `NameError` と `NoMethodError` は、クラスと見つからなかった名前（`error.name`）で固定する。
 Ruby 3.4 でメッセージの文言が変わったためである。
+バックトレースのフレーム（`lib/x.rb:3:in 'Box.run'`）を含むメッセージは正規表現で照合し、フレームのラベルだけはどちらの書式でも通す。
+Ruby 3.4 はラベルを `` `run' `` から `'Box.run'` に変えたためである。
 `Set` は要素で固定する（`Set[1, 2]`）。
 `Object` のように Ruby のリテラルで書けない戻り値は、クラスだけを固定する。
 RSpec では、`Struct` と `Data` の値はクラスとメンバーで固定し、それを含む Array や Hash は要素ごとに固定する（`match([a_kind_of(Rule).and(have_attributes(action: "borrow"))])`）。

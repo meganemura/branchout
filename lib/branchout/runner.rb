@@ -25,7 +25,11 @@ module Branchout
     # message is not: Ruby 3.4 reworded both NameError and NoMethodError.
     # +message+ has its whitespace folded for reports; a test pins
     # +exact_message+, the message as raised, when that is stable.
-    ExceptionInfo = Struct.new(:class_name, :message, :loc, :stable_message, :name, :exact_message, keyword_init: true)
+    # +message_pattern+ is the source of a Regexp for a message that quotes
+    # a backtrace frame: Ruby 3.4 labels a frame 'Box.run' where 3.3 wrote
+    # `run', so the pattern keeps the rest and accepts either label.
+    ExceptionInfo = Struct.new(:class_name, :message, :loc, :stable_message, :name, :exact_message, :message_pattern,
+                               keyword_init: true)
     # +arms+ is nil when the callee's file holds no coverage to count from.
     Callee = Struct.new(:name, :loc, :arms, keyword_init: true)
 
@@ -344,14 +348,26 @@ module Branchout
       raw = exception.message.to_s
       clean = raw.gsub(/#<[^>]*>/, "#<obj>").gsub(/0x[0-9a-f]+/i, "0xID").gsub(/\s+/, " ").strip
       clean = clean[0, 180]
-      stable = raw.gsub(/\s+/, " ").strip == clean
+      pattern = frame_pattern(raw)
+      stable = pattern.nil? && raw.gsub(/\s+/, " ").strip == clean
       loc = locate(exception, display_path, real_path)
       if loc.nil? && fallback_line && exception.is_a?(Timeout::Error)
         loc = "#{display_path}:#{fallback_line}"
       end
       name = exception.is_a?(Timeout::Error) ? "Timeout::Error" : exception.class.name
       missing = exception.name if exception.is_a?(NameError) && exception.name.is_a?(Symbol)
-      new(class_name: name, message: clean, loc: loc, stable_message: stable, name: missing, exact_message: (raw if stable))
+      new(class_name: name, message: clean, loc: loc, stable_message: stable, name: missing, exact_message: (raw if stable),
+          message_pattern: (pattern if pattern && clean == raw.gsub(/\s+/, " ").strip))
+    end
+
+    FRAME_LABEL = /(:\d+:in )[`'][^`'\n]*'/
+
+    def self.frame_pattern(raw)
+      return nil unless FRAME_LABEL.match?(raw)
+
+      parts = raw.split(FRAME_LABEL, -1)
+      source = parts.each_with_index.map { |part, index| index.odd? ? "#{Regexp.escape(part)}[`'][^`'\\n]*'" : Regexp.escape(part) }
+      "\\A#{source.join.gsub("\\ ", " ")}\\z"
     end
 
     def self.locate(exception, display_path, real_path)

@@ -137,6 +137,8 @@ module Branchout
             "raise_error(#{error.class_name}) { |error| expect(error.name).to eq(#{error.name.inspect}) }"
           elsif error.stable_message
             "raise_error(#{error.class_name}, #{(error.exact_message || error.message).inspect})"
+          elsif error.message_pattern
+            "raise_error(#{error.class_name}, #{Regexp.new(error.message_pattern).inspect})"
           else
             "raise_error(#{error.class_name})"
           end

@@ -160,6 +160,17 @@ class TargetTest < Minitest::Test
     end
   end
 
+  # mutate and random fill "new" from initialize, so its defaults keep
+  # their values, true and false included.
+  def test_an_instance_entry_has_the_parameters_of_initialize
+    source = "class Rate\n  def initialize(rate, cap: true, floor: false) = @rate = rate\n  def apply(x) = x * @rate\nend\n"
+    parse_source(source, "Rate#apply") do |target|
+      assert_equal [[:req, :rate, nil], [:key, :cap, true], [:key, :floor, false]],
+                   target.constructor.map { |param| [param.kind, param.name, param.default] }
+    end
+    parse_source("class Rate\n  def apply(x) = x\nend\n", "Rate#apply") { |target| assert_empty target.constructor }
+  end
+
   def test_parameter_kinds_defaults_and_types
     Dir.mktmpdir do |dir|
       path = File.join(dir, "t.rb")

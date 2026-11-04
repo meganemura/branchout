@@ -42,6 +42,8 @@ module CLIProcess
     requests_r, @requests = IO.pipe
     @replies, replies_w = IO.pipe
     @server = fork do
+      # branchout autoloads prism; load it here so no run pays for it.
+      Prism
       @requests.close
       @replies.close
       serve(requests_r, replies_w)

@@ -326,7 +326,7 @@ C で書かれたメソッド、Ruby 自身の prelude のメソッド、属性�
 
 ## インストール
 
-Ruby 3.3 以降。探索に使うのは標準ライブラリの Coverage、Prism、json である。Gemfile に `gem "branchout", group: :test, require: false` を書いて `bundle exec branchout` を実行するか、このチェックアウトで `ruby bin/branchout` を実行するか、`bin` を `PATH` に置く。出した minitest は `ruby` で実行する。出した RSpec には `rspec` gem が要る。
+Ruby 3.3 以降。探索に使うのは標準ライブラリの Coverage、Prism、json である。Gemfile に `gem "branchout", group: :test, require: false` を書いて `bundle exec branchout` を実行するか、このチェックアウトで `ruby bin/branchout` を実行するか、`bin` を `PATH` に置く。出した minitest は `ruby` で実行する。出した RSpec には `rspec` gem が要る。バンドルの外では、`bin/branchout` は入っているどの gem も受け入れる prism のうち最も新しいものを有効にする。そのため、より新しい prism が入っていても、minitest 6 (prism ~> 1.5) を require するターゲットは読み込める。
 
 [branchout スキル](skills/branchout/SKILL.md)（英語）は [`skills` CLI](https://github.com/vercel-labs/skills)（Node.js 22.20 以降）で入れる。このリポジトリは private なので、GitHub へのアクセスが要る。
 

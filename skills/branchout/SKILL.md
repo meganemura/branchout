@@ -10,7 +10,7 @@ branchout runs one Ruby method on concrete inputs and prints the branch arms sti
 
 ## Install
 
-Ruby 3.3 or newer. Exploring uses Coverage, Prism, and json from the standard library. No gem is required to explore.
+Ruby 3.3 or newer. Exploring uses Coverage, Prism, and json from the standard library. No gem is required to explore. Outside a bundle, `bin/branchout` activates the newest installed prism that every installed gem accepts, so a target that requires minitest 6 still loads when a newer prism is installed.
 
 The executable is `bin/branchout`. Put that `bin` directory on `PATH`, or run `ruby /path/to/branchout/bin/branchout` with the same arguments. A project may instead depend on the gem with a path or git source and call `bundle exec branchout`.
 

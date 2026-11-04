@@ -298,6 +298,18 @@ class TargetTest < Minitest::Test
     end
   end
 
+  # An empty method calls nothing. Only an arithmetic or comparison call
+  # on a literal says what type its argument is.
+  def test_an_empty_method_and_a_call_that_is_not_arithmetic
+    parse_source("class T\n  def self.f(x)\n  end\n\n  def g(x)\n  end\nend\n", "T.f") do |target|
+      assert_empty target.outside_calls
+    end
+    parse_source("class T\n  def g(x)\n  end\nend\n", "T#g") { |target| assert_equal [2..3], target.ranges }
+    parse_source("module T\n  def self.f(x) = \"ab\".center(x) + 1.5.floor(x).to_s\nend\n", "T.f") do |target|
+      assert_equal ["int"], target.positional.map(&:inferred_type)
+    end
+  end
+
   def test_mutual_recursion_is_parsed_once
     parse_source("module T\n  def self.f(x) = x > 0 ? g(x - 1) : 0\n  def self.g(x) = x > 5 ? f(x) : 1\nend\n", "T.f") do |target|
       assert_equal [2..2, 3..3], target.ranges

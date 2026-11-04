@@ -285,7 +285,6 @@ module Branchout
     end
 
     def index_conditions(node)
-      return unless node.is_a?(Prism::Node)
       return if node.type == :def_node
 
       if condition_node?(node)
@@ -341,7 +340,6 @@ module Branchout
       locals = assignments(body, :local_variable_write_node).to_h
       found = []
       walk = lambda do |node|
-        next unless node.is_a?(Prism::Node)
         next if node.type == :def_node
 
         if node.type == :call_node && (receiver = node.receiver)
@@ -359,7 +357,6 @@ module Branchout
     end
 
     def assignments(node, type, acc = [])
-      return acc unless node.is_a?(Prism::Node)
       return acc if node.type == :def_node
 
       if node.type == type && (const = built_class(node.value))
@@ -400,7 +397,6 @@ module Branchout
     end
 
     def walk_evidence(node, evidence)
-      return unless node.is_a?(Prism::Node)
       return if node.type == :def_node
 
       if node.type == :call_node
@@ -460,7 +456,7 @@ module Branchout
           evidence[name][:float] += 1
         elsif contains?(node.receiver, :string_node)
           evidence[name][:string] += 1
-        elsif contains?(node.receiver, :integer_node) || node.receiver&.type == :integer_node
+        elsif contains?(node.receiver, :integer_node)
           evidence[name][:int] += 1
         end
       end

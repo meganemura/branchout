@@ -141,7 +141,7 @@ module Branchout
           if error.name
             "raise_error(#{error.class_name}) { |error| expect(error.name).to eq(#{error.name.inspect}) }"
           elsif error.stable_message
-            "raise_error(#{error.class_name}, #{(error.exact_message || error.message).inspect})"
+            "raise_error(#{error.class_name}, #{Support.ruby_literal(error.exact_message || error.message)})"
           elsif error.message_pattern
             "raise_error(#{error.class_name}, #{Regexp.new(error.message_pattern).inspect})"
           else
@@ -338,7 +338,9 @@ module Branchout
         # parts from the other Strings at its leaf, so two values that share
         # a long start do not read alike.
         def value_text(value, peer_values)
-          text = Support.ruby_literal(value.is_a?(String) ? value.to_s : value)
+          value = Support.described(value)
+          peer_values = peer_values.map { |other| Support.described(other) }
+          text = Support.ruby_literal(value)
           return text if text.length <= 30
           return "#{text[0, 27]}..." unless value.is_a?(String)
 

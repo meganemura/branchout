@@ -40,6 +40,22 @@ module Branchout
     end
   end
 
+  # A returned String or an error message that holds paths under the
+  # emitted test's project. The test writes the project root from its own
+  # directory (+root_from_test+) between the +pieces+, so it passes in a
+  # copy of the project on another machine. Its text says each path from
+  # the project root, as a ProjectPath does.
+  class ProjectText < String
+    attr_reader :pieces, :root_from_test
+
+    def initialize(pieces, root_from_test)
+      super(pieces.join)
+      @pieces = pieces.map { |piece| -piece }.freeze
+      @root_from_test = -root_from_test
+      freeze
+    end
+  end
+
   class Input
     # One call made on the receiver after new and before the entry.
     # +arguments+ is an Input with no receiver and no setup of its own.

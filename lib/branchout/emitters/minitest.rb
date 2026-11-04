@@ -40,7 +40,7 @@ module Branchout
           if pin.error.name
             lines << "    assert_equal #{pin.error.name.inspect}, error.name"
           elsif pin.error.stable_message
-            lines << "    assert_equal #{(pin.error.exact_message || pin.error.message).inspect}, error.message"
+            lines << "    assert_equal #{Support.ruby_literal(pin.error.exact_message || pin.error.message)}, error.message"
           elsif pin.error.message_pattern
             lines << "    assert_match(#{Regexp.new(pin.error.message_pattern).inspect}, error.message)"
           end

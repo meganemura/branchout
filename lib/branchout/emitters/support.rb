@@ -124,19 +124,13 @@ module Branchout
       # +destination+ as a ProjectPath. A String that File.expand_path
       # would not give back as written, such as one with a trailing /, stays.
       def project_paths(input, destination)
-        dir = File.dirname(File.expand_path(destination))
-        root = project_root(dir)
+        root = project_root(File.dirname(File.expand_path(destination)))
         return input unless root
 
         rewrite = lambda do |value|
           case value
           when ProjectPath then value
-          when String
-            next value unless value.start_with?("#{root}/")
-
-            # File.expand_path reads a leading ~ as a home directory.
-            from_test = relative_require(destination, value).sub(%r{\A\./(?!~)}, "")
-            File.expand_path(from_test, dir) == value ? ProjectPath.new(value.delete_prefix("#{root}/"), from_test) : value
+          when String then project_path(value, destination, root) || value
           when Array then value.map(&rewrite)
           when Hash then value.transform_values(&rewrite)
           else value
@@ -148,19 +142,68 @@ module Branchout
                   pin_keys: input.pin_keys, block: input.block)
       end
 
+      # +value+, a returned value or an error message, with each String
+      # that holds a path under the project of +destination+ written from
+      # the test's directory: a String that is one such path as a
+      # ProjectPath, and one that holds such paths among other text as a
+      # ProjectText.
+      def project_value(value, destination)
+        root = project_root(File.dirname(File.expand_path(destination)))
+        return value unless root
+
+        rewrite = lambda do |item|
+          case item
+          when ProjectPath, ProjectText then item
+          when String
+            next item unless item.include?("#{root}/")
+
+            project_path(item, destination, root) ||
+              ProjectText.new(item.split("#{root}/", -1), from_test(destination, root))
+          when Array then item.map(&rewrite)
+          when Hash then item.transform_values(&rewrite)
+          else item
+          end
+        end
+        rewrite.(value)
+      end
+
+      # +value+ as a ProjectPath when it is one path under +root+ that
+      # File.expand_path gives back as written (a trailing / it would not).
+      def project_path(value, destination, root)
+        return nil unless value.start_with?("#{root}/")
+
+        relative = from_test(destination, value)
+        File.expand_path(relative, File.dirname(File.expand_path(destination))) == value ? ProjectPath.new(value.delete_prefix("#{root}/"), relative) : nil
+      end
+
+      # File.expand_path reads a leading ~ as a home directory.
+      def from_test(destination, path)
+        relative_require(destination, path).sub(%r{\A\./(?!~)}, "")
+      end
+
+      # The paths of this machine, under the home or the temporary
+      # directory, that the Strings of +value+ hold anywhere in their text.
+      def machine_paths_in(value)
+        homes = machine_homes.map { |home| Regexp.escape(home) }.join("|")
+        strings(value).flat_map { |text| text.scan(%r{(?:#{homes})[^\s"'`(),;]+}) }
+      end
+
+      def machine_homes
+        [Dir.tmpdir, Dir.home].flat_map { |dir| ["#{dir}/", "#{File.realpath(dir)}/"] }.uniq
+      end
+
       # The Strings of +input+ that name a file or directory of this
       # machine: one that exists under the home or the temporary directory.
       # /dev/null, or /tmp itself, is the same on every machine.
       def machine_paths(input)
-        homes = [Dir.tmpdir, Dir.home].flat_map { |dir| ["#{dir}/", "#{File.realpath(dir)}/"] }.uniq
         strings(input).select do |value|
-          File.absolute_path?(value) && File.exist?(value) && homes.any? { |home| value.start_with?(home) }
+          File.absolute_path?(value) && File.exist?(value) && machine_homes.any? { |home| value.start_with?(home) }
         end
       end
 
       def strings(value)
         case value
-        when ProjectPath then []
+        when ProjectPath, ProjectText then []
         when String then [value]
         when Array then value.flat_map { |item| strings(item) }
         when Hash then strings(value.values)
@@ -255,6 +298,9 @@ module Branchout
         when Integer then value.to_s
         when Float then Canon.format_float(value)
         when ProjectPath then "File.expand_path(#{value.from_test.inspect}, __dir__)"
+        when ProjectText
+          root = "\#{File.expand_path(#{value.root_from_test.inspect}, __dir__)}/"
+          %("#{value.pieces.map { |piece| piece.inspect[1...-1] }.join(root)}")
         when String then thawed ? "+#{value.inspect}" : value.inspect
         when Symbol then value.inspect
         when Code then value.source
@@ -488,12 +534,12 @@ module Branchout
         value = pin.value
         unless differing.empty?
           entries = differing.map do |path, item|
-            "#{path_text(short ? telling_path(path, differing.map(&:first)) : path)}: #{ruby_literal(item)}"
+            "#{path_text(short ? telling_path(path, differing.map(&:first)) : path)}: #{ruby_literal(described(item))}"
           end
           return "returns #{entries.join(", ")}"
         end
 
-        text = ruby_literal(value)
+        text = ruby_literal(described(value))
         return "returns #{text}" if text.length <= 40
 
         # A String or an Array of scalars says its start, as the minitest
@@ -509,6 +555,7 @@ module Branchout
         else "returns #{text}"
         end
       end
+
 
       # An item of an Array that holds both scalars and collections: a
       # scalar as written, and a collection by its keys or its size.
@@ -709,8 +756,32 @@ module Branchout
         when /\A\s+\z/ then ["blank"]
         when /\A[^A-Za-z0-9]+\z/ then ["text"]
         when Numeric then [value.to_s.sub(/\A-/, "neg")]
+        when String then [without_machine_directories(value)]
         else [value.to_s]
         end
+      end
+
+      # +value+ as a name or a description says it: a path under the
+      # project from the project root, and a path of this machine by its
+      # file alone.
+      def described(value)
+        case value
+        when ProjectPath, ProjectText then String.new(value)
+        when String then without_machine_directories(value)
+        when Array then value.map { |item| described(item) }
+        when Hash then value.transform_values { |item| described(item) }
+        else value
+        end
+      end
+
+      # The directories of a path under the home or the temporary directory
+      # differ per machine, so a name keeps only the file of such a path.
+      # A whole path may hold spaces, so it keeps all of its file name.
+      def without_machine_directories(text)
+        return File.basename(text) if machine_homes.any? { |home| text.start_with?(home) } && !text.end_with?("/")
+
+        homes = machine_homes.map { |home| Regexp.escape(home) }.join("|")
+        text.gsub(%r{(?:#{homes})(?:[^\s"\x27`(),;/]+/)*}, "")
       end
 
       # A number longer than LONG_NUMBER digits fills a name, so it keeps

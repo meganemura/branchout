@@ -205,6 +205,24 @@ class TargetTest < Minitest::Test
     end
   end
 
+  # Ruby 3.3's Coverage puts an in arm with an empty body at the end of
+  # its pattern, and Ruby 3.4 at the in keyword, so the arm's column
+  # differs by Ruby while its condition does not.
+  def test_condition_text_of_an_empty_in_arm
+    Dir.mktmpdir do |dir|
+      inputs = File.join(dir, "inputs.json")
+      File.write(inputs, '{"inputs": [[0]]}')
+      stdout, stderr, status = CLIProcess.run(
+        "explore", "test/fixtures/conds.rb", "FixtureConds.empty_in",
+        "--inputs", inputs, "--strategy", "inputs", "--random", "0", "--json", chdir: @root
+      )
+      assert status.success?, stderr
+      report = JSON.parse(stdout)
+      arm = (report["covered"] + report["frontier"]).find { |entry| entry["id"].start_with?("case@47:4/in@48:") }
+      assert_equal "in Integer", arm["cond"]
+    end
+  end
+
   def test_type_override_length
     error = assert_raises(Branchout::Error) do
       Branchout::Target.parse(

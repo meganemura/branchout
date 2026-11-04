@@ -42,4 +42,11 @@ module FixtureConds
     when 2 then :two
     end
   end
+
+  def self.empty_in(x)
+    case x
+    in Integer
+    in String then :text
+    end
+  end
 end

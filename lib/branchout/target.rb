@@ -271,11 +271,17 @@ module Branchout
       end
     end
 
-    # Coverage places a when or in arm at its body, or at the keyword when
-    # the body is empty.
+    # Coverage places a when or in arm at its body, or, when the body is
+    # empty, at the keyword. Ruby 3.3 puts an empty in arm at the end of its
+    # pattern instead.
     def arm_matches?(when_node, aline, acol)
-      loc = when_node.statements&.location || when_node.location
-      loc.start_line == aline && loc.start_column == acol
+      arm = [aline, acol]
+      body = when_node.statements&.location
+      return [body.start_line, body.start_column] == arm if body
+
+      keyword = when_node.location
+      pattern = when_node.pattern.location if when_node.type == :in_node
+      [keyword.start_line, keyword.start_column] == arm || (pattern && [pattern.end_line, pattern.end_column] == arm)
     end
 
     def index_conditions(node)

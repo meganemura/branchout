@@ -34,6 +34,7 @@ executions: 1
 arms_covered: 1
 arms_total: 2
 exceptions: 0
+callees_not_counted: 0
 
 COVERED
 id: if@5:4/else@8:6
@@ -52,6 +53,9 @@ nearest: [0]
 path: if@5:4/else@8:6
 
 EXCEPTIONS
+(none)
+
+NOT COUNTED
 (none)
 ```
 
@@ -134,6 +138,8 @@ A method that takes no argument in any input becomes the `subject`. An input tha
 ## How it builds the frontier
 
 branchout loads the `--require` files and then the target after `Coverage.setup(lines: true, branches: true)` and discards the counts from loading. For each input it resumes coverage, calls the method, suspends coverage, and reads `Coverage.result`. It keeps the entry method and same-file callees reached by a bare call or `self.`. A class method that builds its own instance, as in `def self.apply(doc) = new(doc).apply`, is followed into `initialize` and the instance method it calls, also through `tap(&:parse)` or `then(&:parse)`.
+
+A method in another file is not counted, so its arms are not in `arms_total`. When a check moves from a subclass's method into a parent class's helper, the total gets smaller while the logic stays the same. `NOT COUNTED` names each such callee: a method that the counted code calls by a bare call or `self.` and that Ruby finds in another file, such as a parent class, a mixin, or a gem. Each entry has `callee` (`Register#required_sku`), `loc` (the file and line of its `def`), and `arms` (the branch arms in that `def`, or `unknown` when its file loaded before coverage started or the method has no `def`, as with `define_method`). Explore the callee as its own entry to cover those arms. Methods written in C, Ruby's own prelude methods, attribute readers and writers, and calls on another object are not listed.
 
 An arm id is `kind@line:column/arm@line:column`, from the Coverage branch key. Columns are 0-based. `cond` is the Prism predicate. For a `when` or `in` arm it is that line. If the locations do not match, the source line is used.
 

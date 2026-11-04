@@ -24,6 +24,9 @@ module Branchout
 
     attr_reader :path, :display_path, :source, :const_name, :method_name, :singleton,
                 :parameters, :constructor, :ranges, :literals, :entry
+    # [singleton, name] of each call on self that no method in this file
+    # answers. Ruby's own lookup decides after load where each one lives.
+    attr_reader :outside_calls
 
     def self.parse(path, entry, type_overrides: nil)
       new(path, entry, type_overrides: type_overrides).tap(&:parse)
@@ -75,6 +78,7 @@ module Branchout
       end
 
       @ranges = []
+      @outside_calls = []
       @literals = Literals.new(ints: [], floats: [], strings: [])
       @conditions = {}
       bodies = []
@@ -92,7 +96,7 @@ module Branchout
         index_conditions(body) if body
         bare_calls(body).each do |name|
           callee = find.(info.singleton, name)
-          queue << callee if callee
+          callee ? queue << callee : @outside_calls << [info.singleton, name]
         end
         next unless info.singleton
 
@@ -101,6 +105,7 @@ module Branchout
             callee = find.(false, instance_name)
             queue << callee if callee
           end
+          @outside_calls << [false, name] unless find.(false, name)
         end
       end
 
@@ -138,6 +143,22 @@ module Branchout
       return absolute.delete_prefix(root) if absolute.start_with?(root)
 
       absolute
+    end
+
+    # The lines of the def that starts on +line+ of +path+, or nil when no
+    # def starts there, as with define_method.
+    def self.def_lines(path, line)
+      stack = [Prism.parse(File.read(path)).value]
+      until stack.empty?
+        node = stack.pop
+        loc = node.location
+        return loc.start_line..loc.end_line if node.type == :def_node && loc.start_line == line
+
+        stack.concat(node.compact_child_nodes)
+      end
+      nil
+    rescue SystemCallError
+      nil
     end
 
     private

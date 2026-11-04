@@ -69,7 +69,7 @@ Run from the project root. `loc` and `target` print relative to the current dire
 
 ## Reading the frontier
 
-Stdout is the contract. Sections are `COVERED`, `FRONTIER`, and `EXCEPTIONS`. Ids are sorted. There is no timestamp.
+Stdout is the contract. Sections are `COVERED`, `FRONTIER`, `EXCEPTIONS`, and `NOT COUNTED`. Ids are sorted. There is no timestamp.
 
 - `id` is `kind@line:column/arm@line:column`. Columns are 0-based, matching Coverage and Prism. A loop count greater than 1 is appended as `*count`.
 - `loc` is `file:line:column`. Open that line. `cond` is the predicate, or the `when` / `in` line. Longer text is cut at 160 characters.
@@ -78,8 +78,9 @@ Stdout is the contract. Sections are `COVERED`, `FRONTIER`, and `EXCEPTIONS`. Id
 - `nearest` reached the decision with the fewest taken arms, then the smallest weight (absolute numeric size, plus string and container length), then the smallest canonical JSON. With no keywords and no `new` it prints as the args array (`[0,1]`), which pastes into `args`. With keywords, `new`, or `setup` it prints as `{"args":[...],"kwargs":{...}}`, plus `"new"` and `"setup"` when set, which pastes back as an entry.
 - `path` is the sorted set of arms `nearest` took. Order is not recorded. An empty set prints `(none)`; a missing path prints `null`.
 - `COVERED` uses `input` for the witness of that arm. `EXCEPTIONS` lists `class`, `loc`, `input`, and `message`. An empty frontier can still have exceptions, and a covered method can still raise.
+- `NOT COUNTED` lists the methods in other files that the counted code calls on self, such as a parent class's helper or a mixin's method: `callee` (`Register#required_sku`), `loc` (its `def`), and `arms` (the arms in that `def`, or `unknown`). Their arms are not in `arms_total`, so an `arms_total` that dropped after a refactor can mean the logic moved there. Explore that callee as its own entry. C methods, attribute readers, and calls on another object are not listed.
 
-`--json` is the same report (`version`, counts, `covered`, `frontier`, `exceptions`). Each frontier object has `id`, `loc`, `cond`, `sense`, `parent`, `nearest` (`{"args","kwargs"}`, plus `"new"` and `"setup"` when set, or null), and `path`.
+`--json` is the same report (`version`, counts, `covered`, `frontier`, `exceptions`, `not_counted`). Each frontier object has `id`, `loc`, `cond`, `sense`, `parent`, `nearest` (`{"args","kwargs"}`, plus `"new"` and `"setup"` when set, or null), and `path`.
 
 ## Rounds
 

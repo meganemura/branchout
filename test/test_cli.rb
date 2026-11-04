@@ -74,6 +74,7 @@ class CLITest < Minitest::Test
       arms_covered: 2
       arms_total: 2
       exceptions: 0
+      callees_not_counted: 0
 
       COVERED
       id: if@5:4/else@8:6
@@ -92,6 +93,9 @@ class CLITest < Minitest::Test
       (none)
 
       EXCEPTIONS
+      (none)
+
+      NOT COUNTED
       (none)
     OUT
   end
@@ -610,6 +614,66 @@ class CLITest < Minitest::Test
       refute status.success?
       assert_equal "branchout: failed to load #{target}: uninitialized constant Parent (NameError). " \
                    "Pass the file that defines Parent with --require.\n", stderr
+    end
+  end
+
+  # A check that moves from the entry into a parent class in another file
+  # takes its arms out of arms_total. The report names that callee and how
+  # many arms it has, so a smaller total does not read as less logic. An
+  # attribute reader holds no logic, so it is not named.
+  def test_the_report_names_callees_in_other_files_it_did_not_count
+    Dir.mktmpdir do |dir|
+      parent = File.join(dir, "parent.rb")
+      child = File.join(dir, "child.rb")
+      File.write(parent, <<~RUBY)
+        class Parent
+          private
+
+          def checked(text)
+            raise ArgumentError, "blank" if text.empty?
+
+            text
+          end
+
+          def plain(text) = text
+
+          attr_reader :tag
+        end
+      RUBY
+      File.write(child, <<~RUBY)
+        class Child < Parent
+          def label(text)
+            name = plain(checked(text)) + tag.to_s
+            short?(name) ? :short : :long
+          end
+
+          private
+
+          def short?(name) = name.length < 3 ? true : false
+        end
+      RUBY
+      path = write_inputs(dir, { "inputs" => [["ab"]] })
+      args = ["explore", child, "Child#label", "--require", parent, "--strategy", "inputs", "--random", "0", "--inputs", path]
+      stdout, stderr, status = run_cli(*args)
+      assert status.success?, stderr
+      assert_includes stdout, "arms_total: 4\nexceptions: 0\ncallees_not_counted: 2\n"
+      assert stdout.end_with?(<<~TEXT), stdout
+        NOT COUNTED
+        callee: Parent#checked
+        loc: #{parent}:4
+        arms: 2
+
+        callee: Parent#plain
+        loc: #{parent}:10
+        arms: 0
+      TEXT
+
+      stdout, stderr, status = run_cli(*args, "--json")
+      assert status.success?, stderr
+      assert_equal [
+        { "callee" => "Parent#checked", "loc" => "#{parent}:4", "arms" => 2 },
+        { "callee" => "Parent#plain", "loc" => "#{parent}:10", "arms" => 0 }
+      ], JSON.parse(stdout)["not_counted"]
     end
   end
 

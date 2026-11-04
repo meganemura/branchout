@@ -13,6 +13,7 @@ executions: 5
 arms_covered: 7
 arms_total: 8
 exceptions: 0
+callees_not_counted: 0
 
 COVERED
 id: if@10:8/else@13:10
@@ -67,4 +68,7 @@ nearest: [0,0,0]
 path: if@18:4/else@21:6, if@8:4/else@18:4
 
 EXCEPTIONS
+(none)
+
+NOT COUNTED
 (none)

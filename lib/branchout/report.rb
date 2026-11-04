@@ -9,6 +9,7 @@ module Branchout
       section(lines, "COVERED", result.covered) { |arm| covered_lines(arm) }
       section(lines, "FRONTIER", result.frontier) { |arm| frontier_lines(arm) }
       section(lines, "EXCEPTIONS", result.exceptions) { |finding| finding_lines(finding) }
+      section(lines, "NOT COUNTED", Array(result.not_counted)) { |callee| callee_lines(callee) }
       "#{lines.join("\n")}\n"
     end
 
@@ -31,7 +32,8 @@ module Branchout
         "arms_total" => result.covered.length + result.frontier.length,
         "covered" => result.covered.map { |arm| covered_hash(arm) },
         "frontier" => result.frontier.map { |arm| frontier_hash(arm) },
-        "exceptions" => result.exceptions.map { |finding| finding_hash(finding) }
+        "exceptions" => result.exceptions.map { |finding| finding_hash(finding) },
+        "not_counted" => Array(result.not_counted).map { |callee| callee_hash(callee) }
       }
       "#{Canon.pretty(body)}\n"
     end
@@ -113,7 +115,8 @@ module Branchout
         "executions: #{result.executions}",
         "arms_covered: #{result.covered.length}",
         "arms_total: #{result.covered.length + result.frontier.length}",
-        "exceptions: #{result.exceptions.length}"
+        "exceptions: #{result.exceptions.length}",
+        "callees_not_counted: #{Array(result.not_counted).length}"
       ]
     end
 
@@ -159,6 +162,14 @@ module Branchout
         "input: #{finding.input.text}",
         "message: #{finding.message}"
       ]
+    end
+
+    def callee_lines(callee)
+      ["callee: #{callee.name}", "loc: #{callee.loc}", "arms: #{callee.arms.nil? ? "unknown" : callee.arms}"]
+    end
+
+    def callee_hash(callee)
+      {"callee" => callee.name, "loc" => callee.loc, "arms" => callee.arms}
     end
 
     def format_path(path)

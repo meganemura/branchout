@@ -13,6 +13,7 @@ executions: 6
 arms_covered: 12
 arms_total: 12
 exceptions: 0
+callees_not_counted: 0
 
 COVERED
 id: if@11:6/else@14:8
@@ -91,4 +92,7 @@ FRONTIER
 (none)
 
 EXCEPTIONS
+(none)
+
+NOT COUNTED
 (none)

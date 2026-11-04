@@ -26,6 +26,8 @@ module Branchout
     # +message+ has its whitespace folded for reports; a test pins
     # +exact_message+, the message as raised, when that is stable.
     ExceptionInfo = Struct.new(:class_name, :message, :loc, :stable_message, :name, :exact_message, keyword_init: true)
+    # +arms+ is nil when the callee's file holds no coverage to count from.
+    Callee = Struct.new(:name, :loc, :arms, keyword_init: true)
 
     # +private_calls+ names the entry and new when they are private or
     # protected, so a test has to call them through send.
@@ -33,7 +35,10 @@ module Branchout
     # a private constant has to be reached through const_get.
     # +target_required+ is true when a --require file already loads the
     # target, so a test needs no require of its own for it.
-    attr_reader :template, :private_calls, :target_required, :const_expression
+    # +not_counted+ lists the methods in other files that the counted code
+    # calls on self, such as a parent class's helper. Their arms are not in
+    # the report, so a check moved into one makes arms_total smaller.
+    attr_reader :template, :private_calls, :target_required, :const_expression, :not_counted
 
     # +requires+ are files the target needs loaded first, such as its
     # library's entry file. They load after coverage starts, so the target
@@ -90,7 +95,7 @@ module Branchout
         raise Error, "failed to load #{@target.display_path}: #{e.message.lines.first.strip} (#{e.class}).#{hint}"
       end
       resolve
-      Coverage.result(stop: false, clear: true)
+      @not_counted = callees_in_other_files(Coverage.result(stop: false, clear: true))
       @template = extract(Coverage.result(stop: false, clear: false))
     end
 
@@ -128,6 +133,7 @@ module Branchout
         mod.const_get(name)
       end
       @const_expression = expression
+      @owner = const
       if @target.singleton
         @method = const.method(@target.method_name)
         @private_calls = const.singleton_class.public_method_defined?(@target.method_name) ? [] : [@target.method_name]
@@ -145,6 +151,40 @@ module Branchout
       end
     rescue NameError => e
       raise Error, "cannot resolve #{@target.entry}: #{e.message}"
+    end
+
+    # +loaded+ is the coverage of everything loaded, which holds the arms of
+    # each file loaded after coverage started. A method defined in C, in
+    # Ruby's own prelude, or by a file loaded before that has no arms to
+    # count here.
+    def callees_in_other_files(loaded)
+      branches = loaded.each_with_object({}) do |(file, data), out|
+        out[File.expand_path(file)] = data[:branches] if data.is_a?(Hash) && data[:branches]
+      end
+      found = @target.outside_calls.filter_map do |singleton, name|
+        method = singleton ? @owner.method(name) : @owner.instance_method(name)
+        # An attribute reader or writer has no instructions, so no arms.
+        next if RubyVM::InstructionSequence.of(method).nil?
+
+        file, line = method.source_location
+        next if file.start_with?("<internal:")
+
+        file = File.expand_path(file)
+        next if file == File.expand_path(@target.path)
+
+        lines = Target.def_lines(file, line)
+        arms = lines && branches[file]&.sum { |branch_key, arms_of| lines.cover?(branch_key[2]) ? arms_of.length : 0 }
+        [file, line, Callee.new(name: callee_name(method.owner, singleton, name), loc: "#{Target.display_path(file)}:#{line}", arms: arms)]
+      rescue NameError
+        nil
+      end
+      found.uniq { |file, line, _callee| [file, line] }.sort_by { |file, line, _callee| [file, line] }.map(&:last)
+    end
+
+    def callee_name(owner, singleton, name)
+      return "#{owner.attached_object.name}.#{name}" if singleton && owner.singleton_class?
+
+      "#{owner.name || owner.inspect}#{singleton ? "." : "#"}#{name}"
     end
 
     def check_receiver(input)

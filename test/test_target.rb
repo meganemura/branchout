@@ -275,6 +275,31 @@ class TargetTest < Minitest::Test
     parse_source(source, "Wide.open") { |target| assert_equal [4..4], target.ranges }
   end
 
+  # Calls on self that this file does not answer are kept for the runner,
+  # which asks Ruby where each one lives. A call this file answers is not.
+  def test_calls_this_file_does_not_answer_are_kept
+    source = <<~RUBY
+      class Shop < Base
+        def self.open(n) = new(n).apply(audit(n))
+        def initialize(n) = checked(n) && helper
+        def helper = 1
+      end
+    RUBY
+    parse_source(source, "Shop.open") do |target|
+      assert_equal [[true, :new], [true, :audit], [false, :apply], [false, :checked]], target.outside_calls
+    end
+  end
+
+  def test_def_lines_are_the_lines_of_the_def_on_that_line
+    source = "class A\n  def f(x)\n    x\n  end\n  def g = 1\n  define_method(:h) { 2 }\nend\n"
+    parse_source(source, "A#f") do |_target, path|
+      assert_equal 2..4, Branchout::Target.def_lines(path, 2)
+      assert_equal 5..5, Branchout::Target.def_lines(path, 5)
+      assert_nil Branchout::Target.def_lines(path, 6)
+      assert_nil Branchout::Target.def_lines(File.join(File.dirname(path), "gone.rb"), 1)
+    end
+  end
+
   # Prism parses superclasses that Ruby would refuse to load, so a cycle in
   # them must still end the walk.
   def test_a_superclass_cycle_ends

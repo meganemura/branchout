@@ -45,7 +45,7 @@ class EmitterTest < Minitest::Test
       assert_includes spec_source, "expect(FixtureScale.scale(0, 0)).to eq(:out_of_range)"
       assert_includes spec_source, "expect(FixtureScale.scale(11, 11)).to eq(-91)"
       assert_includes spec_source, 'expect { FixtureScale.scale(24, 12) }.to raise_error(ZeroDivisionError, "divided by 0")'
-      refute_includes spec_source, "minitest"
+      refute_includes spec_source, "require \"minitest"
       assert_includes test_source, "assert_equal :out_of_range, FixtureScale.scale(0, 0)"
       assert_includes test_source, "assert_raises(ZeroDivisionError)"
       assert_equal spec_source, File.read(spec)

@@ -278,9 +278,15 @@ class TargetTest < Minitest::Test
         end
 
         def to_h = {box: true}
+
+        LIMIT = 3
+        Pair = Struct.new(:a, :b)
+        Hook = register do
+          def hook = LIMIT > 2 ? :on : :off
+        end
       end
     RUBY
-    { "Box#to_h" => 13..13, "Box::Item#to_h" => 3..3, "Box::Mark#to_h" => 5..5, "Box::Plain#to_h" => 7..7,
+    { "Box#hook" => 18..18, "Box#to_h" => 13..13, "Box::Item#to_h" => 3..3, "Box::Mark#to_h" => 5..5, "Box::Plain#to_h" => 7..7,
       "Box::Outer::Kind#to_h" => 10..10 }.each do |entry, lines|
       parse_source(source, entry) { |target| assert_equal [lines], target.ranges, entry }
     end

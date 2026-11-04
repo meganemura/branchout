@@ -366,30 +366,13 @@ module Branchout
       Coverage.suspend if Coverage.state == :running
     end
 
+    # The target loaded under CoverageSession, which measures lines and
+    # branches, so the result holds both for its file.
     def extract(raw)
-      data = file_data(raw)
-      lines = data && data[:lines] ? data[:lines].dup : []
-      branches = {}
-      raw_branches = data && data[:branches] ? data[:branches] : {}
-      raw_branches.each do |branch_key, arms|
-        next unless @target.covers_line?(branch_key[2])
-
-        branches[branch_key.dup] = arms.each_with_object({}) { |(arm_key, count), out|
-          out[arm_key.dup] = count
-        }
-      end
-      {lines: lines, branches: branches}
-    end
-
-    def file_data(raw)
       wanted = File.expand_path(@target.path)
-      raw.each do |key, value|
-        next unless value.is_a?(Hash)
-
-        candidate = File.expand_path(key)
-        return value if candidate == wanted
-      end
-      nil
+      _file, data = raw.find { |file, _data| File.expand_path(file) == wanted }
+      branches = data[:branches].select { |branch_key, _arms| @target.covers_line?(branch_key[2]) }
+      {lines: data[:lines].dup, branches: branches.to_h { |branch_key, arms| [branch_key.dup, arms.transform_keys(&:dup)] }}
     end
   end
 

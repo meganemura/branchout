@@ -6,6 +6,8 @@ require "tmpdir"
 require_relative "support/cli"
 
 class ExampleReportTest < Minitest::Test
+  parallelize_me!
+
   ROOT = File.expand_path("..", __dir__)
 
   DEMOS = [

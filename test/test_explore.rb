@@ -9,6 +9,8 @@ require "tmpdir"
 # test here runs a fixture suite in a Ruby of its own: Coverage is
 # process-global, and the suite must start it before its app loads.
 class ExploreTest < Minitest::Test
+  parallelize_me!
+
   ROOT = File.expand_path("..", __dir__)
   SUITE = "test/fixtures/suite"
 

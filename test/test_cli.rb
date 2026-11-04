@@ -8,6 +8,8 @@ require "branchout"
 require_relative "support/cli"
 
 class CLITest < Minitest::Test
+  parallelize_me!
+
   ROOT = File.expand_path("..", __dir__)
   BIN = File.join(ROOT, "bin/branchout")
 

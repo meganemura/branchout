@@ -20,8 +20,11 @@ module Branchout
     # one sets it up that early: each call reads the coverage of every file
     # loaded after setup, and the tool's own files made that 1.3 ms a call
     # instead of 0.04 ms.
-    def names_own_file?(argv)
-      argv.any? { |arg| File.file?(arg) && File.expand_path(arg).start_with?(LIB) }
+    def names_own_file?(argv, from: Dir.pwd)
+      argv.any? do |arg|
+        path = File.expand_path(arg, from)
+        File.file?(path) && path.start_with?(LIB)
+      end
     end
   end
 end

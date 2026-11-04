@@ -7,7 +7,7 @@ module Branchout
     Result = Struct.new(
       :command, :target, :entry, :seed, :strategies, :random, :mutate_cap, :timeout,
       :inputs_ran, :mutate_ran, :random_ran, :executions,
-      :covered, :frontier, :exceptions, :pins, :requires, :target_required, :private_calls, :const_expression, :repeated_inputs, :not_counted,
+      :covered, :frontier, :exceptions, :pins, :requires, :load_paths, :target_required, :private_calls, :const_expression, :repeated_inputs, :not_counted,
       keyword_init: true
     )
 
@@ -21,18 +21,19 @@ module Branchout
     Finding = Struct.new(:class_name, :message, :loc, :input, :stable_message, keyword_init: true)
 
     def self.explore(target:, entry:, user_inputs: [], type_overrides: nil, seed: 0, strategies: STRATEGY_ORDER,
-                     random: 16, mutate_cap: 256, timeout: 1, command: "explore", requires: [])
+                     random: 16, mutate_cap: 256, timeout: 1, command: "explore", requires: [], load_paths: [])
       new(
         target: target, entry: entry, user_inputs: user_inputs, type_overrides: type_overrides,
         seed: seed, strategies: strategies, random: random, mutate_cap: mutate_cap,
-        timeout: timeout, command: command, requires: requires
+        timeout: timeout, command: command, requires: requires, load_paths: load_paths
       ).explore
     end
 
     def initialize(target:, entry:, user_inputs:, type_overrides:, seed:, strategies:, random:, mutate_cap:, timeout:, command:,
-                   requires:)
+                   requires:, load_paths:)
       @path = target
       @requires = requires.map { |path| File.expand_path(path) }
+      @load_paths = load_paths.map { |dir| File.expand_path(dir) }
       @entry = entry
       @user_inputs = user_inputs
       @type_overrides = type_overrides
@@ -69,7 +70,7 @@ module Branchout
       enqueue.call(mutated, :mutate)
       enqueue.call(randoms, :random)
 
-      runner = Runner.new(target, timeout: @timeout, requires: @requires)
+      runner = Runner.new(target, timeout: @timeout, requires: @requires, load_paths: @load_paths)
       executions = plan.map do |input, origin|
         execution = runner.execute(input)
         execution.origin = origin
@@ -119,6 +120,7 @@ module Branchout
         exceptions: findings,
         pins: pins,
         requires: @requires,
+        load_paths: @load_paths,
         target_required: runner.target_required,
         private_calls: runner.private_calls,
         const_expression: runner.const_expression,

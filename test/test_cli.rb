@@ -593,6 +593,39 @@ class CLITest < Minitest::Test
     end
   end
 
+  # A Rails model is outside lib: -I puts its directory on the load path,
+  # for the explore run and for the name the emitted test requires.
+  def test_a_load_path_directory_names_a_target_outside_lib
+    Dir.mktmpdir do |dir|
+      repo = File.join(dir, "repo")
+      FileUtils.mkdir_p(File.join(repo, "lib"))
+      FileUtils.mkdir_p(File.join(repo, "app/models"))
+      File.write(File.join(repo, "lib/shop.rb"), "module Shop\n  LIMIT = 2\nend\n")
+      File.write(File.join(repo, "app/models/sizing.rb"), "module Sizing\n  def self.big?(n) = n > Shop::LIMIT\nend\n")
+      File.write(File.join(repo, "app/models/cart.rb"), "require \"sizing\"\n\nmodule Cart\n  def self.size(n) = Sizing.big?(n) ? :big : :small\nend\n")
+      path = write_inputs(dir, { "inputs" => [[2], [3]] })
+      test = File.join(dir, "out/cart_test.rb")
+      args = ["explore", File.join(repo, "app/models/cart.rb"), "Cart.size", "--require", File.join(repo, "lib/shop.rb"),
+              "--strategy", "inputs", "--random", "0", "--inputs", path, "--emit-tests", test, "--require-by-name"]
+      _out, err, status = run_cli(*args, "-I", File.join(repo, "app/models"))
+      assert status.success?, err
+      assert_equal "", err
+      assert_includes File.read(test), "\nrequire \"shop\"\nrequire \"cart\"\n"
+      _out, err, status = Open3.capture3(RbConfig.ruby, "-I", File.join(repo, "lib"), "-I", File.join(repo, "app/models"), test)
+      assert status.success?, err
+
+      _out, err, status = run_cli(*args)
+      refute status.success?
+      assert_includes err, "cannot load such file -- sizing"
+      File.write(File.join(repo, "app/models/plain.rb"), "module Plain\n  def self.size(n) = n > Shop::LIMIT ? :big : :small\nend\n")
+      args[1, 2] = [File.join(repo, "app/models/plain.rb"), "Plain.size"]
+      _out, err, status = run_cli(*args)
+      assert status.success?, err
+      assert_match %r{\Abranchout: \S*app/models/plain\.rb is under no -I or --require directory, so the emitted test requires it by path\.}, err
+      assert_includes File.read(test), "# Required by path: no -I or --require directory holds "
+    end
+  end
+
   def test_require_by_name_needs_emitted_tests
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [[1]] })

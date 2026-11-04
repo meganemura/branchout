@@ -449,7 +449,7 @@ class EmitterTest < Minitest::Test
     assert_equal %w[test_bare_name_a_returns_0 test_bare_name_b_returns_0], Branchout::Emitters::Support.test_names(pins)
     target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
                    .new(true, "Plan", :count, "Plan.count", "lib/plan.rb", File.join(ROOT, "lib/plan.rb"), [], [Struct.new(:name).new(:doc)])
-    result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
     spec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/plan_spec.rb"))
     descriptions = spec.scan(/^ *it (.*) do$/).flatten
     assert_equal 2, descriptions.length
@@ -515,7 +515,8 @@ class EmitterTest < Minitest::Test
     lines = support.require_lines(["/w/repo/lib/shop.rb"], "/w/repo/lib/shop/cart.rb", "/tmp/out/cart_test.rb", by_name: true)
     assert_equal ['require "shop"', 'require "shop/cart"'], lines
     lines = support.require_lines(["/w/repo/lib/shop.rb"], "/w/other/cart.rb", "/w/repo/test/cart_test.rb", by_name: true)
-    assert_equal ['require "shop"', 'require_relative "../../other/cart.rb"'], lines
+    assert_equal ['require "shop"', "# Required by path: no -I or --require directory holds ../../other/cart.rb.",
+                  'require_relative "../../other/cart.rb"'], lines
     lines = support.require_lines(["/w/repo/lib/shop.rb"], "/w/repo/lib/shop/cart.rb", "/w/repo/test/cart_test.rb")
     assert_equal ['require_relative "../lib/shop.rb"', 'require_relative "../lib/shop/cart.rb"'], lines
     lines = support.require_lines([], "/w/repo/lib/shop/cart.rb", "/w/repo/test/cart_test.rb", by_name: true)
@@ -524,13 +525,25 @@ class EmitterTest < Minitest::Test
     assert_equal ['require "cart"'], lines
   end
 
+  # A Rails model sits outside the library's lib, so only a -I directory
+  # can name it; with none, the test says why it requires the file by path.
+  def test_a_target_outside_the_require_directories_is_named_from_a_load_path
+    support = Branchout::Emitters::Support
+    lines = support.require_lines(["/w/repo/lib/shop.rb"], "/w/repo/app/models/cart.rb", "/w/repo/test/cart_test.rb",
+                                  by_name: true, load_paths: ["/w/repo/app/models"])
+    assert_equal ['require "shop"', 'require "cart"'], lines
+    lines = support.require_lines(["/w/repo/lib/shop.rb"], "/w/repo/app/models/cart.rb", "/w/repo/test/cart_test.rb", by_name: true)
+    assert_equal ['require "shop"', "# Required by path: no -I or --require directory holds ../app/models/cart.rb.",
+                  'require_relative "../app/models/cart.rb"'], lines
+  end
+
   # A private constant cannot be named bare where a test loads, so both
   # formats reach it as explore resolved it.
   def test_a_private_constant_is_reached_through_const_get
     target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
                    .new(true, "Box::Lid", :put, "Box::Lid.put", "lib/x.rb", File.join(ROOT, "lib/x.rb"), [], [Struct.new(:name).new(:x)])
     pins = [Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1]), value: 1, error: nil, arm_ids: [])]
-    result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [], const_expression: "Box.const_get(:Lid)")
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [], const_expression: "Box.const_get(:Lid)")
     spec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb"))
     assert_includes spec, %(RSpec.describe "Box::Lid" do\n)
     assert_includes spec, "expect(Box.const_get(:Lid).put(1)).to eq(1)"
@@ -546,7 +559,7 @@ class EmitterTest < Minitest::Test
     error = Branchout::Runner::ExceptionInfo.new(class_name: "ArgumentError", message: "bad x: 1", stable_message: true,
                                                  exact_message: "bad\n  x: 1")
     pins = [Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1]), value: nil, error: error, arm_ids: [])]
-    result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
     assert_includes Branchout::Emitters.render("minitest", result, target, File.join(ROOT, "test/x_test.rb")),
                     %(    assert_equal "bad\\n  x: 1", error.message\n)
     assert_includes Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")),
@@ -581,7 +594,7 @@ class EmitterTest < Minitest::Test
       target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path)
                      .new(true, "Foo", :bar, "Foo.bar", "lib/foo.rb", File.join(dir, "lib/foo.rb"))
       destination = File.join(dir, "new/dir/foo_test.rb")
-      Branchout::Emitters.write("minitest", Branchout::Engine::Result.new(pins: [], requires: []), target, destination)
+      Branchout::Emitters.write("minitest", Branchout::Engine::Result.new(pins: [], requires: [], load_paths: []), target, destination)
       assert_includes File.read(destination), "def test_no_inputs_discovered"
     end
   end
@@ -644,7 +657,7 @@ class EmitterTest < Minitest::Test
     pins = [nil, error].map { |raised| Branchout::Engine::Pin.new(input: input, value: 7, error: raised, arm_ids: []) }
     arrange = "cart = Shop::Cart.new(+\"EUR\")\n"
     pins.each do |pin|
-      result = Branchout::Engine::Result.new(pins: [pin], requires: [], private_calls: [])
+      result = Branchout::Engine::Result.new(pins: [pin], requires: [], load_paths: [], private_calls: [])
       minitest = Branchout::Emitters.render("minitest", result, target, File.join(ROOT, "test/cart_test.rb"))
       rspec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/cart_spec.rb"))
       if pin.error
@@ -734,7 +747,7 @@ class EmitterTest < Minitest::Test
       pin.([1, true], nil, setup: [call.("add", "apple", 0)], error: error),
       pin.([1, true], 5, new: ["EUR"])
     ]
-    result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
     rspec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/cart_spec.rb"))
     assert_equal <<~'RUBY', rspec.split("\n\n", 4).last
       RSpec.describe Shop::Cart do
@@ -839,7 +852,7 @@ class EmitterTest < Minitest::Test
     end
     render = lambda do |target, args_list|
       pins = args_list.map { |args| Branchout::Engine::Pin.new(input: Branchout::Input.new(args: args), value: 1, error: nil, arm_ids: []) }
-      result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+      result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
       Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *(?:it|context) (.*) do$/).flatten
     end
     node = ->(value) { { "kind" => "app", "args" => [{ "kind" => "int", "value" => value }], "a b" => value } }
@@ -860,7 +873,7 @@ class EmitterTest < Minitest::Test
     pins = [[7, 0], [-7, 3], [7, 3]].map do |a, b|
       Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [modulo.(a, b)]), value: 1, error: nil, arm_ids: [])
     end
-    result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
     texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *((?:it|context) .*) do$/).flatten
     assert_equal [%q(it 'returns 1 when args[0].value is -7, args[1].kind is "nat" and args[1].value is 3'), 'context "when args[0].value is 7"',
                   'it "returns 1 when args[1].value is 0"', 'it "returns 1 when args[1].value is 3"'], texts
@@ -871,7 +884,7 @@ class EmitterTest < Minitest::Test
     target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
                    .new(true, "Box", :put, "Box.put", "lib/x.rb", File.join(ROOT, "lib/x.rb"), [], [Struct.new(:name).new(:x)])
     pins = ["it's", "(it's)", "a\\b", "tab\t", 'say "hi"'].map { |arg| Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [arg]), value: 1, error: nil, arm_ids: []) }
-    result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
     texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *it (.*) do$/).flatten
     assert_equal [%q(%q(returns 1 when x is "it's")), %q("returns 1 when x is \"(it's)\""),
                   "returns 1 when x is #{"a\\b".inspect}".inspect, %q('returns 1 when x is "tab\t"'),
@@ -887,7 +900,7 @@ class EmitterTest < Minitest::Test
                    .new(true, "Box", :put, "Box.put", "lib/x.rb", File.join(ROOT, "lib/x.rb"), [], [Struct.new(:name).new(:x)])
     pin = ->(arg, value = 1) { Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [arg]), value: value, error: nil, arm_ids: []) }
     texts = lambda do |pins|
-      result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+      result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
       Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *it (.*) do$/).flatten
     end
     args = ["#{"a" * 20}X#{"c" * 11}", "#{"a" * 20}Z#{"c" * 11}", "#{"b" * 8} #{"b" * 21}X#{"d" * 15}", "#{"b" * 8} #{"b" * 21}Z#{"d" * 15}", 10**40]
@@ -912,7 +925,7 @@ class EmitterTest < Minitest::Test
     end
     pin = ->(input, value = 1) { Branchout::Engine::Pin.new(input: input, value: value, error: nil, arm_ids: []) }
     texts = lambda do |target, pins|
-      result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+      result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
       Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *((?:it|context) .*) do$/).flatten
     end
     received = [[1, 1, 1, 1], [1, 1, 1, 2], [2, 1, 2, 1], [3, 5, 1, 1]].map do |r, *args|
@@ -947,14 +960,14 @@ class EmitterTest < Minitest::Test
     pins = [{ "methods" => [], "tests" => [] }, doc.("failed"), doc.("timed out after 30 seconds")].map do |arg|
       Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [arg]), value: 1, error: nil, arm_ids: [])
     end
-    result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
     texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *((?:it|context) .*) do$/).flatten
     assert_equal ['it "returns 1 when methods is [] and tests is []"', %q(context 'when methods[0].id is "m01"'),
                   %q(it 'returns 1 when tests[0].head.last_run.result.status is "failed"'),
                   %q(it 'returns 1 when status is "timed out after 30 seconds"')], texts
 
     with_status = pins.drop(1).map { |pin| pin.dup.tap { |copy| copy.input = Branchout::Input.new(args: [{ "status" => "ready", **pin.input.args[0] }]) } }
-    result = Branchout::Engine::Result.new(pins: [pins[0], *with_status], requires: [], private_calls: [])
+    result = Branchout::Engine::Result.new(pins: [pins[0], *with_status], requires: [], load_paths: [], private_calls: [])
     texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *((?:it|context) .*) do$/).flatten
     assert_equal [%q(context 'when status is "ready"'), %q(it 'returns 1 when result.status is "timed out after 30 seconds"')], texts.values_at(1, 3)
   end
@@ -967,7 +980,7 @@ class EmitterTest < Minitest::Test
     end
     pin = ->(input, value = 1, arms = []) { Branchout::Engine::Pin.new(input: input, value: value, error: nil, arm_ids: arms) }
     render = lambda do |target, pins, pin_keys: []|
-      result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+      result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
       Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb"), pin_keys: pin_keys)
     end
     bare = pin.(Branchout::Input.new(args: []), 1, ["if@1:0/then@1:4"])
@@ -1003,7 +1016,7 @@ class EmitterTest < Minitest::Test
     assert_includes source, "expect(Box.put(2)).to match([a_kind_of(Struct).and(have_attributes(a: 1))])\n"
     assert_includes source, "expect(Box.put(3)).to match({\"s\" => a_kind_of(Set)})\n"
     assert_includes source, "expect(Box.put(4)).to be_a(Set)\n"
-    result = Branchout::Engine::Result.new(pins: shaped.first(1), requires: [], private_calls: [])
+    result = Branchout::Engine::Result.new(pins: shaped.first(1), requires: [], load_paths: [], private_calls: [])
     minitest = Branchout::Emitters.render("minitest", result, target_for.("Box", :put, singleton: true),
                                           File.join(ROOT, "test/x_test.rb"), pin_keys: %w[tax])
     assert_includes minitest, "    assert_equal({tax: 0}, Box.put(1).slice(:tax))\n"

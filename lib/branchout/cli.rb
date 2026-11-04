@@ -20,6 +20,7 @@ module Branchout
       Options:
         --inputs PATH       JSON file of candidate inputs
         --require PATH      load PATH before TARGET (repeatable)
+        -I DIR              put DIR on the load path (repeatable)
         --seed N            RNG seed (default 0)
         --random N          random samples (default 16)
         --mutate-cap N      literal-mutation budget (default 256)
@@ -32,8 +33,10 @@ module Branchout
         --format NAME       minitest or rspec (default minitest; _spec.rb infers rspec)
         --pin-keys LIST     comma list of keys: a returned Hash pins only these keys
         --require-by-name   emitted tests require the --require files and the target
-                            through the load path, from each --require file's directory
-                            (or, with none, the nearest lib directory above the target)
+                            through the load path, named from the first -I directory or
+                            --require file's directory that holds each (with neither, the
+                            nearest lib directory above the target); a file none holds is
+                            required by path, and the test and stderr say so
         --help
         --version
     TEXT
@@ -76,7 +79,8 @@ module Branchout
         format: nil,
         require_by_name: false,
         pin_keys: [],
-        requires: []
+        requires: [],
+        load_paths: []
       }
       positionals = []
       until args.empty?
@@ -84,6 +88,8 @@ module Branchout
         case arg
         when "--inputs" then opts[:inputs] = take(args, arg)
         when "--require" then opts[:requires] << take(args, arg)
+        when "-I" then opts[:load_paths] << take(args, arg)
+        when /\A-I(.+)/ then opts[:load_paths] << Regexp.last_match(1)
         when "--seed" then opts[:seed] = parse_int(take(args, arg), "seed")
         when "--random" then opts[:random] = parse_int(take(args, arg), "random")
         when "--mutate-cap" then opts[:mutate_cap] = parse_int(take(args, arg), "mutate-cap")
@@ -147,7 +153,8 @@ module Branchout
           random: opts[:random],
           mutate_cap: opts[:mutate_cap],
           timeout: opts[:timeout],
-          requires: opts[:requires]
+          requires: opts[:requires],
+          load_paths: opts[:load_paths]
         )
         stdout = opts[:json] ? Report.json(result) : Report.text(result)
         $stdout.write(stdout)
@@ -167,6 +174,7 @@ module Branchout
           format = Emitters.resolve(opts[:format], opts[:emit_tests])
           Emitters.write(format, result, parsed, opts[:emit_tests], require_by_name: opts[:require_by_name],
                                                                      pin_keys: opts[:pin_keys])
+          warn_unnamed(result, target) if opts[:require_by_name]
         end
       when "baselines"
         info = {
@@ -202,8 +210,17 @@ module Branchout
         mutate_cap: opts[:mutate_cap],
         timeout: opts[:timeout],
         command: "baselines",
-        requires: opts[:requires]
+        requires: opts[:requires],
+        load_paths: opts[:load_paths]
       )
+    end
+
+    def warn_unnamed(result, target)
+      unnamed = Emitters::Support.unnamed_requires(result.requires, (target unless result.target_required), load_paths: result.load_paths)
+      unnamed.each do |path|
+        $stderr.puts "branchout: #{Target.display_path(path)} is under no -I or --require directory, so the emitted test requires it by path. " \
+                     "Pass -I with a directory that holds it to require it by name."
+      end
     end
 
     def write_optional(path, content)

@@ -9,7 +9,8 @@ module Branchout
         lines = Support.header(target, "tests", destination)
         lines << ""
         lines << 'require "minitest/autorun"'
-        lines.concat(Support.require_lines(result.requires, (target.path unless result.target_required), destination, by_name: require_by_name))
+        lines.concat(Support.require_lines(result.requires, (target.path unless result.target_required), destination,
+                                          by_name: require_by_name, load_paths: result.load_paths))
         lines << ""
         lines << "class #{Support.class_name_for(target)} < Minitest::Test"
         if result.pins.empty?

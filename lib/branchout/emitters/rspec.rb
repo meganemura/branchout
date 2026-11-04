@@ -35,7 +35,8 @@ module Branchout
       def render(result, target, destination, require_by_name: false, pin_keys: [])
         lines = Support.header(target, "specs", destination)
         lines << ""
-        lines.concat(Support.require_lines(result.requires, (target.path unless result.target_required), destination, by_name: require_by_name))
+        lines.concat(Support.require_lines(result.requires, (target.path unless result.target_required), destination,
+                                          by_name: require_by_name, load_paths: result.load_paths))
         lines << ""
         const = result.const_expression || target.const_name
         # A private constant cannot be named bare at load time, so the

@@ -47,20 +47,38 @@ module Branchout
 
       # The requires of an emitted test: the --require files, then the
       # target. +by_name+ requires each through the load path, named from
-      # its --require file's directory, so the test loads whichever checkout
-      # -I names. With no --require file the nearest lib directory above the
-      # target names it, or the target's own directory, as for a library's
-      # entry file. A target outside every such directory keeps its path.
-      def require_lines(requires, target_path, destination, by_name: false)
-        roots = requires.map { |path| "#{File.dirname(File.expand_path(path))}/" }
+      # the first of the -I directories (+load_paths+) and the --require
+      # files' directories that holds it, so the test loads whichever
+      # checkout the runner's -I names. With neither, the nearest lib
+      # directory above the target names it, or the target's own directory,
+      # as for a library's entry file. A file under none of them keeps its
+      # path, behind a comment that says why.
+      def require_lines(requires, target_path, destination, by_name: false, load_paths: [])
+        roots = require_roots(requires, load_paths)
         roots = [load_root(target_path)] if roots.empty? && target_path
-        [*requires, *target_path].map do |path|
+        [*requires, *target_path].flat_map do |path|
           absolute = File.expand_path(path)
-          root = by_name && roots.find { |dir| absolute.start_with?(dir) }
-          next "require #{absolute.delete_prefix(root).delete_suffix(".rb").inspect}" if root
+          root = roots.find { |dir| absolute.start_with?(dir) }
+          next ["require #{absolute.delete_prefix(root).delete_suffix(".rb").inspect}"] if by_name && root
 
-          "require_relative #{relative_require(destination, path).inspect}"
+          relative = relative_require(destination, path)
+          note = "# Required by path: no -I or --require directory holds #{relative}." if by_name
+          [*note, "require_relative #{relative.inspect}"]
         end
+      end
+
+      # The files of +requires+ and +target_path+ that --require-by-name
+      # cannot name, because no directory in +load_paths+ or of +requires+
+      # holds them.
+      def unnamed_requires(requires, target_path, load_paths: [])
+        roots = require_roots(requires, load_paths)
+        return [] if roots.empty?
+
+        [*requires, *target_path].reject { |path| roots.any? { |dir| File.expand_path(path).start_with?(dir) } }
+      end
+
+      def require_roots(requires, load_paths)
+        [*load_paths, *requires.map { |path| File.dirname(path) }].map { |dir| "#{File.expand_path(dir)}/" }
       end
 
       def load_root(path)

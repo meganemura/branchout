@@ -81,6 +81,7 @@ NOT COUNTED
 | --- | --- | --- |
 | `--inputs PATH` | なし | 入力の JSON ファイル |
 | `--require PATH` | なし | ターゲットより先に PATH を読み込む。ライブラリの残りが要るターゲットに使う。繰り返し指定できる。PATH のディレクトリはロードパスに入るので、`lib/name.rb` は `require "name/part"` できる。出力するテストも PATH を読み込む |
+| `-I DIR` | なし | 探索中、`ruby -I` と同じく DIR をロードパスに入れる。繰り返し指定できる。`--require-by-name` を付けると、DIR の下のファイルは DIR からの名前で読み込む。`app/models` の下の Rails のモデルなどに使う |
 | `--seed N` | `0` | 乱数の種 |
 | `--random N` | `16` | ランダム標本の個数 |
 | `--mutate-cap N` | `256` | リテラル変異の予算 |
@@ -92,7 +93,7 @@ NOT COUNTED
 | `--emit-tests PATH` | | 特徴づけテストを書く。`explore` のみ |
 | `--format NAME` | `minitest` | `minitest` か `rspec`。`--emit-tests` が要る。省くと、パスが `_spec.rb` で終わるときだけ RSpec |
 | `--pin-keys LIST` | | キーのカンマ区切り。戻り値の Hash はこのキーだけを固定する（minitest は `slice`、RSpec は `include`）。後からキーが増えてもテストは落ちない。`--emit-tests` が要る |
-| `--require-by-name` | オフ | 出力するテストは `--require` のファイルと対象を、ロードパス経由で `require` する。名前は各 `--require` ファイルのディレクトリから作る（`require "shop/cart"`）。`--require` がないときは、対象より上で最も近い `lib` ディレクトリか、対象自身のディレクトリから作る。`--emit-tests` が要る |
+| `--require-by-name` | オフ | 出力するテストは `--require` のファイルと対象を、ロードパス経由で `require` する。名前は、そのファイルを含む最初の `-I` ディレクトリか `--require` ファイルのディレクトリから作る（`require "shop/cart"`）。どちらもないときは、対象より上で最も近い `lib` ディレクトリか、対象自身のディレクトリから作る。どのディレクトリにも入らないファイルはパスで読み込み、その上のコメントと標準エラーの 1 行がそう伝える。`--emit-tests` が要る |
 | `--entry ENTRY` | 位置引数 | `Const.method` か `Const#method` |
 
 | 戦略 | 実行するもの |
@@ -164,7 +165,7 @@ Hash の結果は、兄弟どうしを見分けられる最少の葉で名付け
 minitest と RSpec は同じ葉を使う。
 兄弟がないときはキーで名付け、各キーの前に `__` を置く。
 対象のディレクトリの外に出力したテストは、対象を絶対パスで読み込む。
-`--require-by-name` を付けたときは、ロードパス経由で読み込む。
+`--require-by-name` を付け、`-I` か `--require` のディレクトリが対象を含むときは、ロードパス経由で読み込む。
 `--require` のファイルがすでに対象を読み込むときは、対象の require を書かない。
 
 RSpec のファイルは定数を describe し、その中で `.method` か `#method` を describe する。

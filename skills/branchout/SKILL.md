@@ -56,7 +56,7 @@ Start from one seed. [inputs.example.json](inputs.example.json) shows every acce
 - A block the entry takes goes in `block`, as a brace block: `{"args": [{"ruby": "Factories.loan(3)"}], "block": "{ |amount| amount > 2 }"}`. The emitted call is `Lending.approve(Factories.loan(3)) { |amount| amount > 2 }`; the minitest name says `with_block`, and RSpec says `block is { |amount| amount > 2 }` when the block tells the example apart.
 - Append. Do not delete or reorder entries. Leave a failed attempt in the file so you do not retry it blindly.
 
-The target file must load and define the entry. When it needs the rest of its library (a constant from another file), pass the library's entry file with `--require PATH`, repeatable. It loads before the target, and emitted tests require it too. Its directory joins the load path, so `lib/name.rb` can `require "name/part"`; run the emitted test with that directory on the load path too (`ruby -Ilib`). The target's stdout and stderr are discarded, while it loads and in each call.
+The target file must load and define the entry. When it needs the rest of its library (a constant from another file), pass the library's entry file with `--require PATH`, repeatable. It loads before the target, and emitted tests require it too. Its directory joins the end of the load path, after the gems, so `lib/name.rb` can `require "name/part"`; run the emitted test with that directory on the load path too (`ruby -Ilib`). The target's stdout and stderr are discarded, while it loads and in each call.
 
 An instance method of a library class, with constructor arguments in each input's `new`:
 

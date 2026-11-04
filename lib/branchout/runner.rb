@@ -33,7 +33,9 @@ module Branchout
     # +requires+ are files the target needs loaded first, such as its
     # library's entry file. They load after coverage starts, so the target
     # is measured even when one of them requires it. Each one's directory
-    # joins the load path, as each +load_paths+ directory (-I) does.
+    # joins the end of the load path, after the gems, because a Rails app's
+    # config/environment.rb sits beside config/puma.rb. Each +load_paths+
+    # directory (-I) goes first, as ruby -I puts it.
     # +host+ is the test that runs explore from inside a suite, which loaded
     # the target and the requires already.
     def initialize(target, timeout:, requires: [], load_paths: [], host: nil)
@@ -74,7 +76,7 @@ module Branchout
           measure do
             @load_paths.reverse_each { |dir| $LOAD_PATH.unshift(dir) unless $LOAD_PATH.include?(dir) }
             @requires.each do |path|
-              $LOAD_PATH.unshift(File.dirname(path)) unless $LOAD_PATH.include?(File.dirname(path))
+              $LOAD_PATH.push(File.dirname(path)) unless $LOAD_PATH.include?(File.dirname(path))
               load_file.(path)
             end
             @target_required = !preloaded && $LOADED_FEATURES.include?(File.realpath(@target.path))

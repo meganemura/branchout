@@ -339,6 +339,17 @@ class CLITest < Minitest::Test
     end
   end
 
+  # A Rails app's config/environment.rb sits beside config/puma.rb, so its
+  # directory must not come before the gems on the load path.
+  def test_a_require_files_directory_does_not_shadow_a_library
+    stdout, stderr, status = run_cli(
+      "explore", "test/fixtures/tally.rb", "FixtureTally#bump", "--require", "test/fixtures/boot/environment.rb",
+      "--strategy", "mutate"
+    )
+    assert status.success?, stderr
+    assert_includes stdout, "arms_covered: 2\n"
+  end
+
   def test_a_receiver_is_ruby_and_replaces_new
     {
       { "args" => [1], "receiver" => "FixtureAccount.new(1)" } => "inputs[0] receiver must be Ruby such as {\"ruby\": \"create(:loan)\"}",

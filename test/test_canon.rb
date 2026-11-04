@@ -88,3 +88,29 @@ class CanonTest < Minitest::Test
     assert_equal "non-finite float", error.message
   end
 end
+
+class InputCodeTest < Minitest::Test
+  def test_only_a_brace_block_alone_is_a_block
+    assert_equal "{ |a| a }", Branchout::Code.block("{ |a| a }").source
+    ["x + 1", "{ |a| a }.call", "{ |a| a }; 1", "do |a| a end"].each do |source|
+      error = assert_raises(Branchout::Error) { Branchout::Code.block(source) }
+      assert_includes error.message, "is not a block such as"
+    end
+  end
+
+  def test_only_a_hash_whose_one_key_is_ruby_with_a_string_is_code
+    assert_equal Branchout::Code.new("1 + 1"), Branchout::Input.new(args: [{ "ruby" => "1 + 1" }]).args.first
+    [{ "ruby" => 1 }, { "ruby" => "1", "x" => 2 }, { "other" => "x" }].each do |value|
+      assert_equal value, Branchout::Input.new(args: [value]).args.first
+    end
+  end
+
+  def test_a_block_is_part_of_the_input_and_its_weight
+    block = Branchout::Code.block("{ |a| a }")
+    input = Branchout::Input.new(args: [2], block: block,
+                                 setup: [Branchout::Input::SetupCall.new("add", Branchout::Input.new(args: [3]))])
+    assert_equal "{ |a| a }", input.to_h["block"]
+    assert_equal 2 + 1 + 3 + 9, input.weight
+    refute_equal Branchout::Input.new(args: [2]).canonical, Branchout::Input.new(args: [2], block: block).canonical
+  end
+end

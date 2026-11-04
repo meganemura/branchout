@@ -112,7 +112,7 @@ module Branchout
       end
       resolve
       @not_counted = callees_in_other_files(Coverage.result(stop: false, clear: true))
-      @template = extract(Coverage.result(stop: false, clear: false))
+      @template = extract(Coverage.peek_result)
     end
 
     # Loading the target again would run its class body twice, and a

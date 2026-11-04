@@ -91,6 +91,14 @@ class ExploreTest < Minitest::Test
     assert_includes stdout.gsub(/\s+/, " "), "Branchout::Error: #{refusal}"
   end
 
+  # The refused explore ran its input before it found the let, so the
+  # arms that input took are still counted when the next explore starts.
+  def test_an_explore_after_a_refused_one_counts_only_its_own_inputs
+    stdout, stderr, status = run_suite("#{SUITE}/pantry_after_refusal_test.rb")
+    assert status.success?, stdout + stderr
+    assert_includes stdout, "arms_covered: 1\narms_total: 4\n"
+  end
+
   def test_a_suite_with_no_helper_explore_knows_must_name_one_to_emit
     Dir.mktmpdir do |dir|
       emit_to = File.join(dir, "t.rb")

@@ -286,6 +286,12 @@ class TargetTest < Minitest::Test
     end
   end
 
+  def test_an_infinite_float_literal_is_not_a_literal
+    parse_source("module T\n  def self.f(x) = x > 1e400 || x > 2.5 ? 0x10 : \"ab\#{x}c\" + \"d\"\nend\n", "T.f") do |target|
+      assert_equal [[16], [2.5], %w[ab c d]], [target.literals.ints, target.literals.floats, target.literals.strings]
+    end
+  end
+
   def test_mutual_recursion_is_parsed_once
     parse_source("module T\n  def self.f(x) = x > 0 ? g(x - 1) : 0\n  def self.g(x) = x > 5 ? f(x) : 1\nend\n", "T.f") do |target|
       assert_equal [2..2, 3..3], target.ranges

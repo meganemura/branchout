@@ -305,11 +305,12 @@ module Branchout
 
       case node.type
       when :integer_node
-        @literals.ints << node.value if node.value.is_a?(Integer)
+        @literals.ints << node.value
       when :float_node
-        @literals.floats << node.value if node.value.is_a?(Float) && node.value.finite?
+        # 1e400 parses to Infinity, which JSON cannot write as an input.
+        @literals.floats << node.value if node.value.finite?
       when :string_node
-        @literals.strings << node.unescaped if node.respond_to?(:unescaped) && node.unescaped.is_a?(String)
+        @literals.strings << node.unescaped
       end
       node.compact_child_nodes.each { |child| collect_literals(child) }
     end

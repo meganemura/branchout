@@ -299,6 +299,10 @@ class TargetTest < Minitest::Test
     parse_source("module Foo::Bar\n  class << self\n    def f(x) = x > 1\n  end\nend\nmodule Empty\nend\n", "Foo::Bar.f") do |target|
       assert target.covers_line?(3)
     end
+    parse_source("module Shop\n  class Cart::Line\n    def f(x) = x > 1\n  end\n\n  class ::Top\n    def g = 1\n  end\nend\n", "Shop::Cart::Line#f") do |target|
+      assert target.covers_line?(3)
+    end
+    parse_source("module Shop\n  class ::Top\n    def g = 1\n  end\nend\n", "Top#g") { |target| assert target.covers_line?(3) }
   end
 
   def test_a_same_named_method_on_another_receiver_is_not_followed

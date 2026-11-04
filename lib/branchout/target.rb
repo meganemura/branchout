@@ -220,11 +220,11 @@ module Branchout
       chain
     end
 
-    def module_segment(node, stack)
-      full = node.respond_to?(:constant_path) ? node.constant_path&.slice : nil
-      return full if stack.empty? && full && !full.empty?
-
-      node.name.to_s
+    # The namespace a class or module body opens: class Cart::Line inside
+    # module Shop is Shop::Cart::Line, and class ::Top is Top anywhere.
+    def namespace_of(node, stack)
+      path = node.constant_path.slice
+      path.start_with?("::") ? [path.delete_prefix("::")] : stack + [path]
     end
 
     def choose_type(param, scores)
@@ -505,7 +505,7 @@ module Branchout
 
       case node.type
       when :module_node, :class_node
-        inner = stack + [module_segment(node, stack)]
+        inner = namespace_of(node, stack)
         @superclasses[inner.join("::")] = [stack, node.superclass.slice.delete_prefix("::")] if node.type == :class_node && node.superclass
         return unless node.body
 

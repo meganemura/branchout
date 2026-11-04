@@ -332,7 +332,7 @@ class CLITest < Minitest::Test
       assert_includes File.read(rspec), "let(:fixture_account) { FixtureAccount.new(10) }"
       assert_includes File.read(rspec), "expect(fixture_account.withdraw(fixture_account.withdraw(4))).to eq(4)"
       [minitest, rspec].each do |out|
-        command = out.end_with?("_spec.rb") ? ["-S", "rspec", out] : [out]
+        command = out.end_with?("_spec.rb") ? ["-rrspec/core", "-e", "exit RSpec::Core::Runner.run(ARGV)", "--", out] : [out]
         stdout, stderr, status = Open3.capture3(RbConfig.ruby, *command, chdir: ROOT)
         assert status.success?, stdout + stderr
       end

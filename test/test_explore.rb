@@ -59,7 +59,7 @@ class ExploreTest < Minitest::Test
   def test_rspec_inputs_reach_the_example_helpers
     Dir.mktmpdir do |dir|
       env = {"EMIT_TO" => File.join(dir, "pantry_spec.rb"), "REPORT_TO" => File.join(dir, "report.txt")}
-      rspec = ["-S", "rspec", "-I", SUITE]
+      rspec = ["-I", SUITE, "-rrspec/core", "-e", "exit RSpec::Core::Runner.run(ARGV)", "--"]
       stdout, stderr, status = Open3.capture3(env, RbConfig.ruby, "-Ilib", *rspec, "#{SUITE}/pantry_explore_spec.rb", chdir: ROOT)
       assert status.success?, stdout + stderr
       assert_includes File.read(env["REPORT_TO"]), "timeout: none\n"

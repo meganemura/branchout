@@ -514,16 +514,28 @@ class EmitterTest < Minitest::Test
   def test_requires_by_name_come_from_each_require_directory
     support = Branchout::Emitters::Support
     lines = support.require_lines(["/w/repo/lib/shop.rb"], "/w/repo/lib/shop/cart.rb", "/tmp/out/cart_test.rb", by_name: true)
-    assert_equal ['require "shop"', 'require "shop/cart"'], lines
+    assert_equal ["# Load path: -I /w/repo/lib", 'require "shop"', 'require "shop/cart"'], lines
     lines = support.require_lines(["/w/repo/lib/shop.rb"], "/w/other/cart.rb", "/w/repo/test/cart_test.rb", by_name: true)
-    assert_equal ['require "shop"', "# Required by path: no -I or --require directory holds ../../other/cart.rb.",
+    assert_equal ["# Load path: -I /w/repo/lib", 'require "shop"', "# Required by path: no -I or --require directory holds ../../other/cart.rb.",
                   'require_relative "../../other/cart.rb"'], lines
     lines = support.require_lines(["/w/repo/lib/shop.rb"], "/w/repo/lib/shop/cart.rb", "/w/repo/test/cart_test.rb")
     assert_equal ['require_relative "../lib/shop.rb"', 'require_relative "../lib/shop/cart.rb"'], lines
     lines = support.require_lines([], "/w/repo/lib/shop/cart.rb", "/w/repo/test/cart_test.rb", by_name: true)
-    assert_equal ['require "shop/cart"'], lines
+    assert_equal ["# Load path: -I /w/repo/lib", 'require "shop/cart"'], lines
     lines = support.require_lines([], "/w/repo/tools/cart.rb", "/w/repo/test/cart_test.rb", by_name: true)
-    assert_equal ['require "cart"'], lines
+    assert_equal ["# Load path: -I /w/repo/tools", 'require "cart"'], lines
+  end
+
+  # A test that requires a helper by name needs the helper's folder on the
+  # load path, so the test names each folder it needs as -I, from the
+  # working directory when the folder is under it.
+  def test_requires_by_name_say_the_load_path_they_need
+    support = Branchout::Emitters::Support
+    Dir.chdir(ROOT) do
+      lines = support.require_lines([File.join(ROOT, "spec/support/factories.rb"), File.join(ROOT, "lib/branchout.rb")],
+                                    File.join(ROOT, "lib/branchout/canon.rb"), File.join(ROOT, "spec/canon_spec.rb"), by_name: true)
+      assert_equal ["# Load path: -I spec/support -I lib", 'require "factories"', 'require "branchout"', 'require "branchout/canon"'], lines
+    end
   end
 
   # A Rails model sits outside the library's lib, so only a -I directory
@@ -532,9 +544,9 @@ class EmitterTest < Minitest::Test
     support = Branchout::Emitters::Support
     lines = support.require_lines(["/w/repo/lib/shop.rb"], "/w/repo/app/models/cart.rb", "/w/repo/test/cart_test.rb",
                                   by_name: true, load_paths: ["/w/repo/app/models"])
-    assert_equal ['require "shop"', 'require "cart"'], lines
+    assert_equal ["# Load path: -I /w/repo/lib -I /w/repo/app/models", 'require "shop"', 'require "cart"'], lines
     lines = support.require_lines(["/w/repo/lib/shop.rb"], "/w/repo/app/models/cart.rb", "/w/repo/test/cart_test.rb", by_name: true)
-    assert_equal ['require "shop"', "# Required by path: no -I or --require directory holds ../app/models/cart.rb.",
+    assert_equal ["# Load path: -I /w/repo/lib", 'require "shop"', "# Required by path: no -I or --require directory holds ../app/models/cart.rb.",
                   'require_relative "../app/models/cart.rb"'], lines
   end
 

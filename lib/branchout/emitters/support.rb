@@ -52,19 +52,38 @@ module Branchout
       # checkout the runner's -I names. With neither, the nearest lib
       # directory above the target names it, or the target's own directory,
       # as for a library's entry file. A file under none of them keeps its
-      # path, behind a comment that says why.
+      # path, behind a comment that says why. A comment above the requires
+      # names, as -I, each directory a require by name needs.
       def require_lines(requires, target_path, destination, by_name: false, load_paths: [])
         roots = require_roots(requires, load_paths)
         roots = [load_root(target_path)] if roots.empty? && target_path
-        [*requires, *target_path].flat_map do |path|
+        used = []
+        lines = [*requires, *target_path].flat_map do |path|
           absolute = File.expand_path(path)
           root = roots.find { |dir| absolute.start_with?(dir) }
-          next ["require #{absolute.delete_prefix(root).delete_suffix(".rb").inspect}"] if by_name && root
+          if by_name && root
+            used |= [root]
+            next ["require #{absolute.delete_prefix(root).delete_suffix(".rb").inspect}"]
+          end
 
           relative = relative_require(destination, path)
           note = "# Required by path: no -I or --require directory holds #{relative}." if by_name
           [*note, "require_relative #{relative.inspect}"]
         end
+        used.empty? ? lines : ["# Load path: #{used.map { |dir| "-I #{shown_directory(dir.chomp("/"))}" }.join(" ")}", *lines]
+      end
+
+      # A directory as a person passes it to -I: from the working directory
+      # when it is under it, else from its project's root, so a committed
+      # test carries no machine's path where it can avoid one.
+      def shown_directory(dir)
+        cwd = "#{Dir.pwd}/"
+        return dir.delete_prefix(cwd) if dir.start_with?(cwd)
+
+        root = project_root(dir)
+        return dir unless root
+
+        root == dir ? "." : dir.delete_prefix("#{root}/")
       end
 
       # The files of +requires+ and +target_path+ that --require-by-name

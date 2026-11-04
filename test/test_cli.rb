@@ -601,6 +601,7 @@ class CLITest < Minitest::Test
       repo = File.join(dir, "repo")
       FileUtils.mkdir_p(File.join(repo, "lib"))
       FileUtils.mkdir_p(File.join(repo, "app/models"))
+      File.write(File.join(repo, "Gemfile"), "")
       File.write(File.join(repo, "lib/shop.rb"), "module Shop\n  LIMIT = 2\nend\n")
       File.write(File.join(repo, "app/models/sizing.rb"), "module Sizing\n  def self.big?(n) = n > Shop::LIMIT\nend\n")
       File.write(File.join(repo, "app/models/cart.rb"), "require \"sizing\"\n\nmodule Cart\n  def self.size(n) = Sizing.big?(n) ? :big : :small\nend\n")
@@ -611,7 +612,7 @@ class CLITest < Minitest::Test
       _out, err, status = run_cli(*args, "-I", File.join(repo, "app/models"))
       assert status.success?, err
       assert_equal "", err
-      assert_includes File.read(test), "\nrequire \"shop\"\nrequire \"cart\"\n"
+      assert_includes File.read(test), "\n# Load path: -I lib -I app/models\nrequire \"shop\"\nrequire \"cart\"\n"
       _out, err, status = Open3.capture3(RbConfig.ruby, "-I", File.join(repo, "lib"), "-I", File.join(repo, "app/models"), test)
       assert status.success?, err
 

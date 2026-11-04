@@ -34,12 +34,12 @@ module Branchout
 
       module_function
 
-      def render(result, target, destination, require_by_name: false, pin_keys: [])
+      def render(result, target, destination, require_by_name: false, pin_keys: [], from: Dir.pwd)
         lines = Support.header(target, "specs", destination)
         lines << ""
         lines.concat(Support.require_lines(result.requires, (target.path unless result.target_required), destination,
                                           by_name: require_by_name, load_paths: result.load_paths,
-                                          runner_load_paths: RUNNER_LOAD_PATHS))
+                                          runner_load_paths: RUNNER_LOAD_PATHS, from: from))
         lines << ""
         const = result.const_expression || target.const_name
         type = ", type: #{result.spec_type.inspect}" if result.spec_type.is_a?(Symbol)

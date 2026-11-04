@@ -55,8 +55,9 @@ module Branchout
       # as for a library's entry file. A file under none of them keeps its
       # path, behind a comment that says why. A comment above the requires
       # names, as -I, each directory a require by name needs and the
-      # runner does not put on the load path itself (+runner_load_paths+).
-      def require_lines(requires, target_path, destination, by_name: false, load_paths: [], runner_load_paths: [])
+      # runner does not put on the load path itself (+runner_load_paths+,
+      # from +from+, where the runner starts).
+      def require_lines(requires, target_path, destination, by_name: false, load_paths: [], runner_load_paths: [], from: Dir.pwd)
         roots = require_roots(requires, load_paths)
         roots = [load_root(target_path)] if roots.empty? && target_path
         used = []
@@ -72,15 +73,15 @@ module Branchout
           note = "# Required by path: no -I or --require directory holds #{relative}." if by_name
           [*note, "require_relative #{relative.inspect}"]
         end
-        used -= runner_load_paths.map { |dir| "#{File.expand_path(dir)}/" }
-        used.empty? ? lines : ["# Load path: #{used.map { |dir| "-I #{shown_directory(dir.chomp("/"))}" }.join(" ")}", *lines]
+        used -= runner_load_paths.map { |dir| "#{File.expand_path(dir, from)}/" }
+        used.empty? ? lines : ["# Load path: #{used.map { |dir| "-I #{shown_directory(dir.chomp("/"), from: from)}" }.join(" ")}", *lines]
       end
 
       # A directory as a person passes it to -I: from the working directory
       # when it is under it, else from its project's root, named after it,
       # so a committed test carries no machine's path where it can avoid one.
-      def shown_directory(dir)
-        cwd = "#{Dir.pwd}/"
+      def shown_directory(dir, from: Dir.pwd)
+        cwd = "#{File.expand_path(from)}/"
         return dir.delete_prefix(cwd) if dir.start_with?(cwd)
 
         root = project_root(dir)

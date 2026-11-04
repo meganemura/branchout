@@ -5,12 +5,12 @@ module Branchout
     module Minitest
       module_function
 
-      def render(result, target, destination, require_by_name: false, pin_keys: [])
+      def render(result, target, destination, require_by_name: false, pin_keys: [], from: Dir.pwd)
         lines = Support.header(target, "tests", destination)
         lines << ""
         lines << 'require "minitest/autorun"'
         lines.concat(Support.require_lines(result.requires, (target.path unless result.target_required), destination,
-                                          by_name: require_by_name, load_paths: result.load_paths))
+                                          by_name: require_by_name, load_paths: result.load_paths, from: from))
         lines << ""
         lines << "class #{Support.class_name_for(target)} < #{result.test_class || "Minitest::Test"}"
         if result.pins.empty?

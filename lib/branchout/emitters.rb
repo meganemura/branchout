@@ -49,9 +49,10 @@ module Branchout
     end
 
     # +pin_keys+ names the keys a returned Hash pins; empty pins it whole.
-    def render(format, result, target, destination, require_by_name: false, pin_keys: [])
+    # +from+ is the directory the test's runner starts in.
+    def render(format, result, target, destination, require_by_name: false, pin_keys: [], from: Dir.pwd)
       emitter_for(format).render(result.dup.tap { |copy| copy.pins = project_pins(result.pins, destination) }, target, destination,
-                                 require_by_name: require_by_name, pin_keys: pin_keys)
+                                 require_by_name: require_by_name, pin_keys: pin_keys, from: from)
     end
 
     # Each pin with the paths under the test's project in its input, its

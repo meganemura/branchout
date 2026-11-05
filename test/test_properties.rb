@@ -188,9 +188,10 @@ class PropertyTest < Minitest::Test
   end
 
   # An emitted spec parses, no two examples or contexts of one group share
-  # a text, no text is over 80 characters, and no fact starts at a bare
-  # position ([0] is 1) without the argument it is in, so rspec --format
-  # documentation tells every input apart in lines a reader can scan.
+  # a text, no text is over 80 characters, and no fact or outcome starts
+  # at a bare position or key ([0] is 1, ["status"] is 1) without what
+  # holds it, so rspec --format documentation tells every input apart in
+  # lines a reader can scan.
   def test_an_emitted_spec_parses_and_tells_its_examples_apart
     param = Struct.new(:name)
     Hegel.test do |tc|
@@ -229,6 +230,35 @@ class PropertyTest < Minitest::Test
       groups.each { |texts| assert_equal texts.uniq, texts, source }
       groups.flatten.each { |text| assert_operator text.length, :<=, 80, text }
       groups.flatten.each { |text| refute_match(/(?:when |, | and )\[\d+\](?:\.| is )/, text) }
+      groups.flatten.each { |text| refute_match(/(?:when |returns |, | and )\[(?:"[^"]*"|:\S+|\d+)\](?:\[|\.| is | => |: )/, text) }
+    end
+  end
+
+  # A deep document whose texts are too long for 80 characters still names
+  # each fact and each outcome from the argument or the Hash that holds it,
+  # never from a bare bracket, and still tells its examples apart.
+  def test_a_deep_document_names_its_leaves_from_what_holds_them
+    keys = sampled_from(%w[report summary last_run result status head tests])
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Assessor", :apply, "Assessor.apply", "lib/x.rb", File.join(ROOT, "lib/x.rb"), [], [Struct.new(:name).new(:doc)])
+    Hegel.test do |tc|
+      chain = lambda do
+        path = tc.draw(arrays(keys, min_size: 2, max_size: 6))
+        leaf = tc.draw(sampled_from(["failed", "timed out after 30 seconds", "passed in a long while", 0]))
+        path.reverse.reduce(leaf) { |inner, key| tc.draw(booleans) ? { key => inner } : [{ key => inner }] }
+      end
+      pins = tc.draw(arrays(just(nil), min_size: 1, max_size: 4)).map do
+        Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [chain.()]), value: { "doc" => chain.() }, error: nil, covers: [])
+      end
+      pins = pins.uniq { |pin| pin.input.canonical }
+      result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
+      source = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb"))
+      assert Prism.parse(source).success?, source
+      texts = source.scan(/^ *(?:it|context) (.*) do$/).flatten.map { |literal| Prism.parse(literal).value.statements.body.first.unescaped }
+      texts.each do |text|
+        assert_operator text.length, :<=, 80, text
+        refute_match(/(?:when |returns |, | and )\[(?:"[^"]*"|\d+)\]/, text)
+      end
     end
   end
 

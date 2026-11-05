@@ -564,9 +564,9 @@ module Branchout
         value = pin.value
         unless differing.empty?
           entries = differing.map do |path, item|
-            "#{entry_key(short ? telling_path(path, differing.map(&:first)) : path)} #{ruby_literal(described(item))}"
+            [short ? telling_path(path, differing.map(&:first)) : path, ruby_literal(described(item))]
           end
-          return "returns #{entries.join(", ")}"
+          return "returns #{entries_text(entries, merge: !short)}"
         end
 
         text = ruby_literal(described(value))
@@ -712,12 +712,40 @@ module Branchout
         end
       end
 
-      # A leaf of a returned Hash as its literal writes the key: sku: and
-      # "sku" => at the top, lines[0].sku: and ["lines"][0]["sku"] => below.
-      def entry_key(path)
-        return "#{path.first.inspect} =>" if path.length == 1 && path.first.is_a?(String)
+      # Leaves of a returned Hash, each a [path, value text], as a reader
+      # writes them: due: 0 and lines[0].sku: "A" by their path, and a leaf
+      # whose path would start at a bracket as the literal that holds it,
+      # "counts" => {"discarded" => 0}. With +merge+, leaves under one key
+      # share its literal, "tests" => [{"file" => "a.rb", "state" => "ok"}];
+      # a short path does not, since its first key may sit at two depths.
+      def entries_text(entries, merge: true)
+        groups = []
+        entries.each do |path, text|
+          name = path_text(path)
+          next groups << "#{name}#{path.last.is_a?(String) ? " =>" : ":"} #{text}" unless name.start_with?("[")
 
-        path.last.is_a?(String) ? "#{path_text(path)} =>" : "#{path_text(path)}:"
+          group = groups.find { |other| other.is_a?(Array) && other.first.first.first == path.first } if merge
+          group ? group << [path, text] : groups << [[path, text]]
+        end
+        groups.map { |group| group.is_a?(Array) ? held_entries(group, braces: false) : group }.join(", ")
+      end
+
+      # Leaves that share a value, each a [path into it, value text], as
+      # the literal of that value, with _ for an Array element no leaf is in.
+      def held_entries(entries, braces: true)
+        return entries.first[1] if entries.first[0].empty?
+
+        steps = entries.group_by { |path, _| path.first }.transform_values { |group| group.map { |path, text| [path.drop(1), text] } }
+        return "[#{(0..steps.keys.max).map { |index| steps.key?(index) ? held_entries(steps[index]) : "_" }.join(", ")}]" if steps.keys.first.is_a?(Integer)
+
+        pairs = steps.map { |key, group| "#{key_literal(key)} #{held_entries(group)}" }.join(", ")
+        braces ? "{#{pairs}}" : pairs
+      end
+
+      def key_literal(key)
+        return "#{key.inspect} =>" unless key.is_a?(SymbolKey)
+
+        key.name.match?(/\A[A-Za-z_][A-Za-z0-9_]*[?!]?\z/) ? "#{key.name}:" : "#{key.name.to_sym.inspect} =>"
       end
 
       # A Symbol Hash key in a path. It is a step of its own, so a String key

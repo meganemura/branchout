@@ -324,17 +324,24 @@ module Branchout
           leaves.map { |leaf| Step.new(:fact, fact_label(leaf), nil, leaf) }
         end
 
-        # +short+ names the leaf from its deepest key (status), as a
-        # minitest name does, for a text that is still too long. A key that
-        # ends another leaf's path too keeps the keys above it.
+        # +short+ names the leaf from its deepest key, as a minitest name
+        # does, for a text that is still too long: status is "failed". A key
+        # that ends another leaf's path too keeps the keys above it. A path
+        # that would start at a bracket names the argument and the literal
+        # that holds the leaf, doc holds "status" => "failed", since
+        # doc["status"] would name another leaf.
         def fact_label(leaf, peers = [], short: false)
           (root, *path), value = leaf
-          deepest = path.rindex { |step| Support.key_step?(step) }
-          name = if short && deepest then Support.path_text(Support.telling_path(path, peer_paths(root, peers)))
-                 elsif path.empty? || !@one_argument || !path.first.is_a?(Support::SymbolKey) then Support.path_text(path, root)
-                 else Support.path_text(path)
-                 end
-          "#{name} is #{value_text(value, peer_values(leaf, peers))}"
+          value = value_text(value, peer_values(leaf, peers))
+          telling = Support.telling_path(path, peer_paths(root, peers)) if short && path.any? { |step| Support.key_step?(step) }
+          if telling && telling.length < path.length
+            return "#{root} holds #{Support.entries_text([[telling, value]])}" if Support.path_text(telling).start_with?("[")
+
+            return "#{Support.path_text(telling)} is #{value}"
+          end
+          name = Support.path_text(path)
+          name = Support.path_text(path, root) if !@one_argument || name.empty? || name.start_with?("[")
+          "#{name} is #{value}"
         end
 
         # A value longer than 30 characters is cut. A String is cut where it

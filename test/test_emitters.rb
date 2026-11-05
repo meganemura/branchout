@@ -498,7 +498,7 @@ class EmitterTest < Minitest::Test
     doc = ->(discarded) { { "tests" => [{ "id" => "t1" }], "counts" => { "generated" => 1, "discarded" => discarded, "reported" => 1 - discarded } } }
     pins = [pin.(1, doc.(0)), pin.(2, doc.(1))]
     assert_equal %w[test_1_returns_discarded_0 test_2_returns_discarded_1], support.test_names(pins)
-    assert_equal ['returns ["counts"]["discarded"] => 0', 'returns ["counts"]["discarded"] => 1'], support.outcomes(pins).values
+    assert_equal ['returns "counts" => {"discarded" => 0}', 'returns "counts" => {"discarded" => 1}'], support.outcomes(pins).values
 
     # The line items tell more pairs apart, but the due says something about every cart.
     cart = ->(skus, due) { { lines: skus.map { |sku| { sku: sku } }, due_cents: due } }
@@ -513,10 +513,13 @@ class EmitterTest < Minitest::Test
       Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [doc]), value: { "tests" => [{ "file" => file, "disposition" => disposition }] },
                                  error: nil, covers: [])
     end
-    assert_equal ['returns ["tests"][0]["disposition"] => "reported", ["tests"][0]["file"] => "a_spec.rb"',
-                  'returns ["tests"][0]["disposition"] => "reported", ["tests"][0]["file"] => "b_spec.rb"',
-                  'returns ["tests"][0]["disposition"] => "flaky", ["tests"][0]["file"] => "c_spec.rb"'],
+    assert_equal ['returns "tests" => [{"disposition" => "reported", "file" => "a_spec.rb"}]',
+                  'returns "tests" => [{"disposition" => "reported", "file" => "b_spec.rb"}]',
+                  'returns "tests" => [{"disposition" => "flaky", "file" => "c_spec.rb"}]'],
                  support.outcomes(pins).values
+    # An element that no leaf is in reads as _, so the leaf keeps its place.
+    pins = %w[ok failed].each_with_index.map { |state, index| pin.(index, { "tests" => [{ "id" => "t1" }, { "state" => state }] }) }
+    assert_equal ['returns "tests" => [_, {"state" => "ok"}]', 'returns "tests" => [_, {"state" => "failed"}]'], support.outcomes(pins).values
 
     # A leaf the method changed is not a repeat of its input, even at a path the input has.
     pins = [%w[open closed 1], %w[open merged 2], %w[open closed 3]].map do |given, state, id|
@@ -1042,7 +1045,7 @@ class EmitterTest < Minitest::Test
                  Branchout::Emitters::Support.test_names([pin.("k01", "k02"), pin.("k01", "k03")])
     value = ->(id, item) { { "id" => id, "items" => [{ "id" => item }] } }
     outcome_pins = [[1, 1], [1, 2], [2, 1]].map { |a, b| Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [a, b]), value: value.(a, b), error: nil, covers: []) }
-    assert_equal ['returns "id" => 1, ["items"][0]["id"] => 1', 'returns "id" => 1, ["items"][0]["id"] => 2', 'returns "id" => 2, ["items"][0]["id"] => 1'],
+    assert_equal ['returns "id" => 1, "items" => [{"id" => 1}]', 'returns "id" => 1, "items" => [{"id" => 2}]', 'returns "id" => 2, "items" => [{"id" => 1}]'],
                  Branchout::Emitters::Support.outcomes(outcome_pins, short: true).values
   end
 
@@ -1302,18 +1305,18 @@ class EmitterTest < Minitest::Test
     result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
     texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *((?:it|context) .*) do$/).flatten
     assert_equal [%q(it 'returns 1 when doc["methods"] is [] and doc["tests"] is []'), %q(context 'when doc["methods"][0]["id"] is "m01"'),
-                  %q(it 'returns 1 when ["status"] is "failed"'),
-                  %q(it 'returns 1 when ["status"] is "timed out after 30 seconds"')], texts
+                  %q(it 'returns 1 when doc holds "status" => "failed"'),
+                  %q(it 'returns 1 when doc holds "status" => "timed out after 30 seconds"')], texts
     # An instance method's receiver is a step too; it names no leaf.
     target.singleton = false
     texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *((?:it|context) .*) do$/).flatten
-    assert_includes texts, %q(it 'returns 1 when ["status"] is "timed out after 30 seconds"')
+    assert_includes texts, %q(it 'returns 1 when doc holds "status" => "timed out after 30 seconds"')
     target.singleton = true
 
     with_status = pins.drop(1).map { |pin| pin.dup.tap { |copy| copy.input = Branchout::Input.new(args: [{ "status" => "ready", **pin.input.args[0] }]) } }
     result = Branchout::Engine::Result.new(pins: [pins[0], *with_status], requires: [], load_paths: [], private_calls: [])
     texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *((?:it|context) .*) do$/).flatten
-    assert_equal [%q(context 'when doc["status"] is "ready"'), %q(it 'returns 1 when ["result"]["status"] is "timed out after 30 seconds"')], texts.values_at(1, 3)
+    assert_equal [%q(context 'when doc["status"] is "ready"'), %q(it 'returns 1 when doc holds "result" => {"status" => "timed out after 30 seconds"}')], texts.values_at(1, 3)
   end
 
   def test_rspec_names_subjects_receivers_and_facts

@@ -228,10 +228,13 @@ RSpec のファイルは定数を describe し、その中で `.method` か `#me
 JSON の入力 `[{"sku": "B"}]` は `items[0]["sku"] is "B"` と読み、Ruby のリテラル `{"ruby": "[{sku: \"B\"}]"}` は `items[0].sku is "B"` と読む。
 `{"ruby": ...}` の Ruby が単純なリテラルなら、どちらの形式でも同じようにその値で名付ける。
 Hash の結果は、各キーをリテラルと同じ形で書く（`returns "state" => "open"`、`returns due_cents: 0`）。
+String のキーの下にある葉は、それを持つリテラルで書き、同じキーの下の葉は一つのリテラルにまとめる（`returns "counts" => {"discarded" => 1}`、`returns "tests" => [{"file" => "a_spec.rb", "disposition" => "flaky"}]`）。
 context は、兄弟と見分けるのに要る値だけを述べる。
 文は 80 文字を超えない。
-長くなる example は、兄弟と見分けるのに要る値だけを、いちばん深いキーで述べる（`when ["status"] is "timeout"`）。
-別の葉も同じキーで終わるときは、見分けられるところまで上のキーも書く（`when ["result"]["status"] is "timeout"`）。
+長くなる example は、兄弟と見分けるのに要る値だけを、いちばん深いキーで述べる（`when status is "timeout"`）。
+別の葉も同じキーで終わるときは、見分けられるところまで上のキーも書く（`when result.status is "timeout"`）。
+String のキーは、引数とその葉を持つリテラルで書く（`when doc holds "status" => "timeout"`、`when doc holds "result" => {"status" => "timeout"}`）。
+`doc["status"]` と書くと別の葉を指すからである。
 40 文字を超える String とスカラーの配列の結果は、先頭を見せてから切る（`returns ["require_relative \"../lib/shop/cart...`）。
 長い文字列は、兄弟と分かれたところで切る。
 切れ目が単語の途中に来るときは、その単語の前で切る。

@@ -1332,8 +1332,15 @@ class NameFactsTest < Minitest::Test
   def test_an_array_of_a_scalar_and_a_hash_says_both
     value = [:ok, { "id" => 1, "name" => "a name long enough to pass forty" }]
     assert_equal "returns [:ok, a Hash of id, name]", support.outcomes([pin(value)]).values.first
-    assert_equal "test_1_returns_ok_hash_id_and_name", support.test_names([pin(value)]).first
+    assert_equal "test_1_returns_array_ok_hash_id_and_name", support.test_names([pin(value)]).first
     assert_equal "returns an Array of 2", support.outcomes([pin([[1] * 20, [2]])]).values.first
+  end
+
+  # An Array that holds a scalar and a collection says array, so
+  # ["Done", []] does not read as the String "Done".
+  def test_an_array_of_a_scalar_and_a_collection_says_array
+    assert_equal %w[test_1_returns_array_done_empty_array test_2_returns_done],
+                 support.test_names([pin(["Done", []], [1]), pin("Done", [2])])
   end
 
   # An Array of scalars is not named as its item, and a Hash outcome's
@@ -1478,7 +1485,7 @@ class NameEdgeTest < Minitest::Test
 
   def test_a_block_and_an_empty_collection_beside_a_scalar_are_named
     assert_equal "test_1_with_block_returns_1", support.test_names([pin(1, block: "{ |a| a }")]).first
-    assert_equal "test_1_returns_ok_empty_hash", support.test_names([pin([:ok, {}])]).first
+    assert_equal "test_1_returns_array_ok_empty_hash", support.test_names([pin([:ok, {}])]).first
   end
 
   def test_siblings_that_differ_in_their_block_are_named_by_it

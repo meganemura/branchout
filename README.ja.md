@@ -199,7 +199,8 @@ minitest のテスト名は入力と結果から作る。
 空白だけの文字列は `blank` になり、Hash の引数は値で名付ける。
 Hash の引数の中のコレクションは、キーと大きさで名付ける（`groups_3`、`tags_empty`）。
 コレクションの配列は大きさで名付ける（`array_of_2`）。
-スカラーとコレクションが混ざる配列は、各スカラーと各 Hash のキーで名付ける（`returns [:ok, a Hash of id, name]`、`returns_ok_hash_id_and_name`）。
+スカラーとコレクションが混ざる配列は、`array` を付けて、各スカラーと各 Hash のキーで名付ける（`returns [:ok, a Hash of id, name]`、`returns_array_ok_hash_id_and_name`）。
+`["Done", []]` は文字列 `"Done"` と読めないよう `returns_array_done_empty_array` になる。
 16 桁以上の数は、先頭 3 桁と 10 の累乗で名付ける（`123e46`）。
 別の葉も同じキーで終わるときは、その上のキーも名前に入れる（`id` の隣の `items_id`）。
 Hash の結果は、兄弟どうしを見分けられる最少の葉で名付ける。

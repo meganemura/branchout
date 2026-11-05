@@ -369,8 +369,13 @@ module Branchout
       def test_names(pins, pin_keys = [])
         pinned = pins.map { |pin| pinned_pin(pin, pin_keys) }
         differences = hash_differences(pinned.map { |pin| pin.value unless pin.error }, pins.map(&:input))
-        # A Hash outcome may take more room, so the leaves RSpec names fit.
-        outcomes = pinned.zip(differences).map { |pin, differing| clip(outcome_words(pin, differing), differing.empty? ? 30 : OUTCOME_LIMIT) }
+        # A Hash outcome may take more room, so the leaves RSpec names fit, and
+        # so may an Array of scalars and collections, so its keys fit after
+        # "array".
+        outcomes = pinned.zip(differences).map do |pin, differing|
+          roomy = !differing.empty? || (!pin.error && mixed_array?(pin.value))
+          clip(outcome_words(pin, differing), roomy ? OUTCOME_LIMIT : 30)
+        end
         names = pins.each_with_index.map { |pin, index| name_of(input_words(pin.input), outcomes[index]) }
         names.each_index.group_by { |index| names[index] }.each_value do |siblings|
           next if siblings.one?
@@ -704,9 +709,9 @@ module Branchout
         when Hash then ["hash", *value.keys.each_with_index.map { |key, index| Key.new(key.to_s, index.positive?) }]
         when Array
           if value.all? { |item| collection?(item) } then ["array", "of", value.length.to_s]
-          elsif value.any? { |item| collection?(item) } then value.flat_map { |item| collection?(item) ? shape_words(item) : value_words(item) }
-          # An Array of scalars says so, so [nil] is not named as nil and
-          # [3] not as 3.
+          # Any other Array says so, so [nil] is not named as nil, [3] not
+          # as 3, and ["Done", []] not as the String "Done".
+          elsif mixed_array?(value) then ["array", *value.flat_map { |item| collection?(item) ? shape_words(item) : value_words(item) }]
           else ["array", *value_words(value)]
           end
         else value_words(value)
@@ -729,6 +734,10 @@ module Branchout
 
       def collection?(value)
         value.is_a?(Hash) || value.is_a?(Array)
+      end
+
+      def mixed_array?(value)
+        value.is_a?(Array) && value.any? { |item| collection?(item) } && !value.all? { |item| collection?(item) }
       end
 
       # The shortest end of +path+ that starts at a Hash key and ends no

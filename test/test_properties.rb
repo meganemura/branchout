@@ -266,17 +266,24 @@ class PropertyTest < Minitest::Test
   # String key quoted, so params["sku"] never reads as if a lookup by the
   # Symbol :sku would find it. A bare .name reads as [:name].
   def test_a_path_reaches_its_leaf_with_the_key_its_hash_holds
+    assert_reaches_each_leaf({".A" => 0})
     key = one_of(text(max_size: 3), text(max_size: 3).map(&:to_sym))
     Hegel.test do |tc|
-      value = tc.draw(recursive(one_of(integers(min_value: 0, max_value: 9), just(nil)), max_leaves: 8) do |inner|
+      assert_reaches_each_leaf(tc.draw(recursive(one_of(integers(min_value: 0, max_value: 9), just(nil)), max_leaves: 8) do |inner|
         one_of(arrays(inner, min_size: 1, max_size: 3), hashes(key, inner, min_size: 1, max_size: 3))
-      end)
-      leaves = []
-      Branchout::Emitters::Support.collect_leaves(value, [], leaves)
-      leaves.each do |path, leaf|
-        text = Branchout::Emitters::Support.path_text(path, "root").gsub(/\.([A-Za-z_][A-Za-z0-9_]*[?!]?)/, '[:\1]')
-        assert_equal [leaf], [eval(text, binding.tap { |scope| scope.local_variable_set(:root, value) })], text # rubocop:disable Security/Eval
-      end
+      end))
+    end
+  end
+
+  # A String key such as ".A" holds what reads as a method call, so only a
+  # call outside a quoted key is read as a Symbol lookup.
+  def assert_reaches_each_leaf(value)
+    leaves = []
+    Branchout::Emitters::Support.collect_leaves(value, [], leaves)
+    leaves.each do |path, leaf|
+      text = Branchout::Emitters::Support.path_text(path, "root")
+                                       .gsub(/"(?:[^"\\]|\\.)*"|\.([A-Za-z_][A-Za-z0-9_]*[?!]?)/) { $1 ? "[:#{$1}]" : $& }
+      assert_equal [leaf], [eval(text, binding.tap { |scope| scope.local_variable_set(:root, value) })], text # rubocop:disable Security/Eval
     end
   end
 

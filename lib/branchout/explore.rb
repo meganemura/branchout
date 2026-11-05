@@ -60,6 +60,9 @@ module Branchout
   # file that defines the entry, unless +target+ names it.
   def explore(entry, within:, inputs:, target: nil, emit_tests: nil, format: nil, json: false, verbose: false, pin_keys: [],
               requires: nil, around: nil, strategies: %w[inputs], seed: 0, random: 16, mutate_cap: 256, timeout: 1)
+    if verbose && json
+      raise Error, "verbose: is only valid with the text report; json: true holds every arm and the run settings"
+    end
     target ||= defining_file(entry)
     user_inputs, type_overrides = inputs.is_a?(String) ? InputFile.load(inputs) : [parse_inputs(inputs), nil]
     requires = requires.nil? ? [loaded_helper].compact : Array(requires)

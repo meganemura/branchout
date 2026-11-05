@@ -199,6 +199,10 @@ class ExploreTest < Minitest::Test
     end
     assert_equal "format must be minitest or rspec", error.message
     error = assert_raises(Branchout::Error) do
+      Branchout.explore("ExploreTest#run_suite", within: self, inputs: [], json: true, verbose: true)
+    end
+    assert_equal "verbose: is only valid with the text report; json: true holds every arm and the run settings", error.message
+    error = assert_raises(Branchout::Error) do
       Branchout.explore("ExploreTest#run_suite", within: self, inputs: [], requires: ["no_such_helper"])
     end
     assert_equal "requires: \"no_such_helper\" names no file under the working directory or on the load path", error.message

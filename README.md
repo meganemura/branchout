@@ -393,7 +393,7 @@ While searching, pass `--strategy inputs --random 0` and keep `--seed` fixed, so
 | `--mutate-cap N` | `256` | Literal-mutation budget |
 | `--strategy LIST` | `inputs,mutate,random` | Comma-separated strategies, in the order below |
 | `--timeout SEC` | `1` | Per-input timeout. Must be > 0 |
-| `--verbose` | off | Print the whole text report: the run settings, every covered arm, and each frontier arm's `path`. `explore` only |
+| `--verbose` | off | Print the whole text report: the run settings, every covered arm, and each frontier arm's `path`. `explore` only. Refused with `--json`, which always holds all of it |
 | `--json` | off | Print JSON on stdout instead of the text report |
 | `--json-out PATH` | | Write the JSON report |
 | `--md-out PATH` | | Write the text report that `--verbose` prints, as Markdown |

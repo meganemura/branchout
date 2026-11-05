@@ -1256,7 +1256,7 @@ class CLITest < Minitest::Test
         (none)
       TEXT
 
-      stdout, stderr, status = run_cli(*args, "--json")
+      stdout, stderr, status = run_cli(*(args - ["--verbose"]), "--json")
       assert status.success?, stderr
       assert_equal [
         { "callee" => "Parent#checked", "loc" => "#{parent}:4", "arms" => 2 }
@@ -1600,6 +1600,7 @@ class CLITest < Minitest::Test
     %w[explore t.rb A.b --inputs] => "--inputs needs a value",
     %w[explore t.rb A.b --quiet] => "unknown option --quiet",
     %w[baselines t.rb A.b --verbose] => "--verbose is only valid with explore",
+    %w[explore t.rb A.b --json --verbose] => "--verbose is only valid with the text report; --json holds every arm and the run settings",
     %w[explore t.rb A.b --format rspec] => "--format requires --emit-tests",
     %w[explore t.rb A.b --pin-keys a] => "--pin-keys requires --emit-tests",
     %w[explore t.rb A.b --emit-tests x.rb --pin-keys ,] => "--pin-keys list is empty",

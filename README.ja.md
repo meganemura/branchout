@@ -452,7 +452,7 @@ OPERATORS
 | `--mutate-cap N` | `256` | リテラル変異の予算 |
 | `--strategy LIST` | `inputs,mutate,random` | 戦略をカンマ区切りで、下の表の順に実行する |
 | `--timeout SEC` | `1` | 入力 1 件の制限時間。0 より大きいこと |
-| `--verbose` | オフ | テキストのレポート全体を出す。実行の設定、通った腕すべて、フロンティアの各腕の `path` を含む。`explore` のみ |
+| `--verbose` | オフ | テキストのレポート全体を出す。実行の設定、通った腕すべて、フロンティアの各腕の `path` を含む。`explore` のみ。`--json` は常にそのすべてを含むので、一緒に指定すると断る |
 | `--json` | オフ | テキストの代わりに JSON を標準出力へ出す |
 | `--json-out PATH` | | JSON レポートを書く |
 | `--md-out PATH` | | `--verbose` が出すテキストレポートを Markdown で書く |

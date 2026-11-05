@@ -129,6 +129,9 @@ module Branchout
         raise Error, "--emit-tests is only valid with explore"
       end
       raise Error, "--verbose is only valid with explore" if opts[:verbose] && command != "explore"
+      if opts[:verbose] && opts[:json]
+        raise Error, "--verbose is only valid with the text report; --json holds every arm and the run settings"
+      end
       if opts[:require_by_name]
         raise Error, "--require-by-name requires --emit-tests" unless opts[:emit_tests]
       end

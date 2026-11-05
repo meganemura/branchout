@@ -1451,6 +1451,13 @@ class NameFactsTest < Minitest::Test
                                      pin({ "k" => 8, "v" => 1 }, [4])])
   end
 
+  # A Hash key that reads as nil, true, or false says it is a key, so
+  # returns_nil_0 never names {"NIL" => 0}.
+  def test_a_hash_key_that_reads_as_a_literal_says_key
+    assert_equal %w[test_1_returns_key_nil_0 test_2_returns_key_nil_1],
+                 support.test_names([pin({ "NIL" => 0 }, [1]), pin({ "NIL" => 1 }, [2])])
+  end
+
   # A Set has a literal, so both formats pin its members.
   def test_a_set_is_pinned_by_its_members
     assert_equal "returns Set[1, 2]", support.outcomes([pin(Set[1, 2])]).values.first

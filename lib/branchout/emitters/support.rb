@@ -963,9 +963,12 @@ module Branchout
           next tokens(word).map { |token| ["_", token, false] } unless word.is_a?(Key)
 
           # A key with no letter or digit, such as "", still says it is a key,
-          # so its value is not read as the whole outcome.
+          # so its value is not read as the whole outcome, and so does a key
+          # that reads as nil, true, or false: {"NIL" => 0} is never
+          # returns_nil_0.
           key = tokens(word.text).join("_")
           key = "key" if key.empty?
+          key = "key_#{key}" if %w[nil true false].include?(key)
 
           joiner = listed && word.follows ? "_and_" : "_"
           listed = true

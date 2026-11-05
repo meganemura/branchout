@@ -4,7 +4,205 @@ English: [README.md](README.md).
 
 branchout は、Ruby のメソッドを多くの入力で実行し、どの入力も通らなかった分岐の腕を示し、メソッドの今のふるまいを固定する RSpec か minitest の例を書く。
 
-## クイックスタート
+## Rails アプリでのクイックスタート
+
+この手順では、RSpec とファクトリでテストしている Rails アプリに branchout を足し、モデルのメソッドを 1 つ探索する。
+探索はスイートの中で、アプリを起動し、テスト用のデータベースを使って動く。
+
+最初の対象には、`if`、`unless`、`case` の腕が 2 個から 5 個あり、値を返すモデルのメソッドを選ぶ。
+そのモデルにはファクトリがあるとよい。
+最近のコミットが変えたメソッドから始めるのもよい。
+`git log -5 --oneline -- app/models` がそのコミットを並べる。
+
+1. Gemfile の test グループに gem を足し、インストールする。
+
+```ruby
+group :test do
+  gem "branchout", require: false
+end
+```
+
+```sh
+bundle install
+```
+
+2. メソッドを探索するスペックファイルを 1 つ書く。
+`Loan`、`approve`、ファクトリの呼び出し、引数、2 つのファイル名を自分のものに置き換える。
+レシーバと各引数は、文字列に入れた Ruby のソースである。
+
+```ruby
+# spec/models/loan_explore_spec.rb
+require "branchout/coverage" if ENV["BRANCHOUT"]
+require "rails_helper"
+require "branchout"
+
+RSpec.describe Loan, type: :model do
+  it "explores approve", if: ENV["BRANCHOUT"] do
+    clerk = {ruby: "{name: 'Grace', senior: false}"}
+    puts Branchout.explore("Loan#approve", within: self, emit_tests: "spec/models/loan_approve_spec.rb", inputs: [
+      {receiver: {ruby: "create(:loan)"}, args: [clerk]}
+    ])
+  end
+end
+```
+
+1 行目は、`rails_helper` がアプリを起動する前にカバレッジを始める。
+そのため branchout はモデルのファイルの腕を数えられる。
+`BRANCHOUT` がなければこの例は飛ばされるので、ファイルはスイートに置いたままにできる。
+各入力はロールバックされるセーブポイントの中で動くので、ほかの入力が書いた行は見えない。
+
+3. 実行する。
+
+```sh
+BRANCHOUT=1 bundle exec rspec spec/models/loan_explore_spec.rb
+```
+
+### 出力の例
+
+次の出力は小さなサンプルアプリのものである。
+メソッドは次のとおり。
+
+```ruby
+  def approve(officer)
+    return :already if state == "approved"
+    return :over_limit if borrower.approved_cents + amount_cents > borrower.limit_cents
+    return :needs_senior if amount_cents > 10_000 && !officer.fetch(:senior)
+
+    update!(state: "approved", approved_by: officer.fetch(:name))
+    :approved
+  end
+```
+
+```text
+branchout explore app/models/loan.rb Loan#approve
+covered: 3 of 6 arms by 1 input
+raised: none
+tests: spec/models/loan_approve_spec.rb
+
+FRONTIER
+id: if@7:4/then@7:4
+loc: app/models/loan.rb:7:4
+cond: state == "approved"
+sense: cond-true
+parent: reached
+nearest: {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"kwargs":{},"receiver":{"ruby":"create(:loan)"}}
+next: add an input like nearest that makes `state == "approved"` true
+
+id: if@8:4/then@8:4
+loc: app/models/loan.rb:8:4
+cond: borrower.approved_cents + amount_cents > borrower.limit_cents
+sense: cond-true
+parent: reached
+nearest: {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"kwargs":{},"receiver":{"ruby":"create(:loan)"}}
+next: add an input like nearest that makes `borrower.approved_cents + amount_cents > borrower.limit_cents` true
+
+id: if@9:4/then@9:4
+loc: app/models/loan.rb:9:4
+cond: amount_cents > 10_000 && !officer.fetch(:senior)
+sense: cond-true
+parent: reached
+nearest: {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"kwargs":{},"receiver":{"ruby":"create(:loan)"}}
+next: add an input like nearest that makes `amount_cents > 10_000 && !officer.fetch(:senior)` true
+
+OPERATORS (coverage does not see which side ran; vary each left side)
+app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
+
+Pass verbose: true for every covered arm and the run settings.
+.
+
+Finished in 0.28375 seconds (files took 2.14 seconds to load)
+1 example, 0 failures
+```
+
+1 件の入力が 6 個の腕のうち 3 個を通った。
+`FRONTIER` の各エントリは、どの入力も通らなかった腕である。
+`cond` はその条件で、`next` は腕を通るために `nearest` の入力をどう変えるかを言う。
+`OPERATORS` は、カバレッジが両辺を数えない `&&` を示す。
+その左辺を真にする入力と偽にする入力を与える。
+この実行は `spec/models/loan_approve_spec.rb` も書いた。
+これは各入力が返した値を固定する。
+
+### 次に、フロンティアを閉じる
+
+`FRONTIER` のエントリごとに入力を 1 件足し、手順 3 をもう一度実行する。
+サンプルアプリでは、借り手の限度額は 20,000 セントである。
+
+```ruby
+# spec/models/loan_explore_spec.rb
+require "branchout/coverage" if ENV["BRANCHOUT"]
+require "rails_helper"
+require "branchout"
+
+RSpec.describe Loan, type: :model do
+  it "explores approve", if: ENV["BRANCHOUT"] do
+    clerk = {ruby: "{name: 'Grace', senior: false}"}
+    puts Branchout.explore("Loan#approve", within: self, emit_tests: "spec/models/loan_approve_spec.rb", inputs: [
+      {receiver: {ruby: "create(:loan)"}, args: [clerk]},
+      {receiver: {ruby: "create(:loan, :approved)"}, args: [clerk]},
+      {receiver: {ruby: "create(:loan, amount_cents: 25_000)"}, args: [clerk]},
+      {receiver: {ruby: "create(:loan, amount_cents: 15_000)"}, args: [clerk]}
+    ])
+  end
+end
+```
+
+```sh
+BRANCHOUT=1 bundle exec rspec spec/models/loan_explore_spec.rb
+```
+
+```text
+branchout explore app/models/loan.rb Loan#approve
+covered: 6 of 6 arms by 4 inputs
+raised: none
+tests: spec/models/loan_approve_spec.rb
+
+FRONTIER
+(none)
+
+OPERATORS (coverage does not see which side ran; vary each left side)
+app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
+
+Pass verbose: true for every covered arm and the run settings.
+.
+
+Finished in 0.35302 seconds (files took 0.98271 seconds to load)
+1 example, 0 failures
+```
+
+これですべての腕を通った。
+書き出したスペックは、`BRANCHOUT` なしで、ほかのスペックと同じように動く。
+
+```sh
+bundle exec rspec spec/models/loan_approve_spec.rb --format documentation
+```
+
+```text
+Loan
+  #approve
+    with create(:loan)
+      returns :approved
+    with create(:loan, :approved)
+      returns :already
+    with create(:loan, amount_cents: 15_000)
+      returns :needs_senior
+    with create(:loan, amount_cents: 25_000)
+      returns :over_limit
+
+Finished in 0.04388 seconds (files took 0.93715 seconds to load)
+4 examples, 0 failures
+```
+
+書き出したスペックをコミットする。
+メソッドが返す値が変わると、このスペックは失敗する。
+探索のスペックは次の回のために残しても、消してもよい。
+コーディングエージェントも同じループを回す。
+`FRONTIER` を読み、入力を足し、再実行する。
+その手順は [skills/branchout/SKILL.md](skills/branchout/SKILL.md)（英語）にある。
+`Branchout.explore` のすべてのオプションは [テストスイートの中で使う](#テストスイートの中で使う) にある。
+
+## アプリなしで試す
+
+CLI は、アプリなしで読み込めるメソッド（`lib/` の下のモジュールなど）を、そのファイルから探索する。
 
 gem と、それが書くスペックを実行する RSpec を入れる。
 
@@ -180,122 +378,6 @@ Finished in 0.00228 seconds (files took 0.07051 seconds to load)
 `FRONTIER` を読み、入力を足し、再実行する。
 その手順は [skills/branchout/SKILL.md](skills/branchout/SKILL.md)（英語）にある。
 
-## Rails アプリで使う（RSpec）
-
-モデルのメソッドは、アプリの起動、データベース、ファクトリがそろったスイートの中でしか動かない。
-そこで `Branchout.explore` はスペックの中で動き、入力はそのスペックが評価する Ruby になる。
-test グループに gem を足す。
-
-```ruby
-# Gemfile
-group :test do
-  gem "branchout", require: false
-end
-```
-
-`spec/rails_helper.rb` の、`config/environment` を読み込む行のすぐ後でカバレッジを始める。
-こうするとアプリ自身のファイルだけを計測する。
-
-```ruby
-require_relative "../config/environment"
-require "branchout/coverage" if ENV["BRANCHOUT"]
-```
-
-探索するメソッドは `app/models/loan.rb` の次のメソッドである。
-
-```ruby
-  def approve(officer)
-    return :already if state == "approved"
-    return :over_limit if borrower.approved_cents + amount_cents > borrower.limit_cents
-    return :needs_senior if amount_cents > 10_000 && !officer.fetch(:senior)
-
-    update!(state: "approved", approved_by: officer.fetch(:name))
-    :approved
-  end
-```
-
-それを探索するスペックを 1 つ書く。
-各入力は、スイートのファクトリで作ったレシーバと、引数である。
-
-```ruby
-# spec/models/loan_explore_spec.rb
-require "rails_helper"
-require "branchout"
-
-RSpec.describe Loan, type: :model do
-  it "explores approve", if: ENV["BRANCHOUT"] do
-    clerk = {ruby: "{name: 'Grace', senior: false}"}
-    puts Branchout.explore("Loan#approve", within: self, emit_tests: "spec/models/loan_approve_spec.rb", inputs: [
-      {receiver: {ruby: "build(:loan, amount_cents: 500)"}, args: [clerk]},
-      {receiver: {ruby: "create(:loan, :approved)"}, args: [clerk]},
-      {receiver: {ruby: "create(:loan, amount_cents: 15_000)"}, args: [clerk]}
-    ])
-  end
-end
-```
-
-```sh
-BRANCHOUT=1 bundle exec rspec spec/models/loan_explore_spec.rb
-```
-
-レポートを表示する。
-
-```text
-branchout explore app/models/loan.rb Loan#approve
-covered: 5 of 6 arms by 3 inputs
-raised: none
-tests: spec/models/loan_approve_spec.rb
-
-FRONTIER
-id: if@8:4/then@8:4
-loc: app/models/loan.rb:8:4
-cond: borrower.approved_cents + amount_cents > borrower.limit_cents
-sense: cond-true
-parent: reached
-nearest: {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"kwargs":{},"receiver":{"ruby":"build(:loan, amount_cents: 500)"}}
-next: add an input like nearest that makes `borrower.approved_cents + amount_cents > borrower.limit_cents` true
-
-OPERATORS (coverage does not see which side ran; vary each left side)
-app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
-
-Pass verbose: true for every covered arm and the run settings.
-```
-
-`FRONTIER` は、どの入力も通らなかった腕を示す。
-ここでは限度額を超える借り手がいなかった。
-`OPERATORS` は、`:needs_senior` の行の `&&` である。
-カバレッジはその両辺のどちらにも腕を数えない。
-
-各入力はロールバックされるセーブポイントの中で動いたので、ほかの入力が書いた行は見えなかった。
-この実行は `spec/models/loan_approve_spec.rb` を書いた。
-これは `BRANCHOUT` なしで、ほかのスペックと同じように動く。
-
-```sh
-bundle exec rspec spec/models/loan_approve_spec.rb --format documentation
-```
-
-```text
-Loan
-  #approve
-    with build(:loan, amount_cents: 500)
-      returns :approved
-    with create(:loan, :approved)
-      returns :already
-    with create(:loan, amount_cents: 15_000)
-      returns :needs_senior
-
-Finished in 0.03329 seconds (files took 0.9837 seconds to load)
-3 examples, 0 failures
-
-```
-
-フロンティアを閉じるには、借り手がすでに承認済みのローンを持つ入力を足す。
-たとえば `{receiver: {ruby: "create(:loan, amount_cents: 6_000, borrower: create(:loan, :approved, amount_cents: 15_000).borrower)"}, args: [clerk]}` を足して、探索のスペックをもう一度実行する。
-レポートは `covered: 6 of 6 arms` になり、書き出したスペックに `returns :over_limit` が加わる。
-書き出したスペックをコミットする。
-探索のスペックは `BRANCHOUT` なしでは飛ばされるので、次の回のために書き出したスペックの横に残しておける。
-`Branchout.explore` のすべてのオプションは [テストスイートの中で使う](#テストスイートの中で使う) にある。
-
 ## CLI リファレンス
 
 テストを足しているエージェントは、腕が未達であることまではカバレッジで分かる。どの比較で外れたか、どの入力が決定のいちばん近くまで届いたかは分からない。branchout はそのフロンティアを、条件と、腕を選ぶ向きと、決定に届いた最も近い入力とともに出す。エージェントは入力を足して同じコマンドを再実行する。branchout は入力ファイルを書き換えない。探索が終わると、発見した戻り値または例外を固定する minitest か RSpec を書く。
@@ -307,7 +389,7 @@ Finished in 0.03329 seconds (files took 0.9837 seconds to load)
 `--verbose` はレポート全体を出す。
 実行の設定と件数のあとに、`COVERED`（各腕を通った入力）、`FRONTIER`（どの入力も通らなかった各腕と、`nearest` が通った腕の `path`）、`EXCEPTIONS`（例外を出した入力ごとに 1 件）、`NOT COUNTED`、`OPERATORS` が続く。
 付けないときのレポートは、件数と、入力が届いた `FRONTIER` の腕とその `next` の行と、どの入力も届かなかった決定ごとに 1 行と、例外ごとに 1 行を残す。
-[クイックスタート](#クイックスタート) の出力がその形である。
+[アプリなしで試す](#アプリなしで試す) の出力がその形である。
 `--json` は、レポート全体のすべての項目を持つ。
 
 ```sh
@@ -562,17 +644,21 @@ minitest のパスは `--format minitest` で、`ruby` で実行する。RSpec �
 ## テストスイートの中で使う
 
 `Branchout.explore` はテストの中から動き、CLI と同じレポートを返す。
-Gemfile の行、ヘルパーの行、探索のスペックの例は [Rails アプリで使う（RSpec）](#rails-アプリで使うrspec) にある。
-ヘルパーの行は、`spec/rails_helper.rb` または `test/test_helper.rb` の、`config/environment` を読み込む行のすぐ後に置く。
+Gemfile の行と探索のスペックの例は [Rails アプリでのクイックスタート](#rails-アプリでのクイックスタート) にある。
+スペックの 1 行目の `require "branchout/coverage" if ENV["BRANCHOUT"]` は、ヘルパーがアプリを起動する前に Coverage の準備をする。
+そのためモデルはその後に読み込まれる。
+minitest では `require "test_helper"` の前に置く。
+Rails のないスイートでも同じように動く。
 
-この時点で Rails と gem は読み込み済みで、モデルは最初に使うときに読み込まれる。
-そのため Coverage が計測の準備をするのはアプリのコードだけになる。
-Rails より前に置くと、すべての gem も計測の対象になる。
-ある Rails のスイートでは、モデルのテストが約 25% 長くなった。
-`config/environment` の後に置いたときの差は、ばらつきの範囲だった。
-テスト環境が eager load する（`config.eager_load`。Rails は `ENV["CI"]` から決める）と、モデルは `config/environment` の中で読み込まれ、explore はそれを断る。
-eager load なしで実行する。
-Rails のないスイートでは、アプリのファイルを読み込む前、ヘルパーの先頭に置く。
+探索のファイルは単独で実行する。
+スイート全体の実行では、別のスペックファイルが先にモデルを読み込むことがある。
+`.rspec` が `rails_helper` を require していると、スペックの 1 行目より前にアプリが起動する。
+そのため、イニシャライザが読むモデルは早すぎる時点で読み込まれ、explore はそれを断る。
+テスト環境が eager load する（`config.eager_load`。Rails は `ENV["CI"]` から決める）と、すべてのモデルが同じことになる。
+Rails より前に準備すると、Coverage はすべての gem も計測する。
+クイックスタートのサンプルアプリでは、`spec/rails_helper.rb` の `config/environment` を読み込む行のすぐ後に置いた場合と比べて、探索の実行は起動が約 0.3 秒、入力 1 件ごとに約 12 ms 長くなった。
+起動中にモデルを読み込むものがなければ、その置き方のほうが速い。
+その時点で gem は読み込み済みで、モデルは最初に使うときに読み込まれる。
 
 入力は入力ファイルのエントリの並びか、そのファイルのパスである。
 入力の Ruby はそのテストの中（`within: self`）で動くので、スイートのファクトリ、フィクスチャ、ヘルパーを使える。

@@ -2,7 +2,181 @@
 
 branchout runs a Ruby method on many inputs, shows the branch arms that no input took, and writes RSpec or minitest examples that pin what the method does now.
 
-## Quick start
+## Quick start in your Rails app
+
+These steps add branchout to a Rails app that tests with RSpec and factories, and explore one model method inside the suite, with the app booted and the test database.
+
+Pick a first target: a model method with two to five `if`, `unless`, or `case` arms that returns a value, on a model that has a factory. A method that a recent commit changed is a good start. `git log -5 --oneline -- app/models` lists those commits.
+
+1. Add the gem to the test group of your Gemfile, and install it:
+
+```ruby
+group :test do
+  gem "branchout", require: false
+end
+```
+
+```sh
+bundle install
+```
+
+2. Write one spec file that explores the method. Replace `Loan`, `approve`, the factory call, the argument, and the two file names with yours. The receiver and each argument are Ruby source in a String:
+
+```ruby
+# spec/models/loan_explore_spec.rb
+require "branchout/coverage" if ENV["BRANCHOUT"]
+require "rails_helper"
+require "branchout"
+
+RSpec.describe Loan, type: :model do
+  it "explores approve", if: ENV["BRANCHOUT"] do
+    clerk = {ruby: "{name: 'Grace', senior: false}"}
+    puts Branchout.explore("Loan#approve", within: self, emit_tests: "spec/models/loan_approve_spec.rb", inputs: [
+      {receiver: {ruby: "create(:loan)"}, args: [clerk]}
+    ])
+  end
+end
+```
+
+The first line starts coverage before `rails_helper` boots the app, so that branchout can count the arms of the model's file. Without `BRANCHOUT` the example is skipped, so the file can stay in the suite. Each input runs in a savepoint that is rolled back, so no input sees the rows of another.
+
+3. Run it:
+
+```sh
+BRANCHOUT=1 bundle exec rspec spec/models/loan_explore_spec.rb
+```
+
+### What you will see
+
+This output is from a small sample app, where the method is:
+
+```ruby
+  def approve(officer)
+    return :already if state == "approved"
+    return :over_limit if borrower.approved_cents + amount_cents > borrower.limit_cents
+    return :needs_senior if amount_cents > 10_000 && !officer.fetch(:senior)
+
+    update!(state: "approved", approved_by: officer.fetch(:name))
+    :approved
+  end
+```
+
+```text
+branchout explore app/models/loan.rb Loan#approve
+covered: 3 of 6 arms by 1 input
+raised: none
+tests: spec/models/loan_approve_spec.rb
+
+FRONTIER
+id: if@7:4/then@7:4
+loc: app/models/loan.rb:7:4
+cond: state == "approved"
+sense: cond-true
+parent: reached
+nearest: {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"kwargs":{},"receiver":{"ruby":"create(:loan)"}}
+next: add an input like nearest that makes `state == "approved"` true
+
+id: if@8:4/then@8:4
+loc: app/models/loan.rb:8:4
+cond: borrower.approved_cents + amount_cents > borrower.limit_cents
+sense: cond-true
+parent: reached
+nearest: {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"kwargs":{},"receiver":{"ruby":"create(:loan)"}}
+next: add an input like nearest that makes `borrower.approved_cents + amount_cents > borrower.limit_cents` true
+
+id: if@9:4/then@9:4
+loc: app/models/loan.rb:9:4
+cond: amount_cents > 10_000 && !officer.fetch(:senior)
+sense: cond-true
+parent: reached
+nearest: {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"kwargs":{},"receiver":{"ruby":"create(:loan)"}}
+next: add an input like nearest that makes `amount_cents > 10_000 && !officer.fetch(:senior)` true
+
+OPERATORS (coverage does not see which side ran; vary each left side)
+app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
+
+Pass verbose: true for every covered arm and the run settings.
+.
+
+Finished in 0.28375 seconds (files took 2.14 seconds to load)
+1 example, 0 failures
+```
+
+The one input took 3 of the 6 arms. Each `FRONTIER` entry is an arm that no input took: `cond` is its condition, and `next` says what to change in the `nearest` input to take it. `OPERATORS` names an `&&` whose sides coverage does not count, so give inputs that make its left side true and false. The run also wrote `spec/models/loan_approve_spec.rb`, which pins what each input returned.
+
+### Next: close the frontier
+
+Add one input for each `FRONTIER` entry, and run step 3 again. In the sample app a borrower's limit is 20,000 cents:
+
+```ruby
+# spec/models/loan_explore_spec.rb
+require "branchout/coverage" if ENV["BRANCHOUT"]
+require "rails_helper"
+require "branchout"
+
+RSpec.describe Loan, type: :model do
+  it "explores approve", if: ENV["BRANCHOUT"] do
+    clerk = {ruby: "{name: 'Grace', senior: false}"}
+    puts Branchout.explore("Loan#approve", within: self, emit_tests: "spec/models/loan_approve_spec.rb", inputs: [
+      {receiver: {ruby: "create(:loan)"}, args: [clerk]},
+      {receiver: {ruby: "create(:loan, :approved)"}, args: [clerk]},
+      {receiver: {ruby: "create(:loan, amount_cents: 25_000)"}, args: [clerk]},
+      {receiver: {ruby: "create(:loan, amount_cents: 15_000)"}, args: [clerk]}
+    ])
+  end
+end
+```
+
+```sh
+BRANCHOUT=1 bundle exec rspec spec/models/loan_explore_spec.rb
+```
+
+```text
+branchout explore app/models/loan.rb Loan#approve
+covered: 6 of 6 arms by 4 inputs
+raised: none
+tests: spec/models/loan_approve_spec.rb
+
+FRONTIER
+(none)
+
+OPERATORS (coverage does not see which side ran; vary each left side)
+app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
+
+Pass verbose: true for every covered arm and the run settings.
+.
+
+Finished in 0.35302 seconds (files took 0.98271 seconds to load)
+1 example, 0 failures
+```
+
+Every arm is covered. The emitted spec runs as any other spec, without `BRANCHOUT`:
+
+```sh
+bundle exec rspec spec/models/loan_approve_spec.rb --format documentation
+```
+
+```text
+Loan
+  #approve
+    with create(:loan)
+      returns :approved
+    with create(:loan, :approved)
+      returns :already
+    with create(:loan, amount_cents: 15_000)
+      returns :needs_senior
+    with create(:loan, amount_cents: 25_000)
+      returns :over_limit
+
+Finished in 0.04388 seconds (files took 0.93715 seconds to load)
+4 examples, 0 failures
+```
+
+Commit the emitted spec: it fails when what the method returns changes. Keep the explore spec for the next round, or delete it. A coding agent runs the same loop: it reads `FRONTIER`, appends an input, and reruns. [skills/branchout/SKILL.md](skills/branchout/SKILL.md) is that procedure, and [Inside a test suite](#inside-a-test-suite) has every option of `Branchout.explore`.
+
+## Try it without an app
+
+The CLI explores a method that loads without an app, such as a module under `lib/`, from its file.
 
 Install the gem, and RSpec to run what it writes:
 
@@ -165,115 +339,13 @@ Finished in 0.00228 seconds (files took 0.07051 seconds to load)
 
 Every arm is covered now. The emitted spec keeps each input of the inputs file, and one input for each other arm and each error. Keep the spec beside the code: it fails when the method's behavior changes. A coding agent runs the same loop: it reads `FRONTIER`, appends an input, and reruns. [skills/branchout/SKILL.md](skills/branchout/SKILL.md) is that procedure.
 
-## Use it in a Rails app (RSpec)
-
-A model method runs only inside the suite, with the app booted, the database, and the factories. So `Branchout.explore` runs inside a spec, and its inputs are Ruby that the spec evaluates. Add the gem to the test group:
-
-```ruby
-# Gemfile
-group :test do
-  gem "branchout", require: false
-end
-```
-
-In `spec/rails_helper.rb`, start coverage right after the line that loads `config/environment`, so that only the app's own files are measured:
-
-```ruby
-require_relative "../config/environment"
-require "branchout/coverage" if ENV["BRANCHOUT"]
-```
-
-This is the method to explore, in `app/models/loan.rb`:
-
-```ruby
-  def approve(officer)
-    return :already if state == "approved"
-    return :over_limit if borrower.approved_cents + amount_cents > borrower.limit_cents
-    return :needs_senior if amount_cents > 10_000 && !officer.fetch(:senior)
-
-    update!(state: "approved", approved_by: officer.fetch(:name))
-    :approved
-  end
-```
-
-Write one spec that explores it. Each input is a receiver built with the suite's own factories, and the arguments:
-
-```ruby
-# spec/models/loan_explore_spec.rb
-require "rails_helper"
-require "branchout"
-
-RSpec.describe Loan, type: :model do
-  it "explores approve", if: ENV["BRANCHOUT"] do
-    clerk = {ruby: "{name: 'Grace', senior: false}"}
-    puts Branchout.explore("Loan#approve", within: self, emit_tests: "spec/models/loan_approve_spec.rb", inputs: [
-      {receiver: {ruby: "build(:loan, amount_cents: 500)"}, args: [clerk]},
-      {receiver: {ruby: "create(:loan, :approved)"}, args: [clerk]},
-      {receiver: {ruby: "create(:loan, amount_cents: 15_000)"}, args: [clerk]}
-    ])
-  end
-end
-```
-
-```sh
-BRANCHOUT=1 bundle exec rspec spec/models/loan_explore_spec.rb
-```
-
-It prints the report:
-
-```text
-branchout explore app/models/loan.rb Loan#approve
-covered: 5 of 6 arms by 3 inputs
-raised: none
-tests: spec/models/loan_approve_spec.rb
-
-FRONTIER
-id: if@8:4/then@8:4
-loc: app/models/loan.rb:8:4
-cond: borrower.approved_cents + amount_cents > borrower.limit_cents
-sense: cond-true
-parent: reached
-nearest: {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"kwargs":{},"receiver":{"ruby":"build(:loan, amount_cents: 500)"}}
-next: add an input like nearest that makes `borrower.approved_cents + amount_cents > borrower.limit_cents` true
-
-OPERATORS (coverage does not see which side ran; vary each left side)
-app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
-
-Pass verbose: true for every covered arm and the run settings.
-```
-
-`FRONTIER` names the arm that no input took: no borrower was over the limit. `OPERATORS` is the `&&` on the `:needs_senior` line: coverage counts no arm for either side of it.
-
-Each input ran in a savepoint that was rolled back, so no input saw the rows of another. The run wrote `spec/models/loan_approve_spec.rb`, which runs as any other spec, without `BRANCHOUT`:
-
-```sh
-bundle exec rspec spec/models/loan_approve_spec.rb --format documentation
-```
-
-```text
-Loan
-  #approve
-    with build(:loan, amount_cents: 500)
-      returns :approved
-    with create(:loan, :approved)
-      returns :already
-    with create(:loan, amount_cents: 15_000)
-      returns :needs_senior
-
-Finished in 0.03329 seconds (files took 0.9837 seconds to load)
-3 examples, 0 failures
-
-```
-
-To close the frontier, add an input whose borrower already has approved loans, such as `{receiver: {ruby: "create(:loan, amount_cents: 6_000, borrower: create(:loan, :approved, amount_cents: 15_000).borrower)"}, args: [clerk]}`, and run the explore spec again. It reports `covered: 6 of 6 arms`, and the emitted spec gains `returns :over_limit`. Commit the emitted spec. The explore spec is skipped without `BRANCHOUT`, so you can keep it beside the emitted spec for the next round. [Inside a test suite](#inside-a-test-suite) has every option of `Branchout.explore`.
-
 ## CLI reference
 
 A coding agent adding tests can see that a branch was missed and still not know which comparison failed, or which input came closest. branchout prints that frontier: the condition, the direction that selects the arm, and the nearest input that reached the decision. The agent appends an input and reruns the same command. branchout does not edit the inputs file. When the search stops, it writes a minitest or RSpec example that pins each discovered return value or exception.
 
 The method follows concolic testing ([DART](https://doi.org/10.1145/1065010.1065036), [CUTE](https://doi.org/10.1145/1094811.1094816)) and LLM-guided concolic work such as [ConcoLLMic](https://concollmic.github.io/). branchout is inspired by concolic testing but does no symbolic solving. The agent proposes inputs from the branch frontier.
 
-From a checkout of this repository, `ruby bin/branchout` runs the same command as `branchout`. The seed file holds one input, `[0]`. `--verbose` prints the whole report: the run settings and counts, then `COVERED` (the input that took each arm), `FRONTIER` (each arm no input took, with `path`, the arms `nearest` took), `EXCEPTIONS` (one record for each input that raised), `NOT COUNTED`, and `OPERATORS`. Without it, the report keeps the counts, the `FRONTIER` arms that an input reached, each with a `next` line, one line for each decision that no input reached, and one line for each error, as in the [Quick start](#quick-start). `--json` holds every field of the whole report.
+From a checkout of this repository, `ruby bin/branchout` runs the same command as `branchout`. The seed file holds one input, `[0]`. `--verbose` prints the whole report: the run settings and counts, then `COVERED` (the input that took each arm), `FRONTIER` (each arm no input took, with `path`, the arms `nearest` took), `EXCEPTIONS` (one record for each input that raised), `NOT COUNTED`, and `OPERATORS`. Without it, the report keeps the counts, the `FRONTIER` arms that an input reached, each with a `next` line, one line for each decision that no input reached, and one line for each error, as in [Try it without an app](#try-it-without-an-app). `--json` holds every field of the whole report.
 
 ```sh
 ruby bin/branchout explore examples/magic_value.rb MagicValue.classify \
@@ -409,9 +481,9 @@ A method that takes no argument in any input becomes the `subject`. An input tha
 
 ## Inside a test suite
 
-`Branchout.explore` runs from inside a test and returns the report the CLI prints. [Use it in a Rails app (RSpec)](#use-it-in-a-rails-app-rspec) shows the Gemfile line, the helper line, and one explore spec. The helper line goes in `spec/rails_helper.rb` or `test/test_helper.rb`, right after the line that loads `config/environment`.
+`Branchout.explore` runs from inside a test and returns the report the CLI prints. [Quick start in your Rails app](#quick-start-in-your-rails-app) shows the Gemfile line and one explore spec. The spec's first line, `require "branchout/coverage" if ENV["BRANCHOUT"]`, sets up Coverage before the helper boots the app, so the models load after it. In minitest it goes before `require "test_helper"`. In a suite without Rails it works the same way.
 
-By then Rails and the gems are loaded, and the models load later, on first use, so Coverage instruments only the app's code. Set up before Rails, it instruments every gem too: a Rails suite's model tests then took about 25% longer, and after `config/environment` the difference was within noise. When the test environment eager-loads (`config.eager_load`, which Rails sets from `ENV["CI"]`), the models load inside `config/environment`, and explore refuses them; run without eager loading. In a suite without Rails, make it the first line of the helper, before the app's files load.
+Run the explore file alone: in a run of the whole suite, another spec file can load the model first. When `.rspec` requires `rails_helper`, the app boots before the spec's first line, so a model that an initializer reads, or every model when the test environment eager-loads (`config.eager_load`, which Rails sets from `ENV["CI"]`), loads too early, and explore refuses it. Set up before Rails, Coverage measures every gem too. In the sample app of the Quick start, the explore run took about 0.3 seconds longer to boot and about 12 ms longer for each input than with the line in `spec/rails_helper.rb`, right after the line that loads `config/environment`. That placement is the faster one when nothing loads a model during boot: the gems are loaded by then, and the models load later, on first use.
 
 The inputs are the entries of an inputs file, or the file's path. Their Ruby runs in the test (`within: self`), so it reaches the suite's factories, fixtures, and helpers. When ActiveRecord is loaded, each input runs in a savepoint that is rolled back: no input sees the rows another wrote, and the test's rows stay as they were. `around:` replaces that, as a lambda that takes the input as a block. An input that raises `FrozenError` with frozen Strings runs again with unfrozen ones only when it ran in `Branchout::ROLL_BACK`, the default or inside an `around:` that calls it. With any other `around:`, such as `Branchout::RUN_ONLY`, the `FrozenError` is pinned, because branchout cannot tell whether that around undid the first run's rows. The strategy is `inputs` only unless `strategies:` says otherwise, and `timeout:` is 1 second unless set (`nil` turns it off). `target:`, `emit_tests:`, `format:`, `json:`, `verbose:`, `pin_keys:`, `requires:`, `seed:`, `random:`, and `mutate_cap:` mean what the CLI flags mean. In minitest the same call goes in a test of an `ActiveSupport::TestCase`, run with `BRANCHOUT=1 bin/rails test`.
 

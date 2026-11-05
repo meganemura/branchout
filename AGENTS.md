@@ -24,6 +24,8 @@ In a checkout whose gems live only in the bundle, as in CI, run both under `bund
 
 `test/generated/` and `spec/generated/` are checked-in characterization tests for `examples/`. Regenerate one by re-running `explore` with `--strategy inputs --random 0 --seed 1` and `--emit-tests` pointed at `test/generated/<name>_test.rb` (`--format minitest`) or `spec/generated/<name>_spec.rb` (`--format rspec`). `test/test_examples.rb` checks `reports/<name>.*`, `test/generated/`, and `spec/generated/` against a fresh run of each example. Regenerate them together when output changes.
 
+`test/test_readme.rb` runs the `sh` blocks of the README Quick start in one empty folder and compares each with the output block after it. When the report or an emitted spec changes, rerun those commands in an empty folder and paste their output into both READMEs.
+
 ## Invariants
 
 - Do not add an LLM client, an API key, or an external command. The agent stays outside the process.

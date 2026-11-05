@@ -196,7 +196,8 @@ minitest のテスト名は入力と結果から作る。
 先頭が同じ文字列どうしは、分かれたところからの単語で名付ける。
 `receiver` の 2 つのファクトリー呼び出しのように先頭が同じ Ruby のソースは、分かれる直前の単語も残す（`test_limit_100_returns_ok`）。
 名前は単語の切れ目で切る。
-空白だけの文字列は `blank` になり、Hash の引数は値で名付ける。
+空白だけの文字列は `blank` になり、空の配列や Hash の引数は `empty_array` や `empty_hash` になる。
+Hash の引数は値で名付ける。
 Hash の引数の中のコレクションは、キーと大きさで名付ける（`groups_3`、`tags_empty`）。
 コレクションの配列は大きさで名付ける（`array_of_2`）。
 スカラーとコレクションが混ざる配列は、`array` を付けて、各スカラーと各 Hash のキーで名付ける（`returns [:ok, a Hash of id, name]`、`returns_array_ok_hash_id_and_name`）。
@@ -221,6 +222,7 @@ RSpec のファイルは定数を describe し、その中で `.method` か `#me
 各 example はまず結果を述べ、次にその example だけの引数の値を述べる。
 そのため `rspec --format documentation` は仕様のように読める。
 引数の中の値は、そこへのパスで名付ける（`args[0].value is 7`）。
+スカラーの配列は全体で名付ける（`items is [1, 2]`）。
 context は、兄弟と見分けるのに要る値だけを述べる。
 文は 80 文字を超えない。
 長くなる example は、兄弟と見分けるのに要る値だけを、いちばん深いキーで述べる（`when status is "timeout"`）。

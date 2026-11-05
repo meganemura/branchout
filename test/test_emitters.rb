@@ -582,6 +582,31 @@ class EmitterTest < Minitest::Test
     assert_equal %w[test_constants_empty_tests_1_returns_0 test_constants_1_tests_1_returns_0], Branchout::Emitters::Support.test_names(pins)
   end
 
+  # An Array argument is named by its parameter, as a whole when it holds
+  # only scalars, and an empty one keeps a word in a minitest name.
+  def test_an_array_argument_is_named_by_its_parameter
+    pins = [[[]], [[1, 2]], [[3]], [[{ "sku" => "A" }]]].map do |args|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: args), value: 0, error: nil, covers: [])
+    end
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Status", :of, "Status.of", "lib/status.rb", File.join(ROOT, "lib/status.rb"), [], [Struct.new(:name).new(:items)])
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
+    spec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/status_spec.rb"))
+    assert_equal ["returns 0 when items is []", "returns 0 when items is [1, 2]", "returns 0 when items is [3]",
+                  'returns 0 when items[0].sku is "A"'].sort,
+                 spec.scan(/^ *it ['"](.*)['"] do$/).flatten.sort
+    keyword = [[1, 2], [3]].map do |tags|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [], kwargs: { "tags" => tags }), value: 0, error: nil, covers: [])
+    end
+    result = Branchout::Engine::Result.new(pins: keyword, requires: [], load_paths: [], private_calls: [])
+    assert_equal ["returns 0 when tags is [1, 2]", "returns 0 when tags is [3]"],
+                 Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/status_spec.rb")).scan(/^ *it ['"](.*)['"] do$/).flatten
+    names =Branchout::Emitters::Support.test_names(pins.first(3))
+    assert_equal %w[test_empty_array_returns_0 test_1_2_returns_0 test_3_returns_0], names
+    assert_equal "test_empty_hash_returns_0",
+                 Branchout::Emitters::Support.test_names([Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [{}]), value: 0, error: nil, covers: [])]).first
+  end
+
   # --pin-keys keeps the named entries of a Hash, by name, and leaves any
   # other value whole; the outcome then says only those entries.
   def test_pinned_values_and_their_outcomes

@@ -308,15 +308,18 @@ module Branchout
           end
         end
 
-        # A fact names its leaf by a path into the argument (args[0].value).
-        # When every input passes one argument and no keyword, the path
-        # inside that argument says enough, and the parameter's name is
-        # left out.
+        # A fact names its leaf by a path into the argument (args[0].value),
+        # and an Array of scalars as a whole (items is [1, 2]). When every
+        # input passes one argument and no keyword, a path that starts at a
+        # key inside that argument says enough, and the parameter's name is
+        # left out; a path that starts at a position keeps it (items[0].sku).
         def fact_steps(input)
           names = parameter_names
           leaves = []
-          input.args.each_with_index { |arg, index| Support.collect_leaves(arg, [names[index] || "argument #{index + 1}"], leaves) }
-          input.kwargs.each { |key, value| Support.collect_leaves(value, [key], leaves) }
+          input.args.each_with_index do |arg, index|
+            Support.collect_leaves(arg, [names[index] || "argument #{index + 1}"], leaves, whole_arrays: true)
+          end
+          input.kwargs.each { |key, value| Support.collect_leaves(value, [key], leaves, whole_arrays: true) }
           leaves << [["block"], input.block] if input.block
           leaves.map { |leaf| Step.new(:fact, fact_label(leaf), nil, leaf) }
         end
@@ -328,7 +331,7 @@ module Branchout
           (root, *path), value = leaf
           deepest = path.rindex { |step| step.is_a?(String) }
           name = if short && deepest then Support.path_text(Support.telling_path(path, peer_paths(root, peers)))
-                 elsif path.empty? || !@one_argument then Support.path_text(path, root)
+                 elsif path.empty? || !@one_argument || path.first.is_a?(Integer) then Support.path_text(path, root)
                  else Support.path_text(path)
                  end
           "#{name} is #{value_text(value, peer_values(leaf, peers))}"

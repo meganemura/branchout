@@ -506,15 +506,18 @@ module Branchout
         out
       end
 
-      def collect_leaves(value, path, out)
+      # +whole_arrays+ keeps an Array of scalars as one leaf, so a reader
+      # sees items is [1, 2] and not each item by its position.
+      def collect_leaves(value, path, out, whole_arrays: false)
         children = case value
           when Hash then value.map { |key, item| [key.to_s, item] }
-          when Array then value.each_with_index.map { |item, index| [index, item] }
+          when Array
+            whole_arrays && value.none? { |item| collection?(item) } ? [] : value.each_with_index.map { |item, index| [index, item] }
           else []
         end
         return out << [path, value] if children.empty?
 
-        children.each { |step, item| collect_leaves(item, path + [step], out) }
+        children.each { |step, item| collect_leaves(item, path + [step], out, whole_arrays: whole_arrays) }
       end
 
       # What each pin's test pins, as RSpec says it: "raises KeyError",
@@ -738,9 +741,11 @@ module Branchout
       # A Hash argument is named by its values, a collection in it by its
       # key and size (groups_3, tags_empty), and an Array of collections by
       # its size, so a tree of arguments does not fill the name and two
-      # trees of different sizes read apart.
+      # trees of different sizes read apart. An empty argument still says
+      # so (empty_array), so the name keeps every input.
       def argument_words(value)
         case value
+        when {}, [] then shape_words(value)
         when Hash
           value.flat_map { |key, item| collection?(item) ? [key.to_s, item.empty? ? "empty" : item.length.to_s] : value_words(item) }
         when Array

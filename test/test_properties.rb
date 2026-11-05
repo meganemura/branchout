@@ -131,7 +131,8 @@ class PropertyTest < Minitest::Test
   end
 
   # Every word of a name is a whole word of the input or the outcome: the
-  # cut falls between words, and a blank argument leaves the word blank.
+  # cut falls between words, a blank argument leaves the word blank, and
+  # an empty one the word empty.
   def test_emitted_test_names_cut_between_words
     vocabulary = %w[apple discount cents due lines qty sku raised ok]
     shapes = %w[test returns raises hash array of and empty blank nil true false foo bar error]
@@ -140,14 +141,14 @@ class PropertyTest < Minitest::Test
       one_of(arrays(inner, max_size: 3), hashes(sampled_from(vocabulary), inner, max_size: 3))
     end
     Hegel.test do |tc|
-      args = tc.draw(arrays(word, min_size: 1, max_size: 6))
+      args = tc.draw(arrays(one_of(word, sampled_from([[], {}])), min_size: 1, max_size: 6))
       error = tc.draw(booleans) ? Branchout::Runner::ExceptionInfo.new(class_name: "Foo::BarError") : nil
       pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: args), value: tc.draw(value), error: error, covers: [])
       name = Branchout::Emitters::Support.test_names([pin]).first
       words = name.split(/_+/)
       words.each { |part| assert(vocabulary.include?(part) || shapes.include?(part) || part.match?(/\A(neg)?\d+\z/), name) }
       first = args.first
-      expected = first.is_a?(Integer) ? first.to_s.sub("-", "neg") : { "" => "empty", " " => "blank", "  " => "blank" }.fetch(first, first)
+      expected = first.is_a?(Integer) ? first.to_s.sub("-", "neg") : { "" => "empty", " " => "blank", "  " => "blank", [] => "empty", {} => "empty" }.fetch(first, first)
       assert_equal expected, words[1], name
     end
   end
@@ -186,7 +187,8 @@ class PropertyTest < Minitest::Test
   end
 
   # An emitted spec parses, no two examples or contexts of one group share
-  # a text, and no text is over 80 characters, so rspec --format
+  # a text, no text is over 80 characters, and no fact starts at a bare
+  # position ([0] is 1) without the argument it is in, so rspec --format
   # documentation tells every input apart in lines a reader can scan.
   def test_an_emitted_spec_parses_and_tells_its_examples_apart
     param = Struct.new(:name)
@@ -195,9 +197,13 @@ class PropertyTest < Minitest::Test
       target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
                      .new(singleton, "Foo::Bar", :run, "Foo::Bar#run", "lib/bar.rb", File.join(ROOT, "lib/bar.rb"),
                           [], [param.new(:a), param.new(:b)])
+      # Inputs that all pass one argument are named apart by the path inside it.
+      one_argument = tc.draw(booleans)
       pins = tc.draw(arrays(booleans, min_size: 1, max_size: 6)).map do |raises|
         error = raises ? Branchout::Runner::ExceptionInfo.new(class_name: "Foo::BarError") : nil
-        Branchout::Engine::Pin.new(input: draw_input(tc, receiver: !singleton), value: tc.draw(json_values), error: error, covers: [])
+        input = draw_input(tc, receiver: !singleton)
+        input = Branchout::Input.new(args: [tc.draw(json_values)], receiver: input.receiver, setup: input.setup, block: input.block) if one_argument
+        Branchout::Engine::Pin.new(input: input, value: tc.draw(json_values), error: error, covers: [])
       end
       pins = pins.uniq { |pin| pin.input.canonical }
       result = Branchout::Engine::Result.new(pins: pins, requires: [], private_calls: [])
@@ -221,6 +227,7 @@ class PropertyTest < Minitest::Test
       assert_equal pins.length, examples, source
       groups.each { |texts| assert_equal texts.uniq, texts, source }
       groups.flatten.each { |text| assert_operator text.length, :<=, 80, text }
+      groups.flatten.each { |text| refute_match(/(?:when |, | and )\[\d+\](?:\.| is )/, text) }
     end
   end
 

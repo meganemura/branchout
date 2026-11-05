@@ -635,6 +635,17 @@ class EmitterTest < Minitest::Test
                  Branchout::Emitters::Support.outcomes(returned).values
   end
 
+  # Only Ruby that is one plain literal names as its value; a call, a
+  # splat, or two statements is named by its source.
+  def test_only_a_plain_literal_names_as_its_value
+    support = Branchout::Emitters::Support
+    assert_equal [{ sku: "B", "n" => -1, f: 1.5 }, nil, true, false, :s], support.written_value(Branchout::Code.parse('[{sku: "B", "n" => -1, f: 1.5}, nil, true, false, :s]'))
+    ["Loan.new(3)", "{**opts}", "[1]; [2]", "[1, x]"].each do |source|
+      code = Branchout::Code.parse(source)
+      assert_same code, support.written_value(code), source
+    end
+  end
+
   # --pin-keys keeps the named entries of a Hash, by name, and leaves any
   # other value whole; the outcome then says only those entries.
   def test_pinned_values_and_their_outcomes

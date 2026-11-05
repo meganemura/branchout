@@ -250,6 +250,16 @@ class PropertyTest < Minitest::Test
     end
   end
 
+  # Ruby source that is a plain literal names as the value it builds.
+  def test_a_plain_literal_names_as_its_value
+    Hegel.test do |tc|
+      value = Branchout::Input.new(args: [tc.draw(json_values)]).args.first
+      value = value.transform_keys(&:to_sym) if value.is_a?(Hash) && tc.draw(booleans)
+      code = Branchout::Code.parse(Branchout::Emitters::Support.ruby_literal(value))
+      assert_equal [value], [Branchout::Emitters::Support.written_value(code)]
+    end
+  end
+
   # An input that passes a String-keyed Hash and one that passes the same
   # Hash with Symbol keys, as Ruby source, pin the same value under two
   # unique names that are method names.

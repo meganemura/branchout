@@ -11,8 +11,15 @@ Gem::Specification.new do |spec|
     uncovered. An agent reads that frontier and proposes the next inputs.
     Branchout does not collect or solve symbolic path constraints.
   TEXT
-  spec.authors = ["branchout"]
+  spec.authors = ["meganemura"]
   spec.license = "MIT"
+  spec.homepage = "https://github.com/meganemura/branchout"
+  spec.metadata = {
+    "source_code_uri" => spec.homepage,
+    "changelog_uri" => "#{spec.homepage}/blob/main/CHANGELOG.md",
+    "bug_tracker_uri" => "#{spec.homepage}/issues",
+    "rubygems_mfa_required" => "true"
+  }
   spec.required_ruby_version = ">= 3.3"
   spec.files = Dir["lib/**/*", "bin/*", "README.md", "README.ja.md", "AGENTS.md", "LICENSE", "examples/**/*"]
   spec.bindir = "bin"

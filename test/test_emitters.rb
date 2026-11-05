@@ -520,6 +520,10 @@ class EmitterTest < Minitest::Test
     # An element that no leaf is in reads as _, so the leaf keeps its place.
     pins = %w[ok failed].each_with_index.map { |state, index| pin.(index, { "tests" => [{ "id" => "t1" }, { "state" => state }] }) }
     assert_equal ['returns "tests" => [_, {"state" => "ok"}]', 'returns "tests" => [_, {"state" => "failed"}]'], support.outcomes(pins).values
+    # Leaves under different keys keep the order of the Hash, a Symbol key between them too.
+    base = { "a" => 0, due: 0, "b" => 0 }
+    pins = [base, base.merge("a" => 1), base.merge(due: 1), base.merge("b" => 1)].each_with_index.map { |value, index| pin.(index, value) }
+    assert_equal 'returns "a" => 0, due: 1, "b" => 0', support.outcomes(pins).values[2]
 
     # A leaf the method changed is not a repeat of its input, even at a path the input has.
     pins = [%w[open closed 1], %w[open merged 2], %w[open closed 3]].map do |given, state, id|
@@ -1317,6 +1321,16 @@ class EmitterTest < Minitest::Test
     result = Branchout::Engine::Result.new(pins: [pins[0], *with_status], requires: [], load_paths: [], private_calls: [])
     texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *((?:it|context) .*) do$/).flatten
     assert_equal [%q(context 'when doc["status"] is "ready"'), %q(it 'returns 1 when doc holds "result" => {"status" => "timed out after 30 seconds"}')], texts.values_at(1, 3)
+
+    # A short path that is the whole path is the lookup itself.
+    pins = [1, 2].map do |id|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [{ "id" => "a fairly long identifier #{id}", "status" => "failed" }]),
+                                 value: "a returned text that runs on for a while", error: nil, covers: [])
+    end
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
+    texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *((?:it|context) .*) do$/).flatten
+    assert_equal [%q(it 'returns "a returned text that ... when doc["id"] is "a fairly long identifier 1"'),
+                  %q(it 'returns "a returned text that ... when doc["id"] is "a fairly long identifier 2"')], texts
   end
 
   def test_rspec_names_subjects_receivers_and_facts

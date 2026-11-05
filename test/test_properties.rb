@@ -35,7 +35,7 @@ class PropertyTest < Minitest::Test
   end
 
   def draw_input(tc, receiver: true)
-    code = sampled_from(["Loan.new(3)", "KeyError.new(\"sku\")", "{\"ruby\" => \"3.4\"}"]).map { |source| { "ruby" => source } }
+    code = sampled_from(["Loan.new(3)", "KeyError.new(\"sku\")", "{\"ruby\" => \"3.4\"}", "[{sku: \"B\"}]", "{x: 1, \"x\" => 2}"]).map { |source| { "ruby" => source } }
     args = tc.draw(arrays(one_of(json_values, code), max_size: 3))
     kwargs = tc.draw(hashes(text(min_size: 1, max_size: 3), json_values, max_size: 2))
     new_args = receiver && tc.draw(booleans) ? draw_input(tc, receiver: false) : nil
@@ -170,7 +170,7 @@ class PropertyTest < Minitest::Test
   # A minitest name and an RSpec description name the same leaves of a
   # Hash outcome, in the same order.
   def test_both_formats_name_the_same_leaves_of_a_hash_outcome
-    keys = sampled_from(%w[due tax qty sku total lines])
+    keys = sampled_from(%w[due tax qty sku total lines] + %i[due tax qty sku total lines])
     Hegel.test do |tc|
       values = tc.draw(arrays(hashes(keys, integers(min_value: 0, max_value: 3), min_size: 1, max_size: 4), min_size: 1, max_size: 5))
       pins = values.each_with_index.map do |value, index|
@@ -179,9 +179,10 @@ class PropertyTest < Minitest::Test
       names = Branchout::Emitters::Support.test_names(pins)
       outcomes = Branchout::Emitters::Support.outcomes(pins).values
       names.zip(outcomes) do |name, outcome|
-        next unless outcome.match?(/\Areturns [a-z]+: /)
+        entry = /(?:\Areturns |, )(?:([a-z]+):|"([a-z]+)" =>) /
+        next unless outcome.match?(/\Areturns (?:[a-z]+:|"[a-z]+" =>) /)
 
-        assert_equal outcome.scan(/([a-z]+): /).flatten, name.split("_returns").last.scan(/(?:\A_|_and_)([a-z]+)_\d/).flatten, "#{name} / #{outcome}"
+        assert_equal outcome.scan(entry).flatten.compact, name.split("_returns").last.scan(/(?:\A_|_and_)([a-z]+)_\d/).flatten, "#{name} / #{outcome}"
       end
     end
   end
@@ -228,6 +229,41 @@ class PropertyTest < Minitest::Test
       groups.each { |texts| assert_equal texts.uniq, texts, source }
       groups.flatten.each { |text| assert_operator text.length, :<=, 80, text }
       groups.flatten.each { |text| refute_match(/(?:when |, | and )\[\d+\](?:\.| is )/, text) }
+    end
+  end
+
+  # A path names each leaf as Ruby reaches it, a Symbol key bare and a
+  # String key quoted, so params["sku"] never reads as if a lookup by the
+  # Symbol :sku would find it. A bare .name reads as [:name].
+  def test_a_path_reaches_its_leaf_with_the_key_its_hash_holds
+    key = one_of(text(max_size: 3), text(max_size: 3).map(&:to_sym))
+    Hegel.test do |tc|
+      value = tc.draw(recursive(one_of(integers(min_value: 0, max_value: 9), just(nil)), max_leaves: 8) do |inner|
+        one_of(arrays(inner, min_size: 1, max_size: 3), hashes(key, inner, min_size: 1, max_size: 3))
+      end)
+      leaves = []
+      Branchout::Emitters::Support.collect_leaves(value, [], leaves)
+      leaves.each do |path, leaf|
+        text = Branchout::Emitters::Support.path_text(path, "root").gsub(/\.([A-Za-z_][A-Za-z0-9_]*[?!]?)/, '[:\1]')
+        assert_equal [leaf], [eval(text, binding.tap { |scope| scope.local_variable_set(:root, value) })], text # rubocop:disable Security/Eval
+      end
+    end
+  end
+
+  # An input that passes a String-keyed Hash and one that passes the same
+  # Hash with Symbol keys, as Ruby source, pin the same value under two
+  # unique names that are method names.
+  def test_string_and_symbol_keyed_siblings_get_unique_names
+    key = text(min_size: 1, max_size: 3)
+    Hegel.test do |tc|
+      value = tc.draw(hashes(key, one_of(integers(min_value: 0, max_value: 9), arrays(hashes(key, integers(min_value: 0, max_value: 9), max_size: 2), max_size: 2)),
+                             min_size: 1, max_size: 3))
+      symbolized = ->(item) { item.is_a?(Hash) ? item.to_h { |k, v| [k.to_sym, symbolized.(v)] } : item.is_a?(Array) ? item.map(&symbolized) : item }
+      code = { "ruby" => Branchout::Emitters::Support.ruby_literal(symbolized.(value)) }
+      pins = [[value], [code]].map { |args| Branchout::Engine::Pin.new(input: Branchout::Input.new(args: args), value: 1, error: nil, covers: []) }
+      names = Branchout::Emitters::Support.test_names(pins)
+      assert_equal names.uniq, names
+      assert(names.all? { |name| name.match?(/\Atest_[a-z0-9_]+\z/) && !name.include?("__") && name.length <= 104 }, names.inspect)
     end
   end
 

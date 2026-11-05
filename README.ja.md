@@ -221,12 +221,17 @@ RSpec のファイルは定数を describe し、その中で `.method` か `#me
 レシーバー、呼び出し、引数の値が先頭から同じ入力どうしは、1 つの `context` を共有する。
 各 example はまず結果を述べ、次にその example だけの引数の値を述べる。
 そのため `rspec --format documentation` は仕様のように読める。
-引数の中の値は、そこへのパスで名付ける（`args[0].value is 7`）。
+引数の中の値は、そこへのパスで名付ける。
 スカラーの配列は全体で名付ける（`items is [1, 2]`）。
+パスは String のキーを引用符付きで、Symbol のキーを引用符なしで書く。
+そのため Rails の params のような String キーの Hash が、Symbol で引けるようには読めない。
+JSON の入力 `[{"sku": "B"}]` は `items[0]["sku"] is "B"` と読み、Ruby のリテラル `{"ruby": "[{sku: \"B\"}]"}` は `items[0].sku is "B"` と読む。
+`{"ruby": ...}` の Ruby が単純なリテラルなら、どちらの形式でも同じようにその値で名付ける。
+Hash の結果は、各キーをリテラルと同じ形で書く（`returns "state" => "open"`、`returns due_cents: 0`）。
 context は、兄弟と見分けるのに要る値だけを述べる。
 文は 80 文字を超えない。
-長くなる example は、兄弟と見分けるのに要る値だけを、いちばん深いキーで述べる（`when status is "timeout"`）。
-別の葉も同じキーで終わるときは、見分けられるところまで上のキーも書く（`when result.status is "timeout"`）。
+長くなる example は、兄弟と見分けるのに要る値だけを、いちばん深いキーで述べる（`when ["status"] is "timeout"`）。
+別の葉も同じキーで終わるときは、見分けられるところまで上のキーも書く（`when ["result"]["status"] is "timeout"`）。
 40 文字を超える String とスカラーの配列の結果は、先頭を見せてから切る（`returns ["require_relative \"../lib/shop/cart...`）。
 長い文字列は、兄弟と分かれたところで切る。
 切れ目が単語の途中に来るときは、その単語の前で切る。

@@ -431,13 +431,16 @@ module Branchout
             # items below it, does have the key; its own leaf names it.
             next [] if !map.key?(path) && map.keys.any? { |other| other.first(path.length) == path || path.first(other.length) == other }
             # So does one that holds another shape under the leaf's last key.
-            held = path.rindex { |step| step.is_a?(String) }
-            next [] if !map.key?(path) && held && map.keys.any? { |other| other.first(held + 1) == path.first(held + 1) }
+            # A Symbol key and a String key of one name are the one key a
+            # name can say.
+            held = path.rindex { |step| key_step?(step) }
+            above = held && path.first(held + 1).map { |step| plain_step(step) }
+            next [] if !map.key?(path) && held && map.keys.any? { |other| other.first(held + 1).map { |step| plain_step(step) } == above }
             # An item of an Array has no key to say "none" after, so a Hash
             # that the input holds in that Array's place names it.
             parent = path[0...-1]
             next [] if !map.key?(path) && path.last.is_a?(Integer) &&
-                       map.keys.any? { |other| other.first(parent.length) == parent && other[parent.length].is_a?(String) }
+                       map.keys.any? { |other| other.first(parent.length) == parent && key_step?(other[parent.length]) }
 
             key = telling_key(path, paths)
             # Ruby source keeps the word before the part, as the name it
@@ -487,8 +490,8 @@ module Branchout
       end
 
       # [path, value] for every scalar or empty collection of an input. A
-      # Symbol step names a part of the input, a String a Hash key, and an
-      # Integer a position.
+      # Symbol step names a part of the input, a String a String Hash key, a
+      # SymbolKey a Symbol Hash key, and an Integer a position.
       def input_leaves(input)
         out = []
         input.args.each_with_index { |arg, index| collect_leaves(arg, [:args, index], out) }
@@ -509,8 +512,9 @@ module Branchout
       # +whole_arrays+ keeps an Array of scalars as one leaf, so a reader
       # sees items is [1, 2] and not each item by its position.
       def collect_leaves(value, path, out, whole_arrays: false)
+        value = written_value(value)
         children = case value
-          when Hash then value.map { |key, item| [key.to_s, item] }
+          when Hash then value.map { |key, item| [key.is_a?(Symbol) ? SymbolKey.new(key.to_s) : key.to_s, item] }
           when Array
             whole_arrays && value.none? { |item| collection?(item) } ? [] : value.each_with_index.map { |item, index| [index, item] }
           else []
@@ -560,7 +564,7 @@ module Branchout
         value = pin.value
         unless differing.empty?
           entries = differing.map do |path, item|
-            "#{path_text(short ? telling_path(path, differing.map(&:first)) : path)}: #{ruby_literal(described(item))}"
+            "#{entry_key(short ? telling_path(path, differing.map(&:first)) : path)} #{ruby_literal(described(item))}"
           end
           return "returns #{entries.join(", ")}"
         end
@@ -631,8 +635,8 @@ module Branchout
       # than OUTCOME_LIMIT is left out, so both formats name the same
       # leaves. A value that is not a Hash has none.
       def hash_differences(values, inputs = [])
-        leaves = values.map { |value| value.is_a?(Hash) && literal?(value) ? hash_leaves(value) : nil }
-        echoes = leaves.each_index.map { |index| inputs[index] ? inputs[index].args.grep(Hash).map { |arg| hash_leaves(arg) }.reduce({}, :merge) : {} }
+        leaves = values.map { |value| value.is_a?(Hash) && literal?(value) ? named_leaves(value) : nil }
+        echoes = leaves.each_index.map { |index| inputs[index] ? inputs[index].args.map { |arg| written_value(arg) }.grep(Hash).map { |arg| named_leaves(arg) }.reduce({}, :merge) : {} }
         distinct = leaves.compact.uniq.sort_by(&:inspect)
         paths = distinct.flat_map(&:keys).uniq
         pairs = distinct.combination(2).to_a
@@ -645,7 +649,7 @@ module Branchout
           [path, leaves.each_index.all? { |index| !leaves[index]&.key?(path) || (echoes[index].key?(path) && echoes[index][path].eql?(leaves[index][path])) }]
         end
         chosen = []
-        entries = ->(map, picks) { picks.filter_map { |path| [path, map[path]] if map.key?(path) } }
+        entries = ->(map, picks) { picks.filter_map { |path| map[path] if map.key?(path) } }
         until pairs.empty? || chosen.length == 3
           told = paths.to_h { |path| [path, pairs.count { |a, b| leaves_differ?(a, b, path) }] }
           spread = paths.to_h { |path| [path, distinct.map { |map| map.fetch(path, MISSING) }.uniq.length] }
@@ -672,6 +676,13 @@ module Branchout
         [].tap { |out| collect_leaves(value, [], out) }.reject { |path, _| path.empty? }.to_h
       end
 
+      # hash_leaves by the names of their keys, each to its own [path, leaf],
+      # so a key that one Hash holds as a Symbol and another as a String is
+      # one leaf to compare, and each still reads as its Hash holds it.
+      def named_leaves(value)
+        hash_leaves(value).to_h { |path, leaf| [path.map { |step| plain_step(step) }, [path, leaf]] }
+      end
+
       def leaves_differ?(a, b, path)
         !(a.key?(path) && b.key?(path) && a[path].eql?(b[path]))
       end
@@ -685,16 +696,71 @@ module Branchout
         ["returns", *words]
       end
 
-      # A path into a value as a reader writes it: lines[0].sku. A key that
-      # is not a plain name keeps its brackets: ["a b"].
+      # A path into a value as a reader writes it. A Symbol key that is a
+      # plain name reads bare, lines[0].sku, and any other Symbol key as a
+      # Symbol, [:"a b"]. A String key keeps its quotes, params["sku"], so a
+      # String-keyed Hash does not read as if a Symbol lookup would find it.
       # +root+, when given, is the name the path starts from.
       def path_text(path, root = nil)
         path.each_with_object(+"#{root}") do |step, text|
           text << if step.is_a?(Integer) then "[#{step}]"
-                  elsif !step.match?(/\A[A-Za-z_][A-Za-z0-9_]*[?!]?\z/) then "[#{step.inspect}]"
-                  elsif text.empty? then step
-                  else ".#{step}"
+                  elsif !step.is_a?(SymbolKey) then "[#{step.inspect}]"
+                  elsif !step.name.match?(/\A[A-Za-z_][A-Za-z0-9_]*[?!]?\z/) then "[#{step.name.to_sym.inspect}]"
+                  elsif text.empty? then step.name
+                  else ".#{step.name}"
                   end
+        end
+      end
+
+      # A leaf of a returned Hash as its literal writes the key: sku: and
+      # "sku" => at the top, lines[0].sku: and ["lines"][0]["sku"] => below.
+      def entry_key(path)
+        return "#{path.first.inspect} =>" if path.length == 1 && path.first.is_a?(String)
+
+        path.last.is_a?(String) ? "#{path_text(path)} =>" : "#{path_text(path)}:"
+      end
+
+      # A Symbol Hash key in a path. It is a step of its own, so a String key
+      # of the same name makes another path and the two inputs read apart.
+      SymbolKey = Data.define(:name) do
+        def to_s = name
+      end
+
+      def key_step?(step) = step.is_a?(String) || step.is_a?(SymbolKey)
+
+      def plain_step(step) = step.is_a?(SymbolKey) ? step.name : step
+
+      def key_texts(path) = path.select { |step| key_step?(step) }.map(&:to_s)
+
+      # A Code that is a plain literal, such as [{sku: "B"}], names as the
+      # value it builds, so it reads in the style of a JSON value and its
+      # Symbol keys read apart from String keys. Any other Code stays whole.
+      def written_value(value)
+        return value unless value.is_a?(Code)
+
+        body = Prism.parse(value.source).value.statements&.body || []
+        return value unless body.one?
+
+        catch(:not_plain) { return plain_literal(body.first) }
+        value
+      end
+
+      def plain_literal(node)
+        case node
+        when Prism::ArrayNode then node.elements.map { |item| plain_literal(item) }
+        when Prism::HashNode, Prism::KeywordHashNode
+          node.elements.to_h do |pair|
+            throw :not_plain unless pair.is_a?(Prism::AssocNode)
+
+            [plain_literal(pair.key), plain_literal(pair.value)]
+          end
+        when Prism::StringNode then node.unescaped
+        when Prism::SymbolNode then node.unescaped.to_sym
+        when Prism::IntegerNode, Prism::FloatNode then node.value
+        when Prism::NilNode then nil
+        when Prism::TrueNode then true
+        when Prism::FalseNode then false
+        else throw :not_plain
         end
       end
 
@@ -744,6 +810,7 @@ module Branchout
       # trees of different sizes read apart. An empty argument still says
       # so (empty_array), so the name keeps every input.
       def argument_words(value)
+        value = written_value(value)
         case value
         when {}, [] then shape_words(value)
         when Hash
@@ -766,7 +833,7 @@ module Branchout
       # other path in +paths+, so id at the top and items[0].id read apart.
       # With no key in +path+, the whole path.
       def telling_path(path, paths)
-        starts = path.each_index.select { |index| path[index].is_a?(String) }
+        starts = path.each_index.select { |index| key_step?(path[index]) }
         return path if starts.empty?
 
         others = paths.reject { |other| other == path }
@@ -782,10 +849,10 @@ module Branchout
       # such as args[0].value and args[1].value, cannot be told apart by
       # keys, so they do not lengthen each other's.
       def telling_key(path, paths)
-        keys = path.grep(String)
+        keys = key_texts(path)
         return nil if keys.empty?
 
-        others = paths.map { |other| other.grep(String) }.reject { |other| other == keys }
+        others = paths.map { |other| key_texts(other) }.reject { |other| other == keys }
         length = (1..keys.length).find { |count| others.none? { |other| other.last(count) == keys.last(count) } }
         Key.new(keys.last(length || keys.length).join(" "))
       end

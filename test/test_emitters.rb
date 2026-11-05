@@ -498,7 +498,7 @@ class EmitterTest < Minitest::Test
     doc = ->(discarded) { { "tests" => [{ "id" => "t1" }], "counts" => { "generated" => 1, "discarded" => discarded, "reported" => 1 - discarded } } }
     pins = [pin.(1, doc.(0)), pin.(2, doc.(1))]
     assert_equal %w[test_1_returns_discarded_0 test_2_returns_discarded_1], support.test_names(pins)
-    assert_equal ["returns counts.discarded: 0", "returns counts.discarded: 1"], support.outcomes(pins).values
+    assert_equal ['returns ["counts"]["discarded"] => 0', 'returns ["counts"]["discarded"] => 1'], support.outcomes(pins).values
 
     # The line items tell more pairs apart, but the due says something about every cart.
     cart = ->(skus, due) { { lines: skus.map { |sku| { sku: sku } }, due_cents: due } }
@@ -513,9 +513,9 @@ class EmitterTest < Minitest::Test
       Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [doc]), value: { "tests" => [{ "file" => file, "disposition" => disposition }] },
                                  error: nil, covers: [])
     end
-    assert_equal ['returns tests[0].disposition: "reported", tests[0].file: "a_spec.rb"',
-                  'returns tests[0].disposition: "reported", tests[0].file: "b_spec.rb"',
-                  'returns tests[0].disposition: "flaky", tests[0].file: "c_spec.rb"'],
+    assert_equal ['returns ["tests"][0]["disposition"] => "reported", ["tests"][0]["file"] => "a_spec.rb"',
+                  'returns ["tests"][0]["disposition"] => "reported", ["tests"][0]["file"] => "b_spec.rb"',
+                  'returns ["tests"][0]["disposition"] => "flaky", ["tests"][0]["file"] => "c_spec.rb"'],
                  support.outcomes(pins).values
 
     # A leaf the method changed is not a repeat of its input, even at a path the input has.
@@ -523,7 +523,7 @@ class EmitterTest < Minitest::Test
       Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [{ "state" => given, "id" => id }]),
                                  value: { "state" => state, "id" => id }, error: nil, covers: [])
     end
-    assert_equal ['returns state: "closed", id: "1"', 'returns state: "merged", id: "2"', 'returns state: "closed", id: "3"'],
+    assert_equal ['returns "state" => "closed", "id" => "1"', 'returns "state" => "merged", "id" => "2"', 'returns "state" => "closed", "id" => "3"'],
                  support.outcomes(pins).values
   end
 
@@ -593,7 +593,7 @@ class EmitterTest < Minitest::Test
     result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
     spec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/status_spec.rb"))
     assert_equal ["returns 0 when items is []", "returns 0 when items is [1, 2]", "returns 0 when items is [3]",
-                  'returns 0 when items[0].sku is "A"'].sort,
+                  'returns 0 when items[0]["sku"] is "A"'].sort,
                  spec.scan(/^ *it ['"](.*)['"] do$/).flatten.sort
     keyword = [[1, 2], [3]].map do |tags|
       Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [], kwargs: { "tags" => tags }), value: 0, error: nil, covers: [])
@@ -605,6 +605,34 @@ class EmitterTest < Minitest::Test
     assert_equal %w[test_empty_array_returns_0 test_1_2_returns_0 test_3_returns_0], names
     assert_equal "test_empty_hash_returns_0",
                  Branchout::Emitters::Support.test_names([Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [{}]), value: 0, error: nil, covers: [])]).first
+  end
+
+  # A String-keyed Hash, as Rails params are, reads with its keys quoted,
+  # and a literal of Symbol keys reads in the same style with its keys bare,
+  # so a name says the one fact that tells a params lookup from a Symbol one.
+  def test_string_keys_and_symbol_keys_read_apart_in_one_style
+    pin = ->(args, value) { Branchout::Engine::Pin.new(input: Branchout::Input.new(args: args), value: value, error: nil, covers: []) }
+    symbols = [{ "ruby" => "[{sku: \"B\"}]" }, { "ruby" => "{x: 1}" }]
+    strings = [[{ "sku" => "B" }], { "x" => 1 }]
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Cart", :first_sku, "Cart.first_sku", "lib/cart.rb", File.join(ROOT, "lib/cart.rb"), [],
+                        [Struct.new(:name).new(:items), Struct.new(:name).new(:opts)])
+    pins = [pin.(symbols, "B"), pin.(strings, nil)]
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
+    spec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/cart_spec.rb"))
+    assert_equal ['returns "B" when items[0].sku is "B" and opts.x is 1', 'returns nil when items[0]["sku"] is "B" and opts["x"] is 1'],
+                 spec.scan(/^ *it (?:'(.*)'|"(.*)") do$/).flatten.compact
+    assert_equal %w[test_array_of_1_1_returns_b test_array_of_1_1_returns_nil], Branchout::Emitters::Support.test_names(pins)
+
+    same = [pin.(symbols, "B"), pin.(strings, "B")]
+    names = Branchout::Emitters::Support.test_names(same)
+    assert_equal names.uniq, names
+    assert(names.all? { |name| name.match?(/\Atest_[a-z0-9_]+\z/) && !name.include?("__") }, names.inspect)
+    refute(names.any? { |name| name.include?("none") }, names.inspect)
+
+    returned = [pin.([1], { "state" => "open", "lines" => [{ "sku" => "A" }] }), pin.([2], { "state" => "shut", "lines" => [{ "sku" => "A" }] })]
+    assert_equal ['returns "state" => "open"', 'returns "state" => "shut"'],
+                 Branchout::Emitters::Support.outcomes(returned).values
   end
 
   # --pin-keys keeps the named entries of a Hash, by name, and leaves any
@@ -1003,7 +1031,7 @@ class EmitterTest < Minitest::Test
                  Branchout::Emitters::Support.test_names([pin.("k01", "k02"), pin.("k01", "k03")])
     value = ->(id, item) { { "id" => id, "items" => [{ "id" => item }] } }
     outcome_pins = [[1, 1], [1, 2], [2, 1]].map { |a, b| Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [a, b]), value: value.(a, b), error: nil, covers: []) }
-    assert_equal ["returns id: 1, items[0].id: 1", "returns id: 1, items[0].id: 2", "returns id: 2, items[0].id: 1"],
+    assert_equal ['returns "id" => 1, ["items"][0]["id"] => 1', 'returns "id" => 1, ["items"][0]["id"] => 2', 'returns "id" => 2, ["items"][0]["id"] => 1'],
                  Branchout::Emitters::Support.outcomes(outcome_pins, short: true).values
   end
 
@@ -1157,9 +1185,9 @@ class EmitterTest < Minitest::Test
     end
     node = ->(value) { { "kind" => "app", "args" => [{ "kind" => "int", "value" => value }], "a b" => value } }
     labels = render.(target_for.(:node), [[node.(7)], [node.(0)]])
-    assert_includes labels, %q('returns 1 when args[0].value is 7 and ["a b"] is 7')
+    assert_includes labels, %q('returns 1 when node["args"][0]["value"] is 7 and node["a b"] is 7')
     labels = render.(target_for.(:node, :env), [[node.(7), 1], [node.(0), 1]])
-    assert_includes labels, %q('returns 1 when node.args[0].value is 7 and node["a b"] is 7')
+    assert_includes labels, %q('returns 1 when node["args"][0]["value"] is 7 and node["a b"] is 7')
     assert_includes render.(target_for.(:x), [[7], [0]]), '"returns 1 when x is 7"'
   end
 
@@ -1175,8 +1203,8 @@ class EmitterTest < Minitest::Test
     end
     result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
     texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *((?:it|context) .*) do$/).flatten
-    assert_equal [%q(it 'returns 1 when args[0].value is -7, args[1].kind is "nat" and args[1].value is 3'), 'context "when args[0].value is 7"',
-                  'it "returns 1 when args[1].value is 0"', 'it "returns 1 when args[1].value is 3"'], texts
+    assert_equal [%q(it 'returns 1 when node["args"][0]["value"] is -7'), %q(context 'when node["args"][0]["value"] is 7'),
+                  %q(it 'returns 1 when node["args"][1]["value"] is 0'), %q(it 'returns 1 when node["args"][1]["value"] is 3')], texts
   end
 
   # A text is quoted so that it needs no escape where one quoting allows it.
@@ -1237,14 +1265,14 @@ class EmitterTest < Minitest::Test
                   'it "returns 1 when x is 5, argument 2 is 1 and argument 3 is 1"'], texts.(target_for.(false), received)
     shapes = [{ "r" => 1, "q" => 2, "s" => 1 }, { "r" => 1, "q" => 2, "s" => 2 }, { "r" => 1, "p" => 1, "q" => 2, "s" => 1 },
               { "r" => 2, "q" => 3, "s" => 1 }]
-    assert_includes texts.(target_for.(true), shapes.map { |arg| pin.(Branchout::Input.new(args: [arg])) }), 'context "when q is 2"'
+    assert_includes texts.(target_for.(true), shapes.map { |arg| pin.(Branchout::Input.new(args: [arg])) }), %q(context 'when x["q"] is 2')
     shapes = [{ "r" => 1, "q" => 2, "t" => 5, "s" => 1 }, { "r" => 1, "q" => 2, "t" => 5, "s" => 2 },
               { "r" => 1, "p" => 1, "q" => 2, "t" => 6, "s" => 1 }, { "r" => 2, "q" => 3, "t" => 5, "s" => 1 }]
-    assert_includes texts.(target_for.(true), shapes.map { |arg| pin.(Branchout::Input.new(args: [arg])) }), 'context "when t is 5"'
+    assert_includes texts.(target_for.(true), shapes.map { |arg| pin.(Branchout::Input.new(args: [arg])) }), %q(context 'when x["t"] is 5')
     deep = ->(status) { { "report" => { "summary" => { "last_run" => { "status" => status } } } } }
     long = [["failed", "one"], ["passed", "two"]].map { |status, word| pin.(Branchout::Input.new(args: ["a long piece of text #{word}"]), deep.(status)) }
-    assert_equal [%q(it 'returns status: "failed" when x is "a long piece of text one"'),
-                  %q(it 'returns status: "passed" when x is "a long piece of text two"')], texts.(target_for.(true), long)
+    assert_equal [%q(it 'returns "status" => "failed" when x is "a long piece of text one"'),
+                  %q(it 'returns "status" => "passed" when x is "a long piece of text two"')], texts.(target_for.(true), long)
   end
 
   # A text over 80 characters keeps only the facts that tell it from its
@@ -1262,19 +1290,19 @@ class EmitterTest < Minitest::Test
     end
     result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
     texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *((?:it|context) .*) do$/).flatten
-    assert_equal ['it "returns 1 when methods is [] and tests is []"', %q(context 'when methods[0].id is "m01"'),
-                  %q(it 'returns 1 when tests[0].head.last_run.result.status is "failed"'),
-                  %q(it 'returns 1 when status is "timed out after 30 seconds"')], texts
+    assert_equal [%q(it 'returns 1 when doc["methods"] is [] and doc["tests"] is []'), %q(context 'when doc["methods"][0]["id"] is "m01"'),
+                  %q(it 'returns 1 when ["status"] is "failed"'),
+                  %q(it 'returns 1 when ["status"] is "timed out after 30 seconds"')], texts
     # An instance method's receiver is a step too; it names no leaf.
     target.singleton = false
     texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *((?:it|context) .*) do$/).flatten
-    assert_includes texts, %q(it 'returns 1 when status is "timed out after 30 seconds"')
+    assert_includes texts, %q(it 'returns 1 when ["status"] is "timed out after 30 seconds"')
     target.singleton = true
 
     with_status = pins.drop(1).map { |pin| pin.dup.tap { |copy| copy.input = Branchout::Input.new(args: [{ "status" => "ready", **pin.input.args[0] }]) } }
     result = Branchout::Engine::Result.new(pins: [pins[0], *with_status], requires: [], load_paths: [], private_calls: [])
     texts = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")).scan(/^ *((?:it|context) .*) do$/).flatten
-    assert_equal [%q(context 'when status is "ready"'), %q(it 'returns 1 when result.status is "timed out after 30 seconds"')], texts.values_at(1, 3)
+    assert_equal [%q(context 'when doc["status"] is "ready"'), %q(it 'returns 1 when ["result"]["status"] is "timed out after 30 seconds"')], texts.values_at(1, 3)
   end
 
   def test_rspec_names_subjects_receivers_and_facts

@@ -329,9 +329,9 @@ module Branchout
         # ends another leaf's path too keeps the keys above it.
         def fact_label(leaf, peers = [], short: false)
           (root, *path), value = leaf
-          deepest = path.rindex { |step| step.is_a?(String) }
+          deepest = path.rindex { |step| Support.key_step?(step) }
           name = if short && deepest then Support.path_text(Support.telling_path(path, peer_paths(root, peers)))
-                 elsif path.empty? || !@one_argument || path.first.is_a?(Integer) then Support.path_text(path, root)
+                 elsif path.empty? || !@one_argument || !path.first.is_a?(Support::SymbolKey) then Support.path_text(path, root)
                  else Support.path_text(path)
                  end
           "#{name} is #{value_text(value, peer_values(leaf, peers))}"

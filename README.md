@@ -32,54 +32,10 @@ branchout explore shipping.rb Shipping.fee --emit-tests shipping_spec.rb
 ```
 
 ```text
-branchout explore
-target: shipping.rb
-entry: Shipping.fee
-seed: 0
-strategies: inputs,mutate,random
-random: 16
-mutate_cap: 256
-timeout: 1
-inputs_ran: 0
-mutate_ran: 8
-random_ran: 5
-executions: 13
-arms_covered: 5
-arms_total: 6
-exceptions: 3
-callees_not_counted: 0
-operators_not_counted: 0
-
-COVERED
-id: if@5:11/else@5:29
-loc: shipping.rb:5:29
-cond: weight <= 2
-sense: cond-false
-input: [3]
-
-id: if@5:11/then@5:25
-loc: shipping.rb:5:25
-cond: weight <= 2
-sense: cond-true
-input: [1]
-
-id: if@6:4/else@6:25
-loc: shipping.rb:6:25
-cond: express
-sense: cond-false
-input: [1]
-
-id: unless@3:4/else@3:4
-loc: shipping.rb:3:4
-cond: weight.positive?
-sense: cond-true
-input: [1]
-
-id: unless@3:4/then@3:4
-loc: shipping.rb:3:4
-cond: weight.positive?
-sense: cond-false
-input: [0]
+branchout explore shipping.rb Shipping.fee
+covered: 5 of 6 arms by 13 inputs
+raised: 3 inputs
+tests: shipping_spec.rb
 
 FRONTIER
 id: if@6:4/then@6:14
@@ -88,32 +44,16 @@ cond: express
 sense: cond-true
 parent: reached
 nearest: [1]
-path: if@5:11/then@5:25, if@6:4/else@6:25, unless@3:4/else@3:4
+next: add an input like nearest that makes `express` true
 
 EXCEPTIONS
-class: ArgumentError
-loc: shipping.rb:3
-input: [-1]
-message: weight must be positive
+ArgumentError at shipping.rb:3: weight must be positive
+  inputs: [-1], [-2], [0]
 
-class: ArgumentError
-loc: shipping.rb:3
-input: [-2]
-message: weight must be positive
-
-class: ArgumentError
-loc: shipping.rb:3
-input: [0]
-message: weight must be positive
-
-NOT COUNTED
-(none)
-
-OPERATORS
-(none)
+Pass --verbose for every covered arm and the run settings.
 ```
 
-branchout ran 13 inputs that it made from the method's own literals and from a seeded sample. `COVERED` names the input that took each arm. `FRONTIER` is the arm that no input took: `express` was never true. `EXCEPTIONS` lists the inputs that raised.
+branchout ran 13 inputs that it made from the method's own literals and from a seeded sample. They took 5 of the 6 arms. `FRONTIER` is the arm that no input took: `express` was never true, and `next` says what input to add. `EXCEPTIONS` lists the inputs that raised. `--verbose` also prints the input that took each covered arm.
 
 The emitted spec pins each return value and each error:
 
@@ -187,15 +127,23 @@ Next, close the frontier. Write an input that takes the missing arm into an inpu
 cat > inputs.json <<'JSON'
 {"inputs": [{"args": [3], "kwargs": {"express": true}}]}
 JSON
-branchout explore shipping.rb Shipping.fee --inputs inputs.json --emit-tests shipping_spec.rb | grep -A1 -e arms_covered -e FRONTIER
+branchout explore shipping.rb Shipping.fee --inputs inputs.json --emit-tests shipping_spec.rb
 ```
 
 ```text
-arms_covered: 6
-arms_total: 6
---
+branchout explore shipping.rb Shipping.fee
+covered: 6 of 6 arms by 14 inputs
+raised: 3 inputs
+tests: shipping_spec.rb
+
 FRONTIER
 (none)
+
+EXCEPTIONS
+ArgumentError at shipping.rb:3: weight must be positive
+  inputs: [-1], [-2], [0]
+
+Pass --verbose for every covered arm and the run settings.
 ```
 
 ```sh
@@ -271,31 +219,14 @@ end
 BRANCHOUT=1 bundle exec rspec spec/models/loan_explore_spec.rb
 ```
 
-The report starts with the counts:
+It prints the report:
 
 ```text
-branchout explore
-target: app/models/loan.rb
-entry: Loan#approve
-seed: 0
-strategies: inputs
-random: 16
-mutate_cap: 256
-timeout: 1
-inputs_ran: 3
-mutate_ran: 0
-random_ran: 0
-executions: 3
-arms_covered: 5
-arms_total: 6
-exceptions: 0
-callees_not_counted: 0
-operators_not_counted: 1
-```
+branchout explore app/models/loan.rb Loan#approve
+covered: 5 of 6 arms by 3 inputs
+raised: none
+tests: spec/models/loan_approve_spec.rb
 
-`operators_not_counted: 1` is the `&&` on the `:needs_senior` line: coverage counts no arm for either side of it. The `FRONTIER` section names the arm that no input took:
-
-```text
 FRONTIER
 id: if@8:4/then@8:4
 loc: app/models/loan.rb:8:4
@@ -303,8 +234,15 @@ cond: borrower.approved_cents + amount_cents > borrower.limit_cents
 sense: cond-true
 parent: reached
 nearest: {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"kwargs":{},"receiver":{"ruby":"build(:loan, amount_cents: 500)"}}
-path: if@7:4/else@7:4, if@8:4/else@8:4, if@9:4/else@9:4
+next: add an input like nearest that makes `borrower.approved_cents + amount_cents > borrower.limit_cents` true
+
+OPERATORS (coverage does not see which side ran; vary each left side)
+app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
+
+Pass verbose: true for every covered arm and the run settings.
 ```
+
+`FRONTIER` names the arm that no input took: no borrower was over the limit. `OPERATORS` is the `&&` on the `:needs_senior` line: coverage counts no arm for either side of it.
 
 Each input ran in a savepoint that was rolled back, so no input saw the rows of another. The run wrote `spec/models/loan_approve_spec.rb`, which runs as any other spec, without `BRANCHOUT`:
 
@@ -327,7 +265,7 @@ Finished in 0.03329 seconds (files took 0.9837 seconds to load)
 
 ```
 
-To close the frontier, add an input whose borrower already has approved loans, such as `{receiver: {ruby: "create(:loan, amount_cents: 6_000, borrower: create(:loan, :approved, amount_cents: 15_000).borrower)"}, args: [clerk]}`, and run the explore spec again. It reports `arms_covered: 6`, and the emitted spec gains `returns :over_limit`. Commit the emitted spec. The explore spec is skipped without `BRANCHOUT`, so you can keep it beside the emitted spec for the next round. [Inside a test suite](#inside-a-test-suite) has every option of `Branchout.explore`.
+To close the frontier, add an input whose borrower already has approved loans, such as `{receiver: {ruby: "create(:loan, amount_cents: 6_000, borrower: create(:loan, :approved, amount_cents: 15_000).borrower)"}, args: [clerk]}`, and run the explore spec again. It reports `covered: 6 of 6 arms`, and the emitted spec gains `returns :over_limit`. Commit the emitted spec. The explore spec is skipped without `BRANCHOUT`, so you can keep it beside the emitted spec for the next round. [Inside a test suite](#inside-a-test-suite) has every option of `Branchout.explore`.
 
 ## CLI reference
 
@@ -335,14 +273,15 @@ A coding agent adding tests can see that a branch was missed and still not know 
 
 The method follows concolic testing ([DART](https://doi.org/10.1145/1065010.1065036), [CUTE](https://doi.org/10.1145/1094811.1094816)) and LLM-guided concolic work such as [ConcoLLMic](https://concollmic.github.io/). branchout is inspired by concolic testing but does no symbolic solving. The agent proposes inputs from the branch frontier.
 
-From a checkout of this repository, `ruby bin/branchout` runs the same command as `branchout`. The seed file holds one input, `[0]`.
+From a checkout of this repository, `ruby bin/branchout` runs the same command as `branchout`. The seed file holds one input, `[0]`. `--verbose` prints the whole report: the run settings and counts, then `COVERED` (the input that took each arm), `FRONTIER` (each arm no input took, with `path`, the arms `nearest` took), `EXCEPTIONS` (one record for each input that raised), `NOT COUNTED`, and `OPERATORS`. Without it, the report keeps the counts, the `FRONTIER` arms that an input reached, each with a `next` line, one line for each decision that no input reached, and one line for each error, as in the [Quick start](#quick-start). `--json` holds every field of the whole report.
 
 ```sh
 ruby bin/branchout explore examples/magic_value.rb MagicValue.classify \
   --inputs examples/inputs/magic_value.seed.json \
   --strategy inputs \
   --random 0 \
-  --seed 1
+  --seed 1 \
+  --verbose
 ```
 
 ```
@@ -406,9 +345,10 @@ While searching, pass `--strategy inputs --random 0` and keep `--seed` fixed, so
 | `--mutate-cap N` | `256` | Literal-mutation budget |
 | `--strategy LIST` | `inputs,mutate,random` | Comma-separated strategies, in the order below |
 | `--timeout SEC` | `1` | Per-input timeout. Must be > 0 |
+| `--verbose` | off | Print the whole text report: the run settings, every covered arm, and each frontier arm's `path`. `explore` only |
 | `--json` | off | Print JSON on stdout instead of the text report |
 | `--json-out PATH` | | Write the JSON report |
-| `--md-out PATH` | | Write the text report as Markdown |
+| `--md-out PATH` | | Write the text report that `--verbose` prints, as Markdown |
 | `--emit-tests PATH` | | Write characterization tests. `explore` only |
 | `--format NAME` | `minitest` | `minitest` or `rspec`. Requires `--emit-tests`. If omitted, a path ending in `_spec.rb` selects RSpec |
 | `--pin-keys LIST` | | Comma list of keys. A returned Hash pins only these keys (`slice` in minitest, `include` in RSpec), so a key added later fails no test. Requires `--emit-tests` |
@@ -473,7 +413,7 @@ A method that takes no argument in any input becomes the `subject`. An input tha
 
 By then Rails and the gems are loaded, and the models load later, on first use, so Coverage instruments only the app's code. Set up before Rails, it instruments every gem too: a Rails suite's model tests then took about 25% longer, and after `config/environment` the difference was within noise. When the test environment eager-loads (`config.eager_load`, which Rails sets from `ENV["CI"]`), the models load inside `config/environment`, and explore refuses them; run without eager loading. In a suite without Rails, make it the first line of the helper, before the app's files load.
 
-The inputs are the entries of an inputs file, or the file's path. Their Ruby runs in the test (`within: self`), so it reaches the suite's factories, fixtures, and helpers. When ActiveRecord is loaded, each input runs in a savepoint that is rolled back: no input sees the rows another wrote, and the test's rows stay as they were. `around:` replaces that, as a lambda that takes the input as a block. An input that raises `FrozenError` with frozen Strings runs again with unfrozen ones only when it ran in `Branchout::ROLL_BACK`, the default or inside an `around:` that calls it. With any other `around:`, such as `Branchout::RUN_ONLY`, the `FrozenError` is pinned, because branchout cannot tell whether that around undid the first run's rows. The strategy is `inputs` only unless `strategies:` says otherwise, and `timeout:` is 1 second unless set (`nil` turns it off). `target:`, `emit_tests:`, `format:`, `json:`, `pin_keys:`, `requires:`, `seed:`, `random:`, and `mutate_cap:` mean what the CLI flags mean. In minitest the same call goes in a test of an `ActiveSupport::TestCase`, run with `BRANCHOUT=1 bin/rails test`.
+The inputs are the entries of an inputs file, or the file's path. Their Ruby runs in the test (`within: self`), so it reaches the suite's factories, fixtures, and helpers. When ActiveRecord is loaded, each input runs in a savepoint that is rolled back: no input sees the rows another wrote, and the test's rows stay as they were. `around:` replaces that, as a lambda that takes the input as a block. An input that raises `FrozenError` with frozen Strings runs again with unfrozen ones only when it ran in `Branchout::ROLL_BACK`, the default or inside an `around:` that calls it. With any other `around:`, such as `Branchout::RUN_ONLY`, the `FrozenError` is pinned, because branchout cannot tell whether that around undid the first run's rows. The strategy is `inputs` only unless `strategies:` says otherwise, and `timeout:` is 1 second unless set (`nil` turns it off). `target:`, `emit_tests:`, `format:`, `json:`, `verbose:`, `pin_keys:`, `requires:`, `seed:`, `random:`, and `mutate_cap:` mean what the CLI flags mean. In minitest the same call goes in a test of an `ActiveSupport::TestCase`, run with `BRANCHOUT=1 bin/rails test`.
 
 The emitted test requires the helper the suite loaded (`rails_helper`, else `test_helper`, else `spec_helper`) by name. A suite that loaded none of them names its helper in `requires:`, or `emit_tests:` is refused. A `requires:` entry that names no file is found on the load path, and one found nowhere stops with `requires: "spec/helper" names no file under the working directory or on the load path`. It does not require the model, which the app loads. A minitest test inherits from the exploring test's base class, such as `ActiveSupport::TestCase`. An RSpec file gives its `describe` the exploring example group's `type`, such as `type: :model`. rspec puts the project's `spec` and `lib` on the load path itself, so the `# Load path:` comment of an RSpec file does not name them. Run it as any other test, without `BRANCHOUT`.
 

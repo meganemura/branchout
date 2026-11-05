@@ -4,10 +4,99 @@ module Branchout
   module Report
     module_function
 
-    def text(result)
+    # What a sense asks of an input that reaches the decision.
+    WANTS = {
+      "cond-true" => "makes `%s` true",
+      "cond-false" => "makes `%s` false",
+      "arm-matched" => "matches `%s`",
+      "arm-else" => "matches no branch of `%s`",
+      "body-entered" => "enters the loop at `%s`",
+      "receiver-present" => "gives `%s` a receiver that is not nil",
+      "receiver-nil" => "gives `%s` a nil receiver"
+    }.freeze
+    SHOWN_INPUTS = 3
+
+    # The default leads with what to act on: the counts, then each arm an
+    # input reached but did not take. The run settings and the covered arms
+    # are in +verbose+ and in the JSON.
+    def text(result, tests: nil, verbose: false, verbose_flag: "--verbose")
+      return full_text(result) if verbose
+
+      total = result.covered.length + result.frontier.length
+      raised = result.exceptions.length
+      lines = [
+        "branchout #{result.command} #{result.target} #{result.entry}",
+        "covered: #{result.covered.length} of #{total} arms by #{count(result.executions, "input")}",
+        "raised: #{raised.zero? ? "none" : count(raised, "input")}"
+      ]
+      lines << "tests: #{Target.display_path(tests)}" if tests
+      frontier_brief(lines, result.frontier)
+      exceptions_brief(lines, result.exceptions)
+      not_counted_brief(lines, Array(result.not_counted))
+      operators_brief(lines, Array(result.operators))
+      lines << "" << "Pass #{verbose_flag} for every covered arm and the run settings."
+      "#{lines.join("\n")}\n"
+    end
+
+    def frontier_brief(lines, frontier)
+      reached, waiting = frontier.partition { |arm| arm.parent == "reached" }
+      lines << "" << "FRONTIER"
+      lines << "(none)" if frontier.empty?
+      reached.sort_by { |arm| [arm.line, arm.column, arm.id] }.each_with_index do |arm, index|
+        lines << "" if index.positive?
+        lines.concat(frontier_lines(arm))
+        want = WANTS.fetch(arm.sense, "takes the arm at `%s`") % arm.cond
+        lines << "next: add an input like nearest that #{want}"
+      end
+      return if waiting.empty?
+
+      lines << "" if reached.any?
+      lines << (reached.any? ? "not reached yet; take the arms above first:" : "no input reached these decisions:")
+      # An id is "kind@line:column/arm@line:column"; its first half names the decision.
+      decisions = waiting.group_by { |arm| arm.id.split("/").first.match(/\A(.+)@(\d+):(\d+)\z/).captures }
+      decisions.sort_by { |(_, line, column), _| [line.to_i, column.to_i] }.each do |(kind, line, _), arms|
+        file = arms.first.loc.sub(/:\d+:\d+\z/, "")
+        conds = arms.map(&:cond).uniq
+        lines << "#{file}:#{line} #{conds.one? ? conds.first : kind} (#{count(arms.length, "arm")})"
+      end
+    end
+
+    def count(number, noun)
+      "#{number} #{noun}#{"s" unless number == 1}"
+    end
+
+    def exceptions_brief(lines, findings)
+      return if findings.empty?
+
+      lines << "" << "EXCEPTIONS"
+      findings.group_by { |finding| [finding.class_name, finding.loc, finding.message] }.each do |(name, loc, message), group|
+        lines << "#{name}#{" at #{loc}" if loc}: #{message}"
+        shown = group.first(SHOWN_INPUTS).map { |finding| finding.input.text }.join(", ")
+        more = group.length - SHOWN_INPUTS
+        lines << "  inputs: #{shown}#{" and #{more} more" if more.positive?}"
+      end
+    end
+
+    def not_counted_brief(lines, callees)
+      return if callees.empty?
+
+      lines << "" << "NOT COUNTED (arms in other files; explore each as its own entry)"
+      callees.each do |callee|
+        lines << "#{callee.name} at #{callee.loc} (#{callee.arms.nil? ? "arms unknown" : count(callee.arms, "arm")})"
+      end
+    end
+
+    def operators_brief(lines, operators)
+      return if operators.empty?
+
+      lines << "" << "OPERATORS (coverage does not see which side ran; vary each left side)"
+      operators.each { |found| lines << "#{found.loc} #{found.op} in `#{found.text}`" }
+    end
+
+    def full_text(result)
       lines = header_lines(result)
       section(lines, "COVERED", result.covered) { |arm| covered_lines(arm) }
-      section(lines, "FRONTIER", result.frontier) { |arm| frontier_lines(arm) }
+      section(lines, "FRONTIER", result.frontier) { |arm| [*frontier_lines(arm), "path: #{format_path(arm.path)}"] }
       section(lines, "EXCEPTIONS", result.exceptions) { |finding| finding_lines(finding) }
       section(lines, "NOT COUNTED", Array(result.not_counted)) { |callee| callee_lines(callee) }
       section(lines, "OPERATORS", Array(result.operators)) { |found| operator_lines(found) }
@@ -41,7 +130,7 @@ module Branchout
     end
 
     def markdown(result)
-      "# branchout #{result.command}\n\n#{text(result)}"
+      "# branchout #{result.command}\n\n#{full_text(result)}"
     end
 
     def baselines_text(info, rows)
@@ -153,8 +242,7 @@ module Branchout
         "cond: #{arm.cond}",
         "sense: #{arm.sense}",
         "parent: #{arm.parent}",
-        "nearest: #{arm.nearest ? arm.nearest.text : "null"}",
-        "path: #{format_path(arm.path)}"
+        "nearest: #{arm.nearest ? arm.nearest.text : "null"}"
       ]
     end
 

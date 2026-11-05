@@ -37,7 +37,8 @@ class ExampleReportTest < Minitest::Test
             chdir: dir
           )
           assert status.success?, stderr
-          assert_equal File.read(File.join(ROOT, "reports/#{name}.txt")), stdout, name
+          # Only the runs that emit a test name it on a tests: line.
+          assert_equal File.read(File.join(ROOT, "reports/#{name}.txt")), stdout.sub("tests: #{path}\n", ""), name
           assert_equal File.read(File.join(ROOT, path)), File.read(File.join(dir, path)), path
         end
 

@@ -26,6 +26,7 @@ module Branchout
         --mutate-cap N      literal-mutation budget (default 256)
         --strategy LIST     comma list: inputs,mutate,random (default all)
         --timeout SEC       per-input timeout (default 1)
+        --verbose           print the run settings and every arm in the text report
         --json              print JSON on stdout instead of text
         --json-out PATH     write JSON to a file
         --md-out PATH       write the text report as Markdown
@@ -72,6 +73,7 @@ module Branchout
         timeout: 1,
         strategies: Engine::STRATEGY_ORDER.dup,
         json: false,
+        verbose: false,
         inputs: nil,
         entry: nil,
         json_out: nil,
@@ -98,6 +100,7 @@ module Branchout
         when "--strategy" then opts[:strategies] = parse_strategies(take(args, arg))
         when "--entry" then opts[:entry] = take(args, arg)
         when "--json" then opts[:json] = true
+        when "--verbose" then opts[:verbose] = true
         when "--json-out" then opts[:json_out] = take(args, arg)
         when "--md-out" then opts[:md_out] = take(args, arg)
         when "--emit-tests" then opts[:emit_tests] = take(args, arg)
@@ -125,6 +128,7 @@ module Branchout
       if opts[:emit_tests] && command != "explore"
         raise Error, "--emit-tests is only valid with explore"
       end
+      raise Error, "--verbose is only valid with explore" if opts[:verbose] && command != "explore"
       if opts[:require_by_name]
         raise Error, "--require-by-name requires --emit-tests" unless opts[:emit_tests]
       end
@@ -161,8 +165,6 @@ module Branchout
           requires: opts[:requires],
           load_paths: opts[:load_paths]
         )
-        stdout = opts[:json] ? Report.json(result) : Report.text(result)
-        $stdout.write(stdout)
         if result.repeated_inputs.positive?
           $stderr.puts "branchout: #{result.repeated_inputs} of #{user_inputs.length} inputs repeat an earlier input, " \
                        "so they did not run again."
@@ -187,6 +189,7 @@ module Branchout
           warnings.each { |line| $stderr.puts line }
           warn_unnamed(result, target, opts[:emit_tests]) if opts[:require_by_name]
         end
+        $stdout.write(opts[:json] ? Report.json(result) : Report.text(result, tests: opts[:emit_tests], verbose: opts[:verbose]))
       when "baselines"
         info = {
           target: Target.display_path(File.expand_path(target)),

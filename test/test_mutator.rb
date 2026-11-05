@@ -259,7 +259,7 @@ class MutatorTest < Minitest::Test
         "--strategy", "mutate,random", "--seed", "1", chdir: @root
       )
       assert status.success?, stderr
-      assert_includes stdout, "arms_covered: 2\narms_total: 2"
+      assert_includes stdout, "covered: 2 of 2 arms"
     end
   end
 

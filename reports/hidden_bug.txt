@@ -1,59 +1,15 @@
-branchout explore
-target: examples/hidden_bug.rb
-entry: HiddenBug.scale
-seed: 1
-strategies: inputs
-random: 0
-mutate_cap: 256
-timeout: 1
-inputs_ran: 4
-mutate_ran: 0
-random_ran: 0
-executions: 4
-arms_covered: 4
-arms_total: 4
-exceptions: 1
-callees_not_counted: 0
-operators_not_counted: 1
-
-COVERED
-id: if@6:4/else@14:6
-loc: examples/hidden_bug.rb:14:6
-cond: a > 10 && b > 10
-sense: cond-false
-input: [0,0]
-
-id: if@6:4/then@7:6
-loc: examples/hidden_bug.rb:7:6
-cond: a > 10 && b > 10
-sense: cond-true
-input: [11,11]
-
-id: if@8:6/else@11:8
-loc: examples/hidden_bug.rb:11:8
-cond: denom < 50
-sense: cond-false
-input: [100,11]
-
-id: if@8:6/then@9:8
-loc: examples/hidden_bug.rb:9:8
-cond: denom < 50
-sense: cond-true
-input: [11,11]
+branchout explore examples/hidden_bug.rb HiddenBug.scale
+covered: 4 of 4 arms by 4 inputs
+raised: 1 input
 
 FRONTIER
 (none)
 
 EXCEPTIONS
-class: ZeroDivisionError
-loc: examples/hidden_bug.rb:9
-input: [24,12]
-message: divided by 0
+ZeroDivisionError at examples/hidden_bug.rb:9: divided by 0
+  inputs: [24,12]
 
-NOT COUNTED
-(none)
+OPERATORS (coverage does not see which side ran; vary each left side)
+examples/hidden_bug.rb:6:14 && in `a > 10 && b > 10`
 
-OPERATORS
-loc: examples/hidden_bug.rb:6:14
-op: &&
-text: a > 10 && b > 10
+Pass --verbose for every covered arm and the run settings.

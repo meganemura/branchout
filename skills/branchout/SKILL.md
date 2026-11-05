@@ -96,7 +96,7 @@ end
 
 4. Run it: `BRANCHOUT=1 bundle exec rspec spec/models/loan_explore_spec.rb`. In minitest the same call goes in a `test` of an `ActiveSupport::TestCase`, run with `BRANCHOUT=1 bin/rails test test/models/loan_explore_test.rb`.
 
-`explore` returns the report the CLI prints, and follows the same rounds: append inputs to the list (or to an inputs file, by passing its path as `inputs:`) and rerun. `within: self` is the running test. Each input's Ruby runs in that test, so it reaches the suite's factories (`create`, `build`), fixtures (`rooms(:open)`), and helpers. When ActiveRecord is loaded, each input runs in a savepoint that is rolled back, so no input sees the rows another wrote, and the test's own rows stay as they were; `around:` replaces that, as a lambda that takes the input as a block. An input that raises `FrozenError` with frozen Strings runs again with unfrozen ones only when it ran in `Branchout::ROLL_BACK` (the default, or inside an `around:` that calls it); with any other `around:`, such as `Branchout::RUN_ONLY`, the `FrozenError` is pinned. The strategy is `inputs` only by default, because a random argument rarely fits a record. The other keywords are `target:` (the file, when the entry is defined outside the file `source_location` names), `emit_tests:`, `format:`, `json:`, `pin_keys:`, `requires:`, `strategies:`, `seed:`, `random:`, `mutate_cap:`, and `timeout:` (default 1; `nil` turns it off).
+`explore` returns the report the CLI prints, and follows the same rounds: append inputs to the list (or to an inputs file, by passing its path as `inputs:`) and rerun. `within: self` is the running test. Each input's Ruby runs in that test, so it reaches the suite's factories (`create`, `build`), fixtures (`rooms(:open)`), and helpers. When ActiveRecord is loaded, each input runs in a savepoint that is rolled back, so no input sees the rows another wrote, and the test's own rows stay as they were; `around:` replaces that, as a lambda that takes the input as a block. An input that raises `FrozenError` with frozen Strings runs again with unfrozen ones only when it ran in `Branchout::ROLL_BACK` (the default, or inside an `around:` that calls it); with any other `around:`, such as `Branchout::RUN_ONLY`, the `FrozenError` is pinned. The strategy is `inputs` only by default, because a random argument rarely fits a record. The other keywords are `target:` (the file, when the entry is defined outside the file `source_location` names), `emit_tests:`, `format:`, `json:`, `verbose:`, `pin_keys:`, `requires:`, `strategies:`, `seed:`, `random:`, `mutate_cap:`, and `timeout:` (default 1; `nil` turns it off).
 
 The emitted test requires the helper the suite loaded (`require "rails_helper"`, else `test_helper`, else `spec_helper`) by name (a suite that loaded none of them passes its helper as `requires:`, or `emit_tests:` is refused; an entry found nowhere stops with `requires: "spec/helper" names no file under the working directory or on the load path`) and does not require the model, which the app loads. A minitest test inherits from the exploring test's own base class, such as `ActiveSupport::TestCase`, so fixtures and helpers work there too. An RSpec file gives its `describe` the exploring example group's `type` (`RSpec.describe Loan, type: :model do`). Its `# Load path:` comment leaves out the project's `spec` and `lib`, which rspec puts on the load path itself. Run it as any other test of the suite, without `BRANCHOUT`.
 
@@ -108,15 +108,18 @@ The emitted test requires the helper the suite loaded (`require "rails_helper"`,
 
 ## Reading the frontier
 
-Stdout is the contract. Sections are `COVERED`, `FRONTIER`, `EXCEPTIONS`, `NOT COUNTED`, and `OPERATORS`. Ids are sorted. There is no timestamp.
+Stdout is the contract. There is no timestamp. The report opens with `covered: 5 of 6 arms by 13 inputs`, `raised:`, and, with `--emit-tests`, `tests:`. `FRONTIER` follows: each arm that an input reached and did not take, in line order, with `id`, `loc`, `cond`, `sense`, `parent`, `nearest`, and a `next` line that says what to change in `nearest`; then, under `not reached yet`, one line for each decision that no input ran (`file:line cond (2 arms)`). `EXCEPTIONS` gives one line for each class, line, and message, and the inputs that raised it (the first three, then a count). `NOT COUNTED` and `OPERATORS` appear when they have an entry. A section with no entry is left out, except `FRONTIER`, which prints `(none)`.
+
+`--verbose` (`verbose: true` inside a suite) prints the whole report instead: the run settings and counts (`arms_covered`, `arms_total`, `exceptions`, `callees_not_counted`, `operators_not_counted`), then the sections `COVERED`, `FRONTIER`, `EXCEPTIONS`, `NOT COUNTED`, and `OPERATORS`, each record on its own lines, every arm in id order, and each frontier arm with `path`. `--md-out` writes that report.
+
 
 - `id` is `kind@line:column/arm@line:column`. Columns are 0-based, matching Coverage and Prism. A loop count greater than 1 is appended as `*count`.
 - `loc` is `file:line:column`. Open that line. `cond` is the predicate, or the `when` / `in` line. Longer text is cut at 160 characters.
 - `sense` selects the arm: `cond-true` (`if` then, `unless` else), `cond-false` (`if` else, `unless` then), `arm-matched` (that `when` or `in`), `arm-else` (case else), `body-entered` (`while` or `until` body), `receiver-present` / `receiver-nil` (`&.`). Anything else is `taken`.
 - `parent: reached` means some input executed the decision. Flip these first. `parent: not-reached` means the parent has not run and `nearest` is `null`. Reach the parent first.
 - `nearest` reached the decision with the fewest taken arms, then the smallest weight (absolute numeric size, plus string, Ruby source, and container length), then the smallest canonical JSON. With no keywords and no `new` it prints as the args array (`[0,1]`), which pastes into `args`. With keywords, `new`, `receiver`, `setup`, or a `block` it prints as `{"args":[...],"kwargs":{...}}`, plus `"new"`, `"receiver"`, `"setup"`, and `"block"` when set, which pastes back as an entry.
-- `path` is the sorted set of arms `nearest` took. Order is not recorded. An empty set prints `(none)`; a missing path prints `null`.
-- `COVERED` uses `input` for the witness of that arm. `EXCEPTIONS` lists `class`, `loc`, `input`, and `message`. An empty frontier can still have exceptions, and a covered method can still raise.
+- `path` (`--verbose` and `--json`) is the sorted set of arms `nearest` took. Order is not recorded. An empty set prints `(none)`; a missing path prints `null`.
+- `COVERED` (`--verbose`) uses `input` for the witness of that arm. In `--verbose`, `EXCEPTIONS` lists `class`, `loc`, `input`, and `message` for each input. An empty frontier can still have exceptions, and a covered method can still raise.
 - `NOT COUNTED` lists the methods in other files that the counted code calls on self, such as a parent class's helper or a mixin's method, and the methods it calls on an object built with `Const.new` in a local or in an instance variable the class sets (`@ledger = Ledger.new`): `callee` (`Register#required_sku`), `loc` (its `def`), and `arms` (the arms in that `def`, or `unknown`). Their arms are not in `arms_total`, so an `arms_total` that dropped after a refactor can mean the logic moved there. Explore that callee as its own entry. Methods of installed gems and of Ruby's own library (an association reader, `update!`), C methods, attribute readers, methods with no arms, and calls on an object whose class the code does not show (a parameter, a method's return value) are not listed.
 - `OPERATORS` lists each `||`, `&&`, `||=`, and `&&=` in the counted code: `loc` (the operator), `op`, and `text`. Branch coverage counts no arm for them, so `arms_total` leaves them out and the report cannot say which side ran. `arms_total: 0` with an `OPERATORS` entry is not full coverage: give inputs that make each left side truthy and falsy, and let the pinned results show the difference. `&.` has its own arms.
 
@@ -125,13 +128,13 @@ Stdout is the contract. Sections are `COVERED`, `FRONTIER`, `EXCEPTIONS`, `NOT C
 ## Rounds
 
 1. Run the explore command.
-2. Read uncovered arms with `parent: reached`, in id order.
+2. Read the `FRONTIER` arms, which all have `parent: reached`, in the order printed.
 3. If you have not yet added an input meant to flip that arm, add one. Copy `nearest` and change it only enough to satisfy `cond` and `sense`. `&&` and `||` are not separate arms.
 4. If a covered arm divides by a non-constant denominator, indexes out of range, or `raise`s, and you have not yet added an input that fires that fault while staying in the arm, add one.
 5. Save and rerun the same command.
-6. Stop when `FRONTIER` is `(none)` and no fault remains to aim at, or every remaining `parent: reached` arm has already been tried and did not flip (unsatisfiable, such as `x == 1 && x == 0`), or you have completed 8 rounds.
+6. Stop when `FRONTIER` is `(none)` and no fault remains to aim at, or every remaining reached arm has already been tried and did not flip (unsatisfiable, such as `x == 1 && x == 0`), or you have completed 8 rounds.
 
-In one round, add inputs only for arms that are reached now and for faults you can see now. Do not batch `parent: not-reached` arms before their parent has run.
+In one round, add inputs only for arms that are reached now and for faults you can see now. Do not batch the `not reached yet` decisions before their parent has run.
 
 ## Emit tests
 

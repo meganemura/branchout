@@ -53,7 +53,8 @@ class ExploreTest < Minitest::Test
       stdout, stderr, status = run_suite("#{SUITE}/pantry_restock_explore_test.rb", env)
       assert status.success?, stdout + stderr
       report = File.read(env["REPORT_TO"])
-      assert_includes report, "EXCEPTIONS\n(none)"
+      refute_includes report, "EXCEPTIONS"
+      assert_includes report, "\nPass verbose: true for every covered arm and the run settings.\n"
       assert_includes report, "rows left: 0\n"
       emitted = File.read(env["EMIT_TO"])
       assert_includes emitted, "a class variable, or a file.\n    pantry = Pantry.new(owner)\n    assert_equal :first, pantry.restock(+\"jam\")\n"
@@ -80,10 +81,10 @@ class ExploreTest < Minitest::Test
         assert_includes report, "rows left: #{rows_left}\n", around
         emitted = File.read(env["EMIT_TO"])
         if rows_left.zero?
-          assert_includes report, "EXCEPTIONS\n(none)", around
+          refute_includes report, "EXCEPTIONS", around
           assert_includes emitted, "assert_equal :first, pantry.restock(+\"jam\")", around
         else
-          assert_includes report, "class: FrozenError", around
+          assert_includes report, "EXCEPTIONS\nFrozenError at ", around
           assert_includes emitted, "pantry.restock(\"jam\")", around
           refute_includes emitted, "+\"jam\"", around
         end
@@ -147,7 +148,7 @@ class ExploreTest < Minitest::Test
   def test_an_explore_after_a_refused_one_counts_only_its_own_inputs
     stdout, stderr, status = run_suite("#{SUITE}/pantry_after_refusal_test.rb")
     assert status.success?, stdout + stderr
-    assert_includes stdout, "arms_covered: 1\narms_total: 4\n"
+    assert_includes stdout, "covered: 1 of 4 arms by "
   end
 
   def test_a_suite_with_no_helper_explore_knows_must_name_one_to_emit

@@ -40,12 +40,12 @@ class CLITest < Minitest::Test
       "--strategy", "mutate", "--random", "0"
     )
     assert status.success?, stderr
-    assert_includes stdout, "arms_covered: 6\narms_total: 6"
+    assert_includes stdout, "covered: 6 of 6 arms"
   end
 
   def test_magic_mutation_covers_both_arms_and_is_byte_stable
     stdout, stderr, status = run_cli(
-      "explore", "test/fixtures/magic.rb", "FixtureMagic.classify",
+      "explore", "--verbose", "test/fixtures/magic.rb", "FixtureMagic.classify",
       "--strategy", "mutate", "--random", "0", "--seed", "0"
     )
     assert status.success?, stderr
@@ -58,7 +58,7 @@ class CLITest < Minitest::Test
     assert_includes stdout, "FRONTIER\n(none)"
 
     again, _, _ = run_cli(
-      "explore", "test/fixtures/magic.rb", "FixtureMagic.classify",
+      "explore", "--verbose", "test/fixtures/magic.rb", "FixtureMagic.classify",
       "--strategy", "mutate", "--random", "0", "--seed", "0"
     )
     assert_equal stdout, again
@@ -66,7 +66,7 @@ class CLITest < Minitest::Test
 
   def test_magic_snapshot
     stdout, _stderr, status = run_cli(
-      "explore", "test/fixtures/magic.rb", "FixtureMagic.classify",
+      "explore", "--verbose", "test/fixtures/magic.rb", "FixtureMagic.classify",
       "--strategy", "mutate", "--random", "0", "--seed", "0"
     )
     assert status.success?
@@ -114,6 +114,75 @@ class CLITest < Minitest::Test
       OPERATORS
       (none)
     OUT
+  end
+
+  # The default report leads with what to act on: arms an input reached are
+  # in line order with what to change, decisions no input reached are one
+  # line each, and inputs that raised the same error share one line.
+  def test_the_default_report_leads_with_the_frontier
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "gate.rb")
+      File.write(target, <<~RUBY)
+        module Gate
+          def self.pick(n, mode)
+            raise ArgumentError, "too big" if n > 5
+            return :none if n.zero?
+
+            if n.positive?
+              case mode
+              when "a" then :a
+              when "b" then :b
+              end
+            end || (mode.nil? && :empty)
+          end
+        end
+      RUBY
+      inputs = write_inputs(dir, {"inputs" => [[-1, nil], [6, "a"], [7, "a"], [8, "a"], [9, "a"]]})
+      stdout, stderr, status = run_cli("explore", target, "Gate.pick", "--inputs", inputs,
+                                       "--strategy", "inputs", "--random", "0", "--emit-tests", File.join(dir, "gate_test.rb"))
+      assert status.success?, stderr
+      assert_equal <<~OUT, stdout
+        branchout explore #{target} Gate.pick
+        covered: 4 of 9 arms by 5 inputs
+        raised: 4 inputs
+        tests: #{dir}/gate_test.rb
+
+        FRONTIER
+        id: if@4:4/then@4:4
+        loc: #{target}:4:4
+        cond: n.zero?
+        sense: cond-true
+        parent: reached
+        nearest: [-1,null]
+        next: add an input like nearest that makes `n.zero?` true
+
+        id: if@6:4/then@7:6
+        loc: #{target}:7:6
+        cond: n.positive?
+        sense: cond-true
+        parent: reached
+        nearest: [-1,null]
+        next: add an input like nearest that makes `n.positive?` true
+
+        not reached yet; take the arms above first:
+        #{target}:7 case (3 arms)
+
+        EXCEPTIONS
+        ArgumentError at #{target}:3: too big
+          inputs: [6,"a"], [7,"a"], [8,"a"] and 1 more
+
+        OPERATORS (coverage does not see which side ran; vary each left side)
+        #{target}:11:8 || in `if n.positive? case mode when "a" then :a when "b" then :b end end || (mode.nil? && :empty)`
+        #{target}:11:22 && in `mode.nil? && :empty`
+
+        Pass --verbose for every covered arm and the run settings.
+      OUT
+
+      raising = write_inputs(dir, {"inputs" => [[nil, "a"]]})
+      stdout, stderr, status = run_cli("explore", target, "Gate.pick", "--inputs", raising, "--strategy", "inputs", "--random", "0")
+      assert status.success?, stderr
+      assert_includes stdout, "\nFRONTIER\nno input reached these decisions:\n#{target}:3 n > 5 (2 arms)\n#{target}:4 n.zero? (2 arms)\n"
+    end
   end
 
   def test_json_has_sorted_ids_and_no_clock
@@ -184,7 +253,7 @@ class CLITest < Minitest::Test
         "--strategy", "inputs", "--random", "0", "--inputs", path
       )
       assert status.success?, stderr
-      assert_includes stdout, "arms_covered: 1"
+      assert_includes stdout, "covered: 1 of "
       assert_includes stdout, "FRONTIER\nid: if@10:4/then@11:6"
     end
   end
@@ -201,7 +270,7 @@ class CLITest < Minitest::Test
         "--strategy", "inputs", "--random", "0", "--inputs", path, "--emit-tests", test
       )
       assert status.success?, stderr
-      assert_includes stdout, "arms_covered: 1"
+      assert_includes stdout, "covered: 1 of "
       assert_includes stdout, 'nearest: {"args":[5],"kwargs":{},"new":{"args":[10],"kwargs":{}}}'
       assert_includes File.read(test), "assert_equal 5, FixtureAccount.new(10).withdraw(5)"
       assert_includes File.read(test), "assert_equal -2, FixtureAccount.new(10, limit: 5).withdraw(12)"
@@ -229,21 +298,21 @@ class CLITest < Minitest::Test
     Dir.mktmpdir do |dir|
       target = File.join(dir, "kw.rb")
       File.write(target, "class Kw\n  def initialize(main:, side:) = @main = main\n  def pick(x) = x > 0 ? :pos : :neg\nend\n")
-      _stdout, stderr, status = run_cli("explore", target, "Kw#pick", "--strategy", "inputs", "--random", "0",
+      _stdout, stderr, status = run_cli("explore", "--verbose", target, "Kw#pick", "--strategy", "inputs", "--random", "0",
                                         "--inputs", write_inputs(dir, { "inputs" => [[1]] }))
       refute status.success?
       assert_includes stderr, "Kw#initialize requires the keywords main:, side:; give them in \"new\""
       one = File.join(dir, "kw1.rb")
       File.write(one, "class Kw\n  def initialize(size, main:) = @main = main\n  def pick(x) = x > 0 ? :pos : :neg\nend\n")
-      _stdout, stderr, _status = run_cli("explore", one, "Kw#pick", "--strategy", "inputs", "--random", "0",
+      _stdout, stderr, _status = run_cli("explore", "--verbose", one, "Kw#pick", "--strategy", "inputs", "--random", "0",
                                          "--inputs", write_inputs(dir, { "inputs" => [[1]] }))
       assert_includes stderr, "Kw#initialize requires 1 argument and the keyword main:; give them in \"new\""
       File.write(one, "class Kw\n  def initialize(main:) = @main = main\n  def pick(x) = x > 0 ? :pos : :neg\nend\n")
-      _stdout, stderr, _status = run_cli("explore", one, "Kw#pick", "--strategy", "inputs", "--random", "0",
+      _stdout, stderr, _status = run_cli("explore", "--verbose", one, "Kw#pick", "--strategy", "inputs", "--random", "0",
                                          "--inputs", write_inputs(dir, { "inputs" => [[1]] }))
       assert_includes stderr, "Kw#initialize requires the keyword main:; give it in \"new\""
       path = write_inputs(dir, { "inputs" => [-1, 1].map { |x| { "args" => [x], "new" => { "kwargs" => { "main" => 1, "side" => 2 } } } } })
-      stdout, stderr, status = run_cli("explore", target, "Kw#pick", "--strategy", "inputs", "--random", "0", "--inputs", path)
+      stdout, stderr, status = run_cli("explore", "--verbose", target, "Kw#pick", "--strategy", "inputs", "--random", "0", "--inputs", path)
       assert status.success?, stderr
       assert_includes stdout, "arms_covered: 2\narms_total: 2\nexceptions: 0\n"
     end
@@ -264,7 +333,7 @@ class CLITest < Minitest::Test
       stdout = nil
       [test, spec].each do |out|
         stdout, stderr, status = run_cli(
-          "explore", "test/fixtures/cart.rb", "FixtureCart#volume_discount_cents",
+          "explore", "--verbose", "test/fixtures/cart.rb", "FixtureCart#volume_discount_cents",
           "--strategy", "inputs", "--random", "0", "--inputs", path, "--emit-tests", out
         )
         assert status.success?, stderr
@@ -335,7 +404,7 @@ class CLITest < Minitest::Test
       rspec = File.join(dir, "account_spec.rb")
       [minitest, rspec].each do |out|
         stdout, stderr, status = run_cli(
-          "explore", "test/fixtures/account.rb", "FixtureAccount#withdraw",
+          "explore", "--verbose", "test/fixtures/account.rb", "FixtureAccount#withdraw",
           "--strategy", "inputs", "--inputs", path, "--emit-tests", out
         )
         assert status.success?, stderr
@@ -362,7 +431,7 @@ class CLITest < Minitest::Test
       "--strategy", "mutate"
     )
     assert status.success?, stderr
-    assert_includes stdout, "arms_covered: 2\n"
+    assert_includes stdout, "covered: 2 of "
   end
 
   def test_a_receiver_is_ruby_and_replaces_new
@@ -388,7 +457,7 @@ class CLITest < Minitest::Test
       args = ["--strategy", "inputs", "--random", "0", "--inputs", path]
       stdout, stderr, status = run_cli("explore", "test/fixtures/helpers.rb", "FixtureHelpers.sign", *args)
       assert status.success?, stderr
-      assert_includes stdout, "arms_covered: 4\narms_total: 4"
+      assert_includes stdout, "covered: 4 of 4 arms"
 
       _stdout, stderr, status = run_cli("explore", "test/fixtures/helpers.rb", "FixtureHelpers#sign", *args)
       refute status.success?
@@ -404,7 +473,7 @@ class CLITest < Minitest::Test
         "--strategy", "inputs", "--random", "0", "--inputs", path
       )
       assert status.success?, stderr
-      assert_includes stdout, "arms_covered: 4\narms_total: 4"
+      assert_includes stdout, "covered: 4 of 4 arms"
     end
   end
 
@@ -416,7 +485,7 @@ class CLITest < Minitest::Test
         "--strategy", "inputs", "--random", "0", "--inputs", path
       )
       assert status.success?, stderr
-      assert_includes stdout, "arms_covered: 2\narms_total: 2"
+      assert_includes stdout, "covered: 2 of 2 arms"
       assert_empty stderr
 
       path = write_inputs(dir, { "inputs" => [["# a"], ["b"]] })
@@ -425,7 +494,7 @@ class CLITest < Minitest::Test
         "--strategy", "inputs", "--random", "0", "--inputs", path
       )
       assert status.success?, stderr
-      assert_includes stdout, "arms_covered: 3\narms_total: 4"
+      assert_includes stdout, "covered: 3 of 4 arms"
       assert_includes stdout, "FRONTIER\nid: if@17:11/then@17:24\nloc: test/fixtures/delegate.rb:17:24\ncond: doc.empty?"
     end
   end
@@ -439,7 +508,7 @@ class CLITest < Minitest::Test
         "--strategy", "inputs", "--random", "0", "--inputs", path
       )
       assert status.success?, stderr
-      assert_includes stdout, "arms_covered: 1\narms_total: 2"
+      assert_includes stdout, "covered: 1 of 2 arms"
       assert_includes stdout, "FRONTIER\nid: if@35:12/else@35:42"
     end
   end
@@ -452,7 +521,7 @@ class CLITest < Minitest::Test
       %w[FixtureMaker.apply FixtureMaker.inspected FixtureMaker.nothing].each do |entry|
         inputs = entry.end_with?("apply") ? path : write_inputs(dir, { "inputs" => [[]] })
         stdout, stderr, status = run_cli(
-          "explore", "test/fixtures/delegate.rb", entry,
+          "explore", "--verbose", "test/fixtures/delegate.rb", entry,
           "--strategy", "inputs", "--random", "0", "--inputs", inputs
         )
         assert status.success?, stderr
@@ -467,7 +536,7 @@ class CLITest < Minitest::Test
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [[{ "paid" => true }]] })
       stdout, stderr, status = run_cli(
-        "explore", "test/fixtures/operators.rb", "FixtureGate.ready?",
+        "explore", "--verbose", "test/fixtures/operators.rb", "FixtureGate.ready?",
         "--strategy", "inputs", "--random", "0", "--inputs", path
       )
       assert status.success?, stderr
@@ -517,7 +586,7 @@ class CLITest < Minitest::Test
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [[1]] })
       stdout, stderr, status = run_cli(
-        "explore", "test/fixtures/delegate.rb", "FixtureDelegate.forward",
+        "explore", "--verbose", "test/fixtures/delegate.rb", "FixtureDelegate.forward",
         "--strategy", "inputs", "--random", "0", "--inputs", path
       )
       assert status.success?, stderr
@@ -532,7 +601,7 @@ class CLITest < Minitest::Test
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [[0], [4]] })
       args = [
-        "explore", "test/fixtures/loaded.rb", "FixtureLoaded.over?",
+        "explore", "--verbose", "test/fixtures/loaded.rb", "FixtureLoaded.over?",
         "--strategy", "inputs", "--random", "0", "--inputs", path
       ]
       stdout, stderr, status = run_cli(*args)
@@ -576,7 +645,7 @@ class CLITest < Minitest::Test
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [["z", 0], ["a", 0]] })
       stdout, stderr, status = run_cli(
-        "explore", "test/fixtures/branches.rb", "FixtureBranches.demo",
+        "explore", "--verbose", "test/fixtures/branches.rb", "FixtureBranches.demo",
         "--strategy", "inputs", "--random", "0", "--inputs", path
       )
       assert status.success?, stderr
@@ -592,7 +661,7 @@ class CLITest < Minitest::Test
       path = write_inputs(dir, { "inputs" => [[1]] })
       stdout, stderr, status = run_cli("explore", target, "Early.f", "--strategy", "inputs", "--random", "0", "--inputs", path)
       assert status.success?, stderr
-      assert_includes stdout, "arms_covered: 1\n"
+      assert_includes stdout, "covered: 1 of "
     end
   end
 
@@ -761,7 +830,7 @@ class CLITest < Minitest::Test
       out, err, status = run_cli("explore", File.join(lib, "shop/cart.rb"), "Shop.size", "-I", lib, "--require", "shop",
                                  "--strategy", "inputs", "--random", "0", "--inputs", path, "--emit-tests", test, "--require-by-name")
       assert status.success?, err
-      assert_includes out, "arms_covered: 2\narms_total: 2\n"
+      assert_includes out, "covered: 2 of 2 arms by "
       assert_includes File.read(test), "\nrequire \"shop\"\n\n"
 
       _out, err, status = run_cli("explore", File.join(lib, "shop/cart.rb"), "Shop.size", "-I", lib, "--require", "shop",
@@ -868,7 +937,7 @@ class CLITest < Minitest::Test
               "--strategy", "inputs", "--random", "0", "--inputs", path]
       out, err, status = run_cli(*args)
       assert status.success?, err
-      assert_includes out, "arms_covered: 4"
+      assert_includes out, "covered: 4 of "
       refute_includes out, "EXCEPTIONS\n  -"
       %w[lending_test.rb lending_spec.rb].each do |name|
         test = File.join(dir, name)
@@ -1037,7 +1106,7 @@ class CLITest < Minitest::Test
         "--require", File.join(dir, "lib/branchout.rb"), "--strategy", "inputs", "--random", "0", "--inputs", path
       )
       assert status.success?, stderr
-      assert_includes stdout, "arms_covered: 1"
+      assert_includes stdout, "covered: 1 of "
     end
   end
 
@@ -1051,7 +1120,7 @@ class CLITest < Minitest::Test
         "--strategy", "inputs", "--random", "0", "--inputs", path
       )
       assert status.success?, stderr
-      assert_includes stdout, "arms_covered: 2\narms_total: 2\n"
+      assert_includes stdout, "covered: 2 of 2 arms by "
       assert_empty stderr
     end
   end
@@ -1086,7 +1155,7 @@ class CLITest < Minitest::Test
       stdout, stderr, status = run_cli("explore", target, "T.f", "--require", env, "--strategy", "inputs", "--random", "0",
                                        "--inputs", path, "--emit-tests", File.join(dir, "t_test.rb"))
       assert status.success?, stderr
-      assert_includes stdout, "arms_covered: 1\narms_total: 2\n"
+      assert_includes stdout, "covered: 1 of 2 arms by "
       assert_includes File.read(File.join(dir, "t_test.rb")), "assert_equal 1, T.f(true)"
     end
   end
@@ -1171,7 +1240,7 @@ class CLITest < Minitest::Test
         end
       RUBY
       path = write_inputs(dir, { "inputs" => [["ab"]] })
-      args = ["explore", child, "Child#label", "--require", parent, "--strategy", "inputs", "--random", "0", "--inputs", path]
+      args = ["explore", "--verbose", child, "Child#label", "--require", parent, "--strategy", "inputs", "--random", "0", "--inputs", path]
       stdout, stderr, status = run_cli(*args)
       assert status.success?, stderr
       assert_includes stdout, "arms_total: 4\nexceptions: 0\ncallees_not_counted: 1\n"
@@ -1190,6 +1259,9 @@ class CLITest < Minitest::Test
       assert_equal [
         { "callee" => "Parent#checked", "loc" => "#{parent}:4", "arms" => 2 }
       ], JSON.parse(stdout)["not_counted"]
+
+      stdout, = run_cli(*(args - ["--verbose"]))
+      assert_includes stdout, "\nNOT COUNTED (arms in other files; explore each as its own entry)\nParent#checked at #{parent}:4 (2 arms)\n"
     end
   end
 
@@ -1308,7 +1380,7 @@ class CLITest < Minitest::Test
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [[0], [114514], { "args" => [0] }, [0]] })
       stdout, stderr, status = run_cli(
-        "explore", "test/fixtures/magic.rb", "FixtureMagic.classify",
+        "explore", "--verbose", "test/fixtures/magic.rb", "FixtureMagic.classify",
         "--strategy", "inputs", "--random", "0", "--inputs", path
       )
       assert status.success?, stderr
@@ -1327,7 +1399,7 @@ class CLITest < Minitest::Test
         "--strategy", "inputs", "--random", "0", "--inputs", path
       )
       assert status.success?, stderr
-      assert_includes stdout, "arms_covered: 2"
+      assert_includes stdout, "covered: 2 of "
     end
   end
 
@@ -1335,7 +1407,7 @@ class CLITest < Minitest::Test
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [{ "args" => [24, 12] }] })
       stdout, stderr, status = run_cli(
-        "explore", "test/fixtures/scale.rb", "FixtureScale.scale",
+        "explore", "--verbose", "test/fixtures/scale.rb", "FixtureScale.scale",
         "--strategy", "inputs", "--random", "0", "--inputs", path
       )
       assert status.success?, stderr
@@ -1347,7 +1419,7 @@ class CLITest < Minitest::Test
 
   def test_scale_mutation_does_not_raise
     stdout, stderr, status = run_cli(
-      "explore", "test/fixtures/scale.rb", "FixtureScale.scale",
+      "explore", "--verbose", "test/fixtures/scale.rb", "FixtureScale.scale",
       "--strategy", "mutate,random", "--seed", "1", "--random", "40"
     )
     assert status.success?, stderr
@@ -1358,7 +1430,7 @@ class CLITest < Minitest::Test
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [{ "args" => [0] }] })
       stdout, stderr, status = run_cli(
-        "explore", "test/fixtures/spin.rb", "FixtureSpin.forever",
+        "explore", "--verbose", "test/fixtures/spin.rb", "FixtureSpin.forever",
         "--strategy", "inputs", "--random", "0", "--inputs", path
       )
       assert status.success?, stderr
@@ -1372,7 +1444,7 @@ class CLITest < Minitest::Test
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [{ "args" => [1] }] })
       stdout, stderr, status = run_cli(
-        "explore", "test/fixtures/spin.rb", "FixtureSpin.forever",
+        "explore", "--verbose", "test/fixtures/spin.rb", "FixtureSpin.forever",
         "--strategy", "inputs", "--random", "0", "--timeout", "0.2", "--inputs", path
       )
       assert status.success?, stderr
@@ -1402,7 +1474,7 @@ class CLITest < Minitest::Test
         end
       RUBY
       path = write_inputs(dir, { "inputs" => [[true]] })
-      stdout, stderr, status = run_cli("explore", target, "Fetch.call", "--strategy", "inputs", "--random", "0", "--inputs", path)
+      stdout, stderr, status = run_cli("explore", "--verbose", target, "Fetch.call", "--strategy", "inputs", "--random", "0", "--inputs", path)
       assert status.success?, stderr
       assert_includes stdout, "class: Fetch::ReadTimeout\nloc: #{target}:9\n"
     end
@@ -1413,7 +1485,7 @@ class CLITest < Minitest::Test
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [[{ "ruby" => "raise ArgumentError, 'no row'" }]] })
       stdout, stderr, status = run_cli(
-        "explore", "test/fixtures/spin.rb", "FixtureSpin.forever",
+        "explore", "--verbose", "test/fixtures/spin.rb", "FixtureSpin.forever",
         "--strategy", "inputs", "--random", "0", "--inputs", path
       )
       assert status.success?, stderr
@@ -1425,7 +1497,7 @@ class CLITest < Minitest::Test
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [{ "args" => ["a", 0] }] })
       stdout, stderr, status = run_cli(
-        "explore", "test/fixtures/branches.rb", "FixtureBranches.demo",
+        "explore", "--verbose", "test/fixtures/branches.rb", "FixtureBranches.demo",
         "--strategy", "inputs", "--random", "0", "--inputs", path
       )
       assert status.success?, stderr
@@ -1435,7 +1507,7 @@ class CLITest < Minitest::Test
 
   def test_instance_method
     stdout, stderr, status = run_cli(
-      "explore", "test/fixtures/box.rb", "FixtureBox#parity",
+      "explore", "--verbose", "test/fixtures/box.rb", "FixtureBox#parity",
       "--strategy", "mutate", "--random", "0"
     )
     assert status.success?, stderr
@@ -1468,7 +1540,7 @@ class CLITest < Minitest::Test
       json_path = File.join(dir, "out", "frontier.json")
       md_path = File.join(dir, "out", "frontier.md")
       stdout, stderr, status = run_cli(
-        "explore", "test/fixtures/magic.rb", "FixtureMagic.classify",
+        "explore", "--verbose", "test/fixtures/magic.rb", "FixtureMagic.classify",
         "--strategy", "mutate", "--random", "0",
         "--json-out", json_path, "--md-out", md_path
       )
@@ -1524,7 +1596,8 @@ class CLITest < Minitest::Test
     %w[explore t.rb A.b --strategy inputs,guess] => "unknown strategy guess",
     %w[explore t.rb A.b --strategy ,] => "strategy list is empty",
     %w[explore t.rb A.b --inputs] => "--inputs needs a value",
-    %w[explore t.rb A.b --verbose] => "unknown option --verbose",
+    %w[explore t.rb A.b --quiet] => "unknown option --quiet",
+    %w[baselines t.rb A.b --verbose] => "--verbose is only valid with explore",
     %w[explore t.rb A.b --format rspec] => "--format requires --emit-tests",
     %w[explore t.rb A.b --pin-keys a] => "--pin-keys requires --emit-tests",
     %w[explore t.rb A.b --emit-tests x.rb --pin-keys ,] => "--pin-keys list is empty",
@@ -1565,7 +1638,7 @@ class CLITest < Minitest::Test
         Noisy.f(7)
       RUBY
       path = write_inputs(dir, { "inputs" => [[0], [10]] })
-      stdout, stderr, status = run_cli("explore", target, "Noisy.f", "--strategy", "inputs", "--random", "0", "--inputs", path)
+      stdout, stderr, status = run_cli("explore", "--verbose", target, "Noisy.f", "--strategy", "inputs", "--random", "0", "--inputs", path)
       assert status.success?, stderr
       assert_empty stderr
       assert stdout.start_with?("branchout explore\n")
@@ -1575,7 +1648,7 @@ class CLITest < Minitest::Test
       assert_includes stdout, "message: #{"z" * 180}\n"
 
       path = write_inputs(dir, { "inputs" => [[2]] })
-      stdout, stderr, status = run_cli("explore", target, "Noisy#g", "--strategy", "inputs", "--random", "0", "--inputs", path)
+      stdout, stderr, status = run_cli("explore", "--verbose", target, "Noisy#g", "--strategy", "inputs", "--random", "0", "--inputs", path)
       assert status.success?, stderr
       assert_includes stdout, "arms_covered: 1"
     end

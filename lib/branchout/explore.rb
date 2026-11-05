@@ -58,7 +58,7 @@ module Branchout
   # returns the report the CLI prints. +within+ is the running test: pass
   # self. +inputs+ is the inputs file's list, or its path. The target is the
   # file that defines the entry, unless +target+ names it.
-  def explore(entry, within:, inputs:, target: nil, emit_tests: nil, format: nil, json: false, pin_keys: [],
+  def explore(entry, within:, inputs:, target: nil, emit_tests: nil, format: nil, json: false, verbose: false, pin_keys: [],
               requires: nil, around: nil, strategies: %w[inputs], seed: 0, random: 16, mutate_cap: 256, timeout: 1)
     target ||= defining_file(entry)
     user_inputs, type_overrides = inputs.is_a?(String) ? InputFile.load(inputs) : [parse_inputs(inputs), nil]
@@ -79,7 +79,7 @@ module Branchout
                                 emit_tests, require_by_name: true, pin_keys: pin_keys)
       warnings.each { |line| $stderr.puts line }
     end
-    json ? Report.json(result) : Report.text(result)
+    json ? Report.json(result) : Report.text(result, tests: emit_tests, verbose: verbose, verbose_flag: "verbose: true")
   end
 
   def defining_file(entry)

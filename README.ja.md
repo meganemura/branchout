@@ -34,54 +34,10 @@ branchout explore shipping.rb Shipping.fee --emit-tests shipping_spec.rb
 ```
 
 ```text
-branchout explore
-target: shipping.rb
-entry: Shipping.fee
-seed: 0
-strategies: inputs,mutate,random
-random: 16
-mutate_cap: 256
-timeout: 1
-inputs_ran: 0
-mutate_ran: 8
-random_ran: 5
-executions: 13
-arms_covered: 5
-arms_total: 6
-exceptions: 3
-callees_not_counted: 0
-operators_not_counted: 0
-
-COVERED
-id: if@5:11/else@5:29
-loc: shipping.rb:5:29
-cond: weight <= 2
-sense: cond-false
-input: [3]
-
-id: if@5:11/then@5:25
-loc: shipping.rb:5:25
-cond: weight <= 2
-sense: cond-true
-input: [1]
-
-id: if@6:4/else@6:25
-loc: shipping.rb:6:25
-cond: express
-sense: cond-false
-input: [1]
-
-id: unless@3:4/else@3:4
-loc: shipping.rb:3:4
-cond: weight.positive?
-sense: cond-true
-input: [1]
-
-id: unless@3:4/then@3:4
-loc: shipping.rb:3:4
-cond: weight.positive?
-sense: cond-false
-input: [0]
+branchout explore shipping.rb Shipping.fee
+covered: 5 of 6 arms by 13 inputs
+raised: 3 inputs
+tests: shipping_spec.rb
 
 FRONTIER
 id: if@6:4/then@6:14
@@ -90,36 +46,22 @@ cond: express
 sense: cond-true
 parent: reached
 nearest: [1]
-path: if@5:11/then@5:25, if@6:4/else@6:25, unless@3:4/else@3:4
+next: add an input like nearest that makes `express` true
 
 EXCEPTIONS
-class: ArgumentError
-loc: shipping.rb:3
-input: [-1]
-message: weight must be positive
+ArgumentError at shipping.rb:3: weight must be positive
+  inputs: [-1], [-2], [0]
 
-class: ArgumentError
-loc: shipping.rb:3
-input: [-2]
-message: weight must be positive
-
-class: ArgumentError
-loc: shipping.rb:3
-input: [0]
-message: weight must be positive
-
-NOT COUNTED
-(none)
-
-OPERATORS
-(none)
+Pass --verbose for every covered arm and the run settings.
 ```
 
 branchout は、メソッド自身のリテラルとシード付きの標本から 13 件の入力を作って実行した。
-`COVERED` は、各腕を通った入力を示す。
+それらは 6 本の腕のうち 5 本を通った。
 `FRONTIER` は、どの入力も通らなかった腕である。
 ここでは `express` が一度も真にならなかった。
+`next` は、足すべき入力を示す。
 `EXCEPTIONS` は、例外を出した入力の一覧である。
+`--verbose` を付けると、通った各腕の入力も表示する。
 
 書き出したスペックは、各戻り値と各例外を固定する。
 
@@ -194,15 +136,23 @@ Finished in 0.00334 seconds (files took 0.07131 seconds to load)
 cat > inputs.json <<'JSON'
 {"inputs": [{"args": [3], "kwargs": {"express": true}}]}
 JSON
-branchout explore shipping.rb Shipping.fee --inputs inputs.json --emit-tests shipping_spec.rb | grep -A1 -e arms_covered -e FRONTIER
+branchout explore shipping.rb Shipping.fee --inputs inputs.json --emit-tests shipping_spec.rb
 ```
 
 ```text
-arms_covered: 6
-arms_total: 6
---
+branchout explore shipping.rb Shipping.fee
+covered: 6 of 6 arms by 14 inputs
+raised: 3 inputs
+tests: shipping_spec.rb
+
 FRONTIER
 (none)
+
+EXCEPTIONS
+ArgumentError at shipping.rb:3: weight must be positive
+  inputs: [-1], [-2], [0]
+
+Pass --verbose for every covered arm and the run settings.
 ```
 
 ```sh
@@ -288,33 +238,14 @@ end
 BRANCHOUT=1 bundle exec rspec spec/models/loan_explore_spec.rb
 ```
 
-レポートは件数から始まる。
+レポートを表示する。
 
 ```text
-branchout explore
-target: app/models/loan.rb
-entry: Loan#approve
-seed: 0
-strategies: inputs
-random: 16
-mutate_cap: 256
-timeout: 1
-inputs_ran: 3
-mutate_ran: 0
-random_ran: 0
-executions: 3
-arms_covered: 5
-arms_total: 6
-exceptions: 0
-callees_not_counted: 0
-operators_not_counted: 1
-```
+branchout explore app/models/loan.rb Loan#approve
+covered: 5 of 6 arms by 3 inputs
+raised: none
+tests: spec/models/loan_approve_spec.rb
 
-`operators_not_counted: 1` は、`:needs_senior` の行の `&&` である。
-カバレッジはその両辺のどちらにも腕を数えない。
-`FRONTIER` の節は、どの入力も通らなかった腕を示す。
-
-```text
 FRONTIER
 id: if@8:4/then@8:4
 loc: app/models/loan.rb:8:4
@@ -322,8 +253,18 @@ cond: borrower.approved_cents + amount_cents > borrower.limit_cents
 sense: cond-true
 parent: reached
 nearest: {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"kwargs":{},"receiver":{"ruby":"build(:loan, amount_cents: 500)"}}
-path: if@7:4/else@7:4, if@8:4/else@8:4, if@9:4/else@9:4
+next: add an input like nearest that makes `borrower.approved_cents + amount_cents > borrower.limit_cents` true
+
+OPERATORS (coverage does not see which side ran; vary each left side)
+app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
+
+Pass verbose: true for every covered arm and the run settings.
 ```
+
+`FRONTIER` は、どの入力も通らなかった腕を示す。
+ここでは限度額を超える借り手がいなかった。
+`OPERATORS` は、`:needs_senior` の行の `&&` である。
+カバレッジはその両辺のどちらにも腕を数えない。
 
 各入力はロールバックされるセーブポイントの中で動いたので、ほかの入力が書いた行は見えなかった。
 この実行は `spec/models/loan_approve_spec.rb` を書いた。
@@ -350,7 +291,7 @@ Finished in 0.03329 seconds (files took 0.9837 seconds to load)
 
 フロンティアを閉じるには、借り手がすでに承認済みのローンを持つ入力を足す。
 たとえば `{receiver: {ruby: "create(:loan, amount_cents: 6_000, borrower: create(:loan, :approved, amount_cents: 15_000).borrower)"}, args: [clerk]}` を足して、探索のスペックをもう一度実行する。
-レポートは `arms_covered: 6` になり、書き出したスペックに `returns :over_limit` が加わる。
+レポートは `covered: 6 of 6 arms` になり、書き出したスペックに `returns :over_limit` が加わる。
 書き出したスペックをコミットする。
 探索のスペックは `BRANCHOUT` なしでは飛ばされるので、次の回のために書き出したスペックの横に残しておける。
 `Branchout.explore` のすべてのオプションは [テストスイートの中で使う](#テストスイートの中で使う) にある。
@@ -363,13 +304,19 @@ Finished in 0.03329 seconds (files took 0.9837 seconds to load)
 
 このリポジトリのチェックアウトでは、`ruby bin/branchout` が `branchout` と同じコマンドを実行する。
 種ファイルの入力は `[0]` の 1 件である。
+`--verbose` はレポート全体を出す。
+実行の設定と件数のあとに、`COVERED`（各腕を通った入力）、`FRONTIER`（どの入力も通らなかった各腕と、`nearest` が通った腕の `path`）、`EXCEPTIONS`（例外を出した入力ごとに 1 件）、`NOT COUNTED`、`OPERATORS` が続く。
+付けないときのレポートは、件数と、入力が届いた `FRONTIER` の腕とその `next` の行と、どの入力も届かなかった決定ごとに 1 行と、例外ごとに 1 行を残す。
+[クイックスタート](#クイックスタート) の出力がその形である。
+`--json` は、レポート全体のすべての項目を持つ。
 
 ```sh
 ruby bin/branchout explore examples/magic_value.rb MagicValue.classify \
   --inputs examples/inputs/magic_value.seed.json \
   --strategy inputs \
   --random 0 \
-  --seed 1
+  --seed 1 \
+  --verbose
 ```
 
 ```
@@ -445,9 +392,10 @@ OPERATORS
 | `--mutate-cap N` | `256` | リテラル変異の予算 |
 | `--strategy LIST` | `inputs,mutate,random` | 戦略をカンマ区切りで、下の表の順に実行する |
 | `--timeout SEC` | `1` | 入力 1 件の制限時間。0 より大きいこと |
+| `--verbose` | オフ | テキストのレポート全体を出す。実行の設定、通った腕すべて、フロンティアの各腕の `path` を含む。`explore` のみ |
 | `--json` | オフ | テキストの代わりに JSON を標準出力へ出す |
 | `--json-out PATH` | | JSON レポートを書く |
-| `--md-out PATH` | | テキストレポートを Markdown で書く |
+| `--md-out PATH` | | `--verbose` が出すテキストレポートを Markdown で書く |
 | `--emit-tests PATH` | | 特徴づけテストを書く。`explore` のみ |
 | `--format NAME` | `minitest` | `minitest` か `rspec`。`--emit-tests` が要る。省くと、パスが `_spec.rb` で終わるときだけ RSpec |
 | `--pin-keys LIST` | | キーのカンマ区切り。戻り値の Hash はこのキーだけを固定する（minitest は `slice`、RSpec は `include`）。後からキーが増えてもテストは落ちない。`--emit-tests` が要る |
@@ -636,7 +584,7 @@ ActiveRecord が読み込まれていれば、各入力はセーブポイント�
 `Branchout::RUN_ONLY` などそれ以外の `around:` では `FrozenError` を固定する。
 その `around:` が 1 回目の実行の行を取り消したかどうかを branchout は判断できないためである。
 戦略は `strategies:` で変えない限り `inputs` だけで、`timeout:` は指定しない限り 1 秒である（`nil` で切る）。
-`target:`、`emit_tests:`、`format:`、`json:`、`pin_keys:`、`requires:`、`seed:`、`random:`、`mutate_cap:` は、CLI の同名のフラグと同じ意味である。
+`target:`、`emit_tests:`、`format:`、`json:`、`verbose:`、`pin_keys:`、`requires:`、`seed:`、`random:`、`mutate_cap:` は、CLI の同名のフラグと同じ意味である。
 minitest では、同じ呼び出しを `ActiveSupport::TestCase` のテストに書き、`BRANCHOUT=1 bin/rails test` で動かす。
 
 出力するテストは、スイートが読み込んだヘルパー（`rails_helper`、なければ `test_helper`、なければ `spec_helper`）を名前で require する。

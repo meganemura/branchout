@@ -91,7 +91,7 @@ class EmitterTest < Minitest::Test
       File.write(inputs, JSON.generate({ "inputs" => [[[], "a"]] }))
       test = File.join(dir, "grow_test.rb")
       stdout, err, status = run_cli(
-        "explore", "test/fixtures/grow.rb", "FixtureGrow.add",
+        "explore", "--verbose", "test/fixtures/grow.rb", "FixtureGrow.add",
         "--inputs", inputs, "--strategy", "inputs", "--random", "0",
         "--emit-tests", test
       )
@@ -199,7 +199,7 @@ class EmitterTest < Minitest::Test
       File.write(inputs, JSON.generate({ "inputs" => [["a"]] }))
       test = File.join(dir, "label_test.rb")
       stdout, err, status = run_cli(
-        "explore", "test/fixtures/label.rb", "FixtureLabel.stamp",
+        "explore", "--verbose", "test/fixtures/label.rb", "FixtureLabel.stamp",
         "--inputs", inputs, "--strategy", "inputs", "--random", "0", "--emit-tests", test
       )
       assert status.success?, err
@@ -295,7 +295,7 @@ class EmitterTest < Minitest::Test
         %w[test.rb spec.rb].map do |suffix|
           path = File.join(dir, "#{entry.tr("#.", "__").downcase}_#{suffix}")
           stdout, err, status = run_cli(
-            "explore", "test/fixtures/vault.rb", entry,
+            "explore", "--verbose", "test/fixtures/vault.rb", entry,
             "--inputs", inputs, "--strategy", "inputs", "--random", "0", "--emit-tests", path
           )
           assert status.success?, err

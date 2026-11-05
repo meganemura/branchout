@@ -62,7 +62,7 @@ module Branchout
               requires: nil, around: nil, strategies: %w[inputs], seed: 0, random: 16, mutate_cap: 256, timeout: 1)
     target ||= defining_file(entry)
     user_inputs, type_overrides = inputs.is_a?(String) ? InputFile.load(inputs) : [parse_inputs(inputs), nil]
-    requires ||= [loaded_helper].compact
+    requires = requires.nil? ? [loaded_helper].compact : Array(requires)
     format = Emitters.resolve(format&.to_s, emit_tests) if emit_tests
     if emit_tests && requires.empty?
       raise Error, "the suite loaded no #{HELPERS.join(", ")} from #{Dir.pwd}, so an emitted test would not load the app; " \

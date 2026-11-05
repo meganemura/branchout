@@ -9,6 +9,7 @@ require "branchout"
 
 class BareExploreTest < Minitest::Test
   def test_explore
-    Branchout.explore("Pantry#stock", within: self, emit_tests: ENV.fetch("EMIT_TO"), inputs: [{receiver: {ruby: "Pantry.new('ada')"}, args: ["jam"]}])
+    Branchout.explore("Pantry#stock", within: self, emit_tests: ENV.fetch("EMIT_TO"), requires: ENV["REQUIRES"],
+                                      inputs: [{receiver: {ruby: "Pantry.new('ada')"}, args: ["jam"]}])
   end
 end

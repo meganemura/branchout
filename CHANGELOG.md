@@ -11,3 +11,4 @@ First release. branchout runs a Ruby method on many inputs, shows the branch arm
 - An agent skill in `skills/branchout/`.
 - Ruby 3.3 or newer. No runtime dependency.
 - A report prints an exception message as Ruby wrote it, on one line: only line breaks become spaces, so the blank String a `FrozenError` quotes keeps its spaces.
+- `Branchout.explore` takes `requires:` as one path in a String too, as the README and its refusal write it.

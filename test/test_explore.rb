@@ -162,6 +162,16 @@ class ExploreTest < Minitest::Test
     end
   end
 
+  # The README writes requires: as one String, as the refusal above asks.
+  def test_a_suite_names_its_helper_in_requires_as_one_string
+    Dir.mktmpdir do |dir|
+      emit_to = File.join(dir, "t.rb")
+      stdout, stderr, status = run_suite("#{SUITE}/bare_explore_test.rb", "EMIT_TO" => emit_to, "REQUIRES" => "#{SUITE}/test_helper")
+      assert status.success?, stdout + stderr
+      assert_includes File.read(emit_to), %(require "test_helper"\n)
+    end
+  end
+
   # minitest 6 needs prism 1, and RubyGems activates the newest prism for
   # a require with no version, so branchout must not load prism until it
   # parses.

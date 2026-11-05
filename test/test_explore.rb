@@ -215,14 +215,14 @@ class ExploreTest < Minitest::Test
     stdout, _stderr, status = run_suite("#{SUITE}/early_test.rb", "PANTRY_FIRST" => "1")
     refute status.success?
     assert_includes stdout, "Branchout::Error: #{SUITE}/pantry.rb loaded before branchout/coverage, so Coverage has no arms for it. " \
-                            "Require \"branchout/coverage\" in the test helper before the app's code loads: in Rails, after config/environment with eager loading off."
+                            "Require \"branchout/coverage\" first in the test file that explores, before its helper, and run that file alone."
   end
 
   def test_coverage_another_tool_started_is_refused
     stdout, _stderr, status = run_suite("#{SUITE}/early_test.rb", "COVERAGE_TOOL" => "1")
     refute status.success?
     assert_includes stdout, "Branchout::Error: Coverage is running, so explore cannot measure #{SUITE}/pantry.rb. " \
-                            "Require \"branchout/coverage\" in the test helper before the app's code loads: in Rails, after config/environment with eager loading off, " \
+                            "Require \"branchout/coverage\" first in the test file that explores, before its helper, " \
                             "and run without another coverage tool such as SimpleCov."
   end
 end

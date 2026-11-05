@@ -76,23 +76,26 @@ Run from the project root. `loc` and `target` print relative to the current dire
 Most methods of a Rails app run only inside its suite: they need the booted app, the database, factories, and a transaction per test. Explore those from inside a test with `Branchout.explore`, not with the CLI.
 
 1. Add the gem to the app's test group: `gem "branchout", group: :test, require: false`.
-2. Start coverage before the app's code loads. In `spec/rails_helper.rb` or `test/test_helper.rb`, put `require "branchout/coverage" if ENV["BRANCHOUT"]` right after the line that loads `config/environment`: Rails and the gems are loaded by then, models load later on first use, and coverage set up before Rails makes the whole run about 25% slower. Run without eager loading (Rails turns it on when `CI` is set), or the models load inside `config/environment`. In a suite without Rails, make it the first line of the helper. Coverage counts a file only when it loads after that line. A model that loaded earlier is refused with `loaded before branchout/coverage`, not loaded again, because loading it again declares its validations twice.
-3. Write one example that explores, skipped unless `BRANCHOUT` is set:
+2. Write one example that explores, in a file of its own, skipped unless `BRANCHOUT` is set. Its first line starts coverage, before the helper loads the app: Coverage counts a file only when the file loads after that line.
 
 ```ruby
+# spec/models/loan_explore_spec.rb
+require "branchout/coverage" if ENV["BRANCHOUT"]
 require "rails_helper"
 require "branchout"
 
-RSpec.describe Loan do
+RSpec.describe Loan, type: :model do
   it "explores approve", if: ENV["BRANCHOUT"] do
     officer = {ruby: "{name: 'Grace', senior: false}"}
     puts Branchout.explore("Loan#approve", within: self, emit_tests: "spec/models/loan_approve_spec.rb", inputs: [
-      {receiver: {ruby: "build(:loan, amount: 500)"}, args: [officer]},
+      {receiver: {ruby: "create(:loan)"}, args: [officer]},
       {receiver: {ruby: "create(:loan, :approved)"}, args: [officer]}
     ])
   end
 end
 ```
+
+3. A model that loaded before that line is refused with `loaded before branchout/coverage`, not loaded again, because loading it again declares its validations twice. Run the explore file alone, so that no other spec file loads the model first. When `.rspec` requires `rails_helper`, the app boots before the first line, so an initializer that reads a model, or eager loading (Rails turns it on when `CI` is set), loads it too early. Coverage set up before Rails also counts the gems' files: on a small app the explore run took about 0.3 s longer to boot and about 12 ms longer for each input. To skip that cost, move the line into `spec/rails_helper.rb` right after the line that loads `config/environment`, with eager loading off. In minitest the line goes first in the test file in the same way, before `require "test_helper"`.
 
 4. Run it: `BRANCHOUT=1 bundle exec rspec spec/models/loan_explore_spec.rb`. In minitest the same call goes in a `test` of an `ActiveSupport::TestCase`, run with `BRANCHOUT=1 bin/rails test test/models/loan_explore_test.rb`.
 

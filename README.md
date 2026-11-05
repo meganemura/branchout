@@ -487,7 +487,7 @@ Exceptions are listed apart from arm coverage. A covered arm can still raise. Th
 
 ## Install
 
-Ruby 3.3 or newer. Exploring uses Coverage, Prism, and json from the standard library. Add `gem "branchout", group: :test, require: false` to a Gemfile and run `bundle exec branchout`, or, from this checkout, run `ruby bin/branchout`, or put `bin` on `PATH`. Emitted minitest files run under `ruby`. Emitted RSpec files need the `rspec` gem. Outside a bundle, `bin/branchout` activates the newest installed prism that every installed gem accepts, so a target that requires minitest 6 (prism ~> 1.5) still loads when a newer prism is installed.
+Ruby 3.3 or newer. Exploring uses Coverage, Prism, and json from the standard library. `gem install branchout` installs the `branchout` command. In a project with a Gemfile, add `gem "branchout", group: :test, require: false` instead and run `bundle exec branchout`. A checkout of this repository works too: run `ruby bin/branchout`, or put `bin` on `PATH`. Emitted minitest files run under `ruby`. Emitted RSpec files need the `rspec` gem. Outside a bundle, `bin/branchout` activates the newest installed prism that every installed gem accepts, so a target that requires minitest 6 (prism ~> 1.5) still loads when a newer prism is installed.
 
 Install the [branchout skill](skills/branchout/SKILL.md) with the [`skills`](https://github.com/vercel-labs/skills) CLI (Node.js 22.20 or later). This repository is private, so these commands need GitHub access.
 

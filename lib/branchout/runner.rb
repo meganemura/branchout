@@ -139,8 +139,7 @@ module Branchout
     def attach
       unless Coverage.state == :suspended
         raise Error, "Coverage is #{Coverage.state}, so explore cannot measure #{@target.display_path}. " \
-                     "Require \"branchout/coverage\" first in the test file that explores, before its helper, " \
-                     "and run without another coverage tool such as SimpleCov."
+                     "Require \"branchout/coverage\" first in the test file that explores, before its helper."
       end
       unless Coverage.peek_result[File.expand_path(@target.path)]&.key?(:branches)
         raise Error, "#{@target.display_path} loaded before branchout/coverage, so Coverage has no arms for it. " \

@@ -686,7 +686,9 @@ rspec はプロジェクトの `spec` と `lib` を自分でロードパスに�
 Coverage が数えるのは、`branchout/coverage` の後に読み込まれたファイルだけである。
 それより前に読み込まれたターゲットは、読み込み直さずに断る。
 モデルを読み込み直すと、バリデーションが二重に宣言されるからである。
-SimpleCov のような別のツールが始めた Coverage も断る。
+ヘルパーで SimpleCov を始めるスイートは、`branchout/coverage` の前でも後でも、変えなくてよい。
+その実行は branchout が計測し、SimpleCov はその実行を 0% と報告する。
+explore は入力ごとに数を消すからである。
 入力の Ruby は、探索する example のローカル変数を読んではいけない。
 `let` や `subject` を読む入力は断る。
 出力するファイルにはどちらもないからである。

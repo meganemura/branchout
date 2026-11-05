@@ -218,11 +218,13 @@ class ExploreTest < Minitest::Test
                             "Require \"branchout/coverage\" first in the test file that explores, before its helper, and run that file alone."
   end
 
-  def test_coverage_another_tool_started_is_refused
-    stdout, _stderr, status = run_suite("#{SUITE}/early_test.rb", "COVERAGE_TOOL" => "1")
-    refute status.success?
-    assert_includes stdout, "Branchout::Error: Coverage is running, so explore cannot measure #{SUITE}/pantry.rb. " \
-                            "Require \"branchout/coverage\" first in the test file that explores, before its helper, " \
-                            "and run without another coverage tool such as SimpleCov."
+  # Many suites start SimpleCov unconditionally at the top of a helper,
+  # which loads before or after the explore file's first line.
+  def test_explore_measures_when_another_tool_starts_coverage_before_or_after_it
+    %w[before after].each do |order|
+      stdout, stderr, status = run_suite("#{SUITE}/early_test.rb", "COVERAGE_TOOL" => order)
+      assert status.success?, "#{order}: #{stdout}#{stderr}"
+      assert_includes stdout, "covered: 2 of 4 arms by 1 input\n", order
+    end
   end
 end

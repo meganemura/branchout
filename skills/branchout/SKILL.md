@@ -104,7 +104,7 @@ end
 The emitted test requires the helper the suite loaded (`require "rails_helper"`, else `test_helper`, else `spec_helper`) by name (a suite that loaded none of them passes its helper as `requires:`, or `emit_tests:` is refused; an entry found nowhere stops with `requires: "spec/helper" names no file under the working directory or on the load path`) and does not require the model, which the app loads. A minitest test inherits from the exploring test's own base class, such as `ActiveSupport::TestCase`, so fixtures and helpers work there too. An RSpec file gives its `describe` the exploring example group's `type` (`RSpec.describe Loan, type: :model do`). Its `# Load path:` comment leaves out the project's `spec` and `lib`, which rspec puts on the load path itself. Run it as any other test of the suite, without `BRANCHOUT`.
 
 - An input's Ruby must not read a local of the exploring example, and explore refuses an input that reads a `let` or `subject`. The emitted file has neither, and a `let` that an input reads first would be made inside that input's savepoint, so the rollback removes its row and later inputs get the record Rails marked unsaved. Build what an input needs in its own Ruby.
-- Do not run it with SimpleCov or another coverage tool: explore refuses Coverage that another tool started.
+- A suite that starts SimpleCov in a helper needs no change. branchout measures the explore run, and SimpleCov reports 0% for it.
 - Leave the explore example skipped, or delete it once the emitted test is in place.
 
 `--require config/environment.rb` also loads a Rails app for the CLI, with `RAILS_ENV=test`, but each input's rows stay in the test database, later inputs see them, and the test's helpers and `create` are not there.

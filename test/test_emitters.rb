@@ -800,6 +800,26 @@ class EmitterTest < Minitest::Test
                     %(raise_error(ArgumentError, "bad\\n  x: 1"))
   end
 
+  # The report prints a message on one line, so only line breaks fold:
+  # the blank String a FrozenError quotes keeps both its spaces.
+  def test_a_reported_message_keeps_whitespace_that_is_not_a_line_break
+    report = lambda do |message|
+      raise ArgumentError, message
+    rescue ArgumentError => e
+      Branchout::Runner::ExceptionInfo.from(e, "lib/x.rb", File.join(ROOT, "lib/x.rb")).message
+    end
+    frozen = begin
+      "  ".freeze << "x"
+    rescue FrozenError => e
+      Branchout::Runner::ExceptionInfo.from(e, "lib/x.rb", File.join(ROOT, "lib/x.rb"))
+    end
+    assert_equal %(can't modify frozen String: "  "), frozen.message
+    assert frozen.stable_message
+    assert_equal "a\tb  c", report.call("a\tb  c")
+    assert_equal "  padded  ", report.call("  padded  ")
+    assert_equal "first second third", report.call("\nfirst \n\n  second\r\nthird\n")
+  end
+
   # A message that quotes a backtrace frame names the method as Ruby labels
   # it, and Ruby 3.4 changed labels from `run' to 'Box.run'. The test pins
   # the rest of the message and lets the label be either form, so a test

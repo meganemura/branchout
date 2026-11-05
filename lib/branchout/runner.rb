@@ -13,7 +13,7 @@ module Branchout
     Execution = Struct.new(:input, :value, :error, :lines, :branches, :path_ids, :origin, :thawed, keyword_init: true)
     # +name+ is the missing name of a NameError, which is stable where its
     # message is not: Ruby 3.4 reworded both NameError and NoMethodError.
-    # +message+ has its whitespace folded for reports; a test pins
+    # +message+ has its line breaks folded for reports; a test pins
     # +exact_message+, the message as raised, when that is stable.
     # +message_pattern+ is the source of a Regexp for a message that quotes
     # a backtrace frame: Ruby 3.4 labels a frame 'Box.run' where 3.3 wrote
@@ -419,10 +419,9 @@ module Branchout
   class Runner::ExceptionInfo
     def self.from(exception, display_path, real_path, fallback_line: nil)
       raw = exception.message.to_s
-      clean = raw.gsub(/#<[^>]*>/, "#<obj>").gsub(/0x[0-9a-f]+/i, "0xID").gsub(/\s+/, " ").strip
-      clean = clean[0, 180]
+      clean = one_line(raw.gsub(/#<[^>]*>/, "#<obj>").gsub(/0x[0-9a-f]+/i, "0xID"))[0, 180]
       pattern = frame_pattern(raw)
-      whole = raw.gsub(/\s+/, " ").strip == clean
+      whole = one_line(raw) == clean
       stable = pattern.nil? && whole
       loc = locate(exception, display_path, real_path)
       if loc.nil? && fallback_line && exception.is_a?(Timeout::Error)
@@ -431,6 +430,13 @@ module Branchout
       missing = exception.name if exception.is_a?(NameError) && exception.name.is_a?(Symbol)
       new(class_name: exception.class.name, message: clean, loc: loc, stable_message: stable, name: missing, exact_message: (raw if stable),
           message_pattern: (pattern if whole))
+    end
+
+    # A report line holds the whole message, so each line break, with the
+    # blanks around it, becomes one space. Other whitespace is part of
+    # what the message says, such as the blank String a FrozenError quotes.
+    def self.one_line(text)
+      text.gsub(/\A\s*\R|\R\s*\z/, "").gsub(/\s*\R\s*/, " ")
     end
 
     FRAME_LABEL = /(:\d+:in )[`'][^`'\n]*'/

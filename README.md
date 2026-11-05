@@ -38,7 +38,7 @@ RSpec.describe Loan, type: :model do
 end
 ```
 
-The first line starts coverage before `rails_helper` boots the app, so that branchout can count the arms of the model's file. Without `BRANCHOUT` the example is skipped, so the file can stay in the suite. Each input runs in a savepoint that is rolled back, so no input sees the rows of another.
+The first line starts coverage before `rails_helper` boots the app, so that branchout can count the arms of the model's file. A helper that starts SimpleCov can stay as it is: branchout takes over coverage for this run. Without `BRANCHOUT` the example is skipped, so the file can stay in the suite. Each input runs in a savepoint that is rolled back, so no input sees the rows of another.
 
 3. Run it:
 

@@ -14,9 +14,9 @@ module Branchout
     # raise "coverage measurement is already setup", so the session keeps
     # measuring, and the tool reads the session's result when it reports.
     module LaterStart
-      def setup(...) = CoverageSession.installed? ? nil : super
+      def setup(...) = (super unless CoverageSession.installed?)
 
-      def start(...) = CoverageSession.installed? ? nil : super
+      def start(...) = (super unless CoverageSession.installed?)
     end
 
     module_function

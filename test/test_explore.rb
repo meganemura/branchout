@@ -211,6 +211,16 @@ class ExploreTest < Minitest::Test
     assert_equal "idle", stdout
   end
 
+  # The CLI installs the session before it loads a --require file, and a
+  # suite's helper may require branchout/coverage again.
+  def test_installing_the_session_again_keeps_the_counts_of_loaded_files
+    script = 'require "branchout/coverage"; require_relative "test/fixtures/suite/pantry"; ' \
+             'Branchout::CoverageSession.install; print Coverage.peek_result.keys.grep(/pantry/).length'
+    stdout, stderr, status = Open3.capture3(RbConfig.ruby, "-Ilib", "-e", script, chdir: ROOT)
+    assert status.success?, stderr
+    assert_equal "1", stdout
+  end
+
   def test_a_target_loaded_before_coverage_is_refused_not_loaded_again
     stdout, _stderr, status = run_suite("#{SUITE}/early_test.rb", "PANTRY_FIRST" => "1")
     refute status.success?

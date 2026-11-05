@@ -32,3 +32,7 @@ In a checkout whose gems live only in the bundle, as in CI, run both under `bund
 - The same inputs, flags, and CRuby must produce the same stdout. No timestamps. Paths are relative to the working directory.
 - The tool does not rewrite an inputs file.
 - Do not put secrets in inputs, fixtures, or reports.
+
+## Releasing
+
+A release, a gem push, and a change of the repository's visibility are the owner's to run. A commit that changes `lib/branchout/version.rb` and lands on `main` starts `.github/workflows/release.yml`, and [docs/releasing.md](docs/releasing.md) has the steps. Every change that a gem user can notice adds a line under `## [Unreleased]` in `CHANGELOG.md`.

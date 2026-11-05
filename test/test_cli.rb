@@ -774,6 +774,35 @@ class CLITest < Minitest::Test
     end
   end
 
+  # A require_relative out of the emitted test's project names this
+  # machine's directories, whether it is absolute or climbs into another
+  # project, so stderr says the test runs only here.
+  def test_a_test_that_requires_a_file_outside_its_project_by_path_is_warned_about
+    Dir.mktmpdir do |dir|
+      app = File.join(dir, "app")
+      FileUtils.mkdir_p(File.join(app, "lib"))
+      File.write(File.join(app, "Gemfile"), "")
+      FileUtils.cp(File.join(ROOT, "test/fixtures/magic.rb"), File.join(app, "lib/magic.rb"))
+      other = File.join(dir, "other")
+      FileUtils.mkdir_p(other)
+      File.write(File.join(other, "Gemfile"), "")
+      path = write_inputs(dir, { "inputs" => [[0]] })
+      args = ["explore", File.join(app, "lib/magic.rb"), "FixtureMagic.classify", "--strategy", "inputs", "--random", "0", "--inputs", path]
+
+      _out, err, status = run_cli(*args, "--emit-tests", File.join(app, "test/magic_test.rb"))
+      assert status.success?, err
+      assert_equal "", err
+
+      test = File.join(other, "test/magic_test.rb")
+      _out, err, status = run_cli(*args, "--emit-tests", test)
+      assert status.success?, err
+      assert_includes File.read(test), "require_relative \"../../app/lib/magic.rb\"\n"
+      assert_equal "branchout: the emitted test requires #{File.join(app, "lib/magic.rb")} by its path, outside the test's project, " \
+                   "so the test runs only where that file sits on this machine. Emit the test under that file's project, " \
+                   "or pass --require-by-name to require it through the load path.\n", err
+    end
+  end
+
   # A Rails model is outside lib: -I puts its directory on the load path,
   # for the explore run and for the name the emitted test requires.
   def test_a_load_path_directory_names_a_target_outside_lib
@@ -803,8 +832,15 @@ class CLITest < Minitest::Test
       args[1, 2] = [File.join(repo, "app/models/plain.rb"), "Plain.size"]
       _out, err, status = run_cli(*args)
       assert status.success?, err
-      assert_match %r{\Abranchout: \S*app/models/plain\.rb is under no -I or --require directory, so the emitted test requires it by path\.}, err
+      # The test sits outside the repository, so one warning says both.
+      assert_equal "branchout: the emitted test requires #{File.join(repo, "app/models/plain.rb")} by its path, outside the test's project, " \
+                   "so the test runs only where that file sits on this machine. Emit the test under that file's project, " \
+                   "or pass -I with a directory that holds it to require it through the load path.\n", err
       assert_includes File.read(test), "# Required by path: no -I or --require directory holds "
+      args[args.index(test)] = File.join(repo, "test/plain_test.rb")
+      _out, err, status = run_cli(*args)
+      assert status.success?, err
+      assert_match %r{\Abranchout: \S*app/models/plain\.rb is under no -I or --require directory, so the emitted test requires it by path\.\s\S+[^\n]*\n\z}, err
     end
   end
 

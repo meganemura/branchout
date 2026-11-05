@@ -185,7 +185,7 @@ module Branchout
           warnings = Emitters.write(format, result, parsed, opts[:emit_tests], require_by_name: opts[:require_by_name],
                                                                                 pin_keys: opts[:pin_keys])
           warnings.each { |line| $stderr.puts line }
-          warn_unnamed(result, target) if opts[:require_by_name]
+          warn_unnamed(result, target, opts[:emit_tests]) if opts[:require_by_name]
         end
       when "baselines"
         info = {
@@ -226,8 +226,12 @@ module Branchout
       )
     end
 
-    def warn_unnamed(result, target)
-      unnamed = Emitters::Support.unnamed_requires(result.requires, (target unless result.target_required), load_paths: result.load_paths)
+    # A file outside the test's project has had its warning from
+    # Emitters.write already.
+    def warn_unnamed(result, target, destination)
+      required = (target unless result.target_required)
+      unnamed = Emitters::Support.unnamed_requires(result.requires, required, load_paths: result.load_paths).map { |path| File.expand_path(path) } -
+                Emitters::Support.required_outside_project(result.requires, required, destination)
       unnamed.each do |path|
         $stderr.puts "branchout: #{Target.display_path(path)} is under no -I or --require directory, so the emitted test requires it by path. " \
                      "Pass -I with a directory that holds it to require it by name."

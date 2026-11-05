@@ -58,8 +58,7 @@ module Branchout
       # runner does not put on the load path itself (+runner_load_paths+,
       # from +from+, where the runner starts).
       def require_lines(requires, target_path, destination, by_name: false, load_paths: [], runner_load_paths: [], from: Dir.pwd)
-        roots = require_roots(requires, load_paths)
-        roots = [load_root(target_path)] if roots.empty? && target_path
+        roots = name_roots(requires, target_path, load_paths)
         used = []
         lines = [*requires, *target_path].flat_map do |path|
           absolute = File.expand_path(path)
@@ -98,6 +97,24 @@ module Branchout
         return [] if roots.empty?
 
         [*requires, *target_path].reject { |path| roots.any? { |dir| File.expand_path(path).start_with?(dir) } }
+      end
+
+      # The files require_lines requires by path that sit in another project
+      # than +destination+, or under no project when it has one: their
+      # require_relative names this machine's directories, absolute or
+      # climbing out of the test's project.
+      def required_outside_project(requires, target_path, destination, by_name: false, load_paths: [])
+        roots = by_name ? name_roots(requires, target_path, load_paths) : []
+        home = project_root(File.dirname(File.expand_path(destination)))
+        [*requires, *target_path].map { |path| File.expand_path(path) }.select do |absolute|
+          roots.none? { |dir| absolute.start_with?(dir) } &&
+            (project_root(File.dirname(absolute)) != home || File.absolute_path?(relative_require(destination, absolute)))
+        end
+      end
+
+      def name_roots(requires, target_path, load_paths)
+        roots = require_roots(requires, load_paths)
+        roots.empty? && target_path ? [load_root(target_path)] : roots
       end
 
       def require_roots(requires, load_paths)

@@ -1068,6 +1068,25 @@ class EmitterTest < Minitest::Test
     assert_equal "/home/u/repo/lib/a.rb", support.relative_require("/tmp/out/a_test.rb", "/home/u/repo/lib/a.rb")
   end
 
+  # Only a file required by path from out of the test's project is one
+  # that ties the test to this machine.
+  def test_a_file_required_by_path_from_out_of_the_project_is_listed
+    support = Branchout::Emitters::Support
+    magic = File.join(ROOT, "test/fixtures/magic.rb")
+    Dir.mktmpdir do |dir|
+      assert_equal [magic], support.required_outside_project([], magic, File.join(dir, "magic_test.rb"))
+      assert_equal [], support.required_outside_project([], magic, File.join(dir, "magic_test.rb"), by_name: true)
+      assert_equal [], support.required_outside_project([], File.join(dir, "lib/magic.rb"), File.join(dir, "test/magic_test.rb"))
+      %w[app other].each do |name|
+        FileUtils.mkdir_p(File.join(dir, name))
+        File.write(File.join(dir, name, "Gemfile"), "")
+      end
+      climbed = File.join(dir, "app/lib/magic.rb")
+      assert_equal [climbed], support.required_outside_project([], climbed, File.join(dir, "other/test/magic_test.rb"))
+    end
+    assert_equal [], support.required_outside_project([], magic, File.join(ROOT, "tmp/magic_test.rb"))
+  end
+
   # A target outside the working directory is named from its project's
   # root, or from the emitted file when no project holds it, so a committed
   # header carries no machine path.

@@ -23,7 +23,8 @@ module Branchout
       "minitest"
     end
 
-    # Returns a warning for each path of this machine that the test passes
+    # Returns a warning for each file the test requires by a path out of its
+    # project, and for each path of this machine that the test passes
     # as it is (Support.machine_paths), or pins in a returned value or an
     # error message, for the caller to print.
     def write(format, result, target, destination, require_by_name: false, pin_keys: [])
@@ -36,7 +37,13 @@ module Branchout
         Support.machine_paths_in([Support.pinned_value(pin.value, Support.keys_for(pin, pin_keys)), message])
       end
       existing, missing = passed.partition { |path| File.exist?(path) }
-      existing.map do |path|
+      outside = Support.required_outside_project(result.requires, (target.path unless result.target_required), destination,
+                                                 by_name: require_by_name, load_paths: result.load_paths)
+      outside.map do |path|
+        "branchout: the emitted test requires #{path} by its path, outside the test's project, so the test runs only where " \
+          "that file sits on this machine. Emit the test under that file's project, or #{require_by_name ? "pass -I with a directory that holds it" : "pass --require-by-name"} " \
+          "to require it through the load path."
+      end + existing.map do |path|
         "branchout: the emitted test passes #{path}, a file of this machine outside the test's project, so the test passes " \
           "only here. Put the file under the project, and the test names it from its own directory."
       end + (missing - pinned).map do |path|

@@ -39,7 +39,7 @@ module Branchout
       @host = host
       @path = target
       @load_paths = load_paths.map { |dir| File.expand_path(dir) }
-      @requires = requires.map { |name| required_file(name) }
+      @requires = requires.map { |name| required_file(name) or raise Error, require_not_found(name) }
       @entry = entry
       @user_inputs = user_inputs
       @type_overrides = type_overrides
@@ -85,17 +85,26 @@ module Branchout
 
     private
 
-    # A --require that names no file under the working directory is a
+    # A require that names no file under the working directory is a
     # feature, as Ruby's own -r reads it: found on an -I directory, then on
-    # the load path.
+    # the load path. Nil when it is found nowhere.
     def required_file(name)
       path = File.expand_path(name)
       return path if File.file?(path) || File.file?("#{path}.rb")
 
       feature = name.end_with?(".rb") ? name : "#{name}.rb"
       found = @load_paths.map { |dir| File.join(dir, feature) }.find { |file| File.file?(file) }
-      found ||= $LOAD_PATH.resolve_feature_path(name)&.last
-      found or raise Error, "--require #{name} names no file under the working directory, an -I directory, or the load path"
+      found || $LOAD_PATH.resolve_feature_path(name)&.last
+    end
+
+    # In the words of the caller: Branchout.explore, the one caller that
+    # passes a host, takes requires: and no -I.
+    def require_not_found(name)
+      if @host
+        "requires: #{name.inspect} names no file under the working directory or on the load path"
+      else
+        "--require #{name} names no file under the working directory, an -I directory, or the load path"
+      end
     end
 
     def build_result(target, runner, executions, counts, repeated_inputs)

@@ -312,6 +312,7 @@ minitest では、同じ呼び出しを `ActiveSupport::TestCase` のテスト�
 
 出力するテストは、スイートが読み込んだヘルパー（`rails_helper`、なければ `test_helper`、なければ `spec_helper`）を名前で require する。
 どれも読み込んでいないスイートは、`requires:` でヘルパーを指定する。
+ファイルを指さない `requires:` の要素はロードパスで探し、どこにもなければ `requires: "spec/helper" names no file under the working directory or on the load path` で止まる。
 指定しないと `emit_tests:` を断る。
 モデルはアプリが読み込むので require しない。
 minitest のテストは、探索したテストの基底クラス（`ActiveSupport::TestCase` など）を継承する。

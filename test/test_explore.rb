@@ -187,6 +187,10 @@ class ExploreTest < Minitest::Test
       Branchout.explore("ExploreTest#run_suite", within: self, inputs: [], emit_tests: "x_test.rb", format: :tap)
     end
     assert_equal "format must be minitest or rspec", error.message
+    error = assert_raises(Branchout::Error) do
+      Branchout.explore("ExploreTest#run_suite", within: self, inputs: [], requires: ["no_such_helper"])
+    end
+    assert_equal "requires: \"no_such_helper\" names no file under the working directory or on the load path", error.message
   end
 
   def test_a_receiver_that_is_not_ruby_source_is_refused

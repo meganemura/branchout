@@ -44,12 +44,10 @@ module Branchout
       lines << "(none)" if frontier.empty?
       # Consecutive arms share one nearest line, so a first run's single
       # input is printed once, not once for each arm it reached.
-      shown = nil
-      reached.sort_by { |arm| [arm.line, arm.column, arm.id] }.each do |arm|
-        nearest = arm.nearest ? arm.nearest.text : "null"
-        lines << "nearest: #{nearest}" unless nearest == shown
-        shown = nearest
-        lines << "#{arm.loc} #{WANTS.fetch(arm.sense, "takes the arm at `%s`") % arm.cond}"
+      nearest = ->(arm) { arm.nearest ? arm.nearest.text : "null" }
+      reached.sort_by { |arm| [arm.line, arm.column, arm.id] }.chunk_while { |a, b| nearest.(a) == nearest.(b) }.each do |arms|
+        lines << "nearest: #{nearest.(arms.first)}"
+        arms.each { |arm| lines << "#{arm.loc} #{WANTS.fetch(arm.sense, "takes the arm at `%s`") % arm.cond}" }
       end
       return if waiting.empty?
 

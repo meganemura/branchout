@@ -173,6 +173,24 @@ class CLITest < Minitest::Test
     end
   end
 
+  def test_each_run_of_arms_with_one_nearest_input_gets_its_own_nearest_line
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "pair.rb")
+      File.write(target, <<~RUBY)
+        module Pair
+          def self.pick(a, b)
+            return(b > 5 ? :both : :a) if a > 5
+            b > 5 ? :b : :none
+          end
+        end
+      RUBY
+      inputs = write_inputs(dir, {"inputs" => [[6, 0], [0, 0]]})
+      stdout, stderr, status = run_cli("explore", target, "Pair.pick", "--inputs", inputs, "--strategy", "inputs", "--random", "0")
+      assert status.success?, stderr
+      assert_includes stdout, "nearest: [6,0]\n#{target}:3:19 makes `b > 5` true\nnearest: [0,0]\n#{target}:4:12 makes `b > 5` true\n"
+    end
+  end
+
   def test_json_has_sorted_ids_and_no_clock
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [{ "args" => [0] }] })

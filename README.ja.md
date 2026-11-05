@@ -79,30 +79,11 @@ covered: 3 of 6 arms by 1 input
 raised: none
 tests: spec/models/loan_approve_spec.rb
 
-FRONTIER
-id: if@7:4/then@7:4
-loc: app/models/loan.rb:7:4
-cond: state == "approved"
-sense: cond-true
-parent: reached
-nearest: {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"kwargs":{},"receiver":{"ruby":"create(:loan)"}}
-next: add an input like nearest that makes `state == "approved"` true
-
-id: if@8:4/then@8:4
-loc: app/models/loan.rb:8:4
-cond: borrower.approved_cents + amount_cents > borrower.limit_cents
-sense: cond-true
-parent: reached
-nearest: {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"kwargs":{},"receiver":{"ruby":"create(:loan)"}}
-next: add an input like nearest that makes `borrower.approved_cents + amount_cents > borrower.limit_cents` true
-
-id: if@9:4/then@9:4
-loc: app/models/loan.rb:9:4
-cond: amount_cents > 10_000 && !officer.fetch(:senior)
-sense: cond-true
-parent: reached
-nearest: {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"kwargs":{},"receiver":{"ruby":"create(:loan)"}}
-next: add an input like nearest that makes `amount_cents > 10_000 && !officer.fetch(:senior)` true
+FRONTIER (add an input like the nearest above each arm, changed as the arm says)
+nearest: {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan)"}}
+app/models/loan.rb:7:4 makes `state == "approved"` true
+app/models/loan.rb:8:4 makes `borrower.approved_cents + amount_cents > borrower.limit_cents` true
+app/models/loan.rb:9:4 makes `amount_cents > 10_000 && !officer.fetch(:senior)` true
 
 OPERATORS (coverage does not see which side ran; vary each left side)
 app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
@@ -115,8 +96,8 @@ Finished in 0.28375 seconds (files took 2.14 seconds to load)
 ```
 
 1 件の入力が 6 個の腕のうち 3 個を通った。
-`FRONTIER` の各エントリは、どの入力も通らなかった腕である。
-`cond` はその条件で、`next` は腕を通るために `nearest` の入力をどう変えるかを言う。
+`FRONTIER` の下の各行は、どの入力も通らなかった腕で、そのファイル、行、列と、腕を通るために入力がすべきことを言う。
+`nearest` は最も近づいた入力なので、それを写して行の言うとおりに変える。
 `OPERATORS` は、カバレッジが両辺を数えない `&&` を示す。
 その左辺を真にする入力と偽にする入力を与える。
 この実行は `spec/models/loan_approve_spec.rb` も書いた。
@@ -237,14 +218,9 @@ covered: 5 of 6 arms by 13 inputs
 raised: 3 inputs
 tests: shipping_spec.rb
 
-FRONTIER
-id: if@6:4/then@6:14
-loc: shipping.rb:6:14
-cond: express
-sense: cond-true
-parent: reached
+FRONTIER (add an input like the nearest above each arm, changed as the arm says)
 nearest: [1]
-next: add an input like nearest that makes `express` true
+shipping.rb:6:14 makes `express` true
 
 EXCEPTIONS
 ArgumentError at shipping.rb:3: weight must be positive
@@ -257,7 +233,7 @@ branchout は、メソッド自身のリテラルとシード付きの標本か�
 それらは 6 本の腕のうち 5 本を通った。
 `FRONTIER` は、どの入力も通らなかった腕である。
 ここでは `express` が一度も真にならなかった。
-`next` は、足すべき入力を示す。
+`nearest` のような入力で、`express` を真にするものを足す。
 `EXCEPTIONS` は、例外を出した入力の一覧である。
 `--verbose` を付けると、通った各腕の入力も表示する。
 
@@ -388,7 +364,7 @@ Finished in 0.00228 seconds (files took 0.07051 seconds to load)
 種ファイルの入力は `[0]` の 1 件である。
 `--verbose` はレポート全体を出す。
 実行の設定と件数のあとに、`COVERED`（各腕を通った入力）、`FRONTIER`（どの入力も通らなかった各腕と、`nearest` が通った腕の `path`）、`EXCEPTIONS`（例外を出した入力ごとに 1 件）、`NOT COUNTED`、`OPERATORS` が続く。
-付けないときのレポートは、件数と、入力が届いた `FRONTIER` の腕とその `next` の行と、どの入力も届かなかった決定ごとに 1 行と、例外ごとに 1 行を残す。
+付けないときのレポートは、件数と、入力が届いた `FRONTIER` の腕を、変えるべき `nearest` の入力の下に 1 行ずつと、どの入力も届かなかった決定ごとに 1 行と、例外ごとに 1 行を残す。
 [アプリなしで試す](#アプリなしで試す) の出力がその形である。
 `--json` は、レポート全体のすべての項目を持つ。
 

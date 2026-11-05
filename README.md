@@ -67,30 +67,11 @@ covered: 3 of 6 arms by 1 input
 raised: none
 tests: spec/models/loan_approve_spec.rb
 
-FRONTIER
-id: if@7:4/then@7:4
-loc: app/models/loan.rb:7:4
-cond: state == "approved"
-sense: cond-true
-parent: reached
-nearest: {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"kwargs":{},"receiver":{"ruby":"create(:loan)"}}
-next: add an input like nearest that makes `state == "approved"` true
-
-id: if@8:4/then@8:4
-loc: app/models/loan.rb:8:4
-cond: borrower.approved_cents + amount_cents > borrower.limit_cents
-sense: cond-true
-parent: reached
-nearest: {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"kwargs":{},"receiver":{"ruby":"create(:loan)"}}
-next: add an input like nearest that makes `borrower.approved_cents + amount_cents > borrower.limit_cents` true
-
-id: if@9:4/then@9:4
-loc: app/models/loan.rb:9:4
-cond: amount_cents > 10_000 && !officer.fetch(:senior)
-sense: cond-true
-parent: reached
-nearest: {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"kwargs":{},"receiver":{"ruby":"create(:loan)"}}
-next: add an input like nearest that makes `amount_cents > 10_000 && !officer.fetch(:senior)` true
+FRONTIER (add an input like the nearest above each arm, changed as the arm says)
+nearest: {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan)"}}
+app/models/loan.rb:7:4 makes `state == "approved"` true
+app/models/loan.rb:8:4 makes `borrower.approved_cents + amount_cents > borrower.limit_cents` true
+app/models/loan.rb:9:4 makes `amount_cents > 10_000 && !officer.fetch(:senior)` true
 
 OPERATORS (coverage does not see which side ran; vary each left side)
 app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
@@ -102,7 +83,7 @@ Finished in 0.28375 seconds (files took 2.14 seconds to load)
 1 example, 0 failures
 ```
 
-The one input took 3 of the 6 arms. Each `FRONTIER` entry is an arm that no input took: `cond` is its condition, and `next` says what to change in the `nearest` input to take it. `OPERATORS` names an `&&` whose sides coverage does not count, so give inputs that make its left side true and false. The run also wrote `spec/models/loan_approve_spec.rb`, which pins what each input returned.
+The one input took 3 of the 6 arms. Each line under `FRONTIER` is an arm that no input took, at its file, line, and column, and says what an input must do to take it. `nearest` is the input that came closest, so copy it and change it as the line says. `OPERATORS` names an `&&` whose sides coverage does not count, so give inputs that make its left side true and false. The run also wrote `spec/models/loan_approve_spec.rb`, which pins what each input returned.
 
 ### Next: close the frontier
 
@@ -211,14 +192,9 @@ covered: 5 of 6 arms by 13 inputs
 raised: 3 inputs
 tests: shipping_spec.rb
 
-FRONTIER
-id: if@6:4/then@6:14
-loc: shipping.rb:6:14
-cond: express
-sense: cond-true
-parent: reached
+FRONTIER (add an input like the nearest above each arm, changed as the arm says)
 nearest: [1]
-next: add an input like nearest that makes `express` true
+shipping.rb:6:14 makes `express` true
 
 EXCEPTIONS
 ArgumentError at shipping.rb:3: weight must be positive
@@ -227,7 +203,7 @@ ArgumentError at shipping.rb:3: weight must be positive
 Pass --verbose for every covered arm and the run settings.
 ```
 
-branchout ran 13 inputs that it made from the method's own literals and from a seeded sample. They took 5 of the 6 arms. `FRONTIER` is the arm that no input took: `express` was never true, and `next` says what input to add. `EXCEPTIONS` lists the inputs that raised. `--verbose` also prints the input that took each covered arm.
+branchout ran 13 inputs that it made from the method's own literals and from a seeded sample. They took 5 of the 6 arms. `FRONTIER` is the arm that no input took: `express` was never true, so add an input like `nearest` that makes it true. `EXCEPTIONS` lists the inputs that raised. `--verbose` also prints the input that took each covered arm.
 
 The emitted spec pins each return value and each error:
 
@@ -345,7 +321,7 @@ A coding agent adding tests can see that a branch was missed and still not know 
 
 The method follows concolic testing ([DART](https://doi.org/10.1145/1065010.1065036), [CUTE](https://doi.org/10.1145/1094811.1094816)) and LLM-guided concolic work such as [ConcoLLMic](https://concollmic.github.io/). branchout is inspired by concolic testing but does no symbolic solving. The agent proposes inputs from the branch frontier.
 
-From a checkout of this repository, `ruby bin/branchout` runs the same command as `branchout`. The seed file holds one input, `[0]`. `--verbose` prints the whole report: the run settings and counts, then `COVERED` (the input that took each arm), `FRONTIER` (each arm no input took, with `path`, the arms `nearest` took), `EXCEPTIONS` (one record for each input that raised), `NOT COUNTED`, and `OPERATORS`. Without it, the report keeps the counts, the `FRONTIER` arms that an input reached, each with a `next` line, one line for each decision that no input reached, and one line for each error, as in [Try it without an app](#try-it-without-an-app). `--json` holds every field of the whole report.
+From a checkout of this repository, `ruby bin/branchout` runs the same command as `branchout`. The seed file holds one input, `[0]`. `--verbose` prints the whole report: the run settings and counts, then `COVERED` (the input that took each arm), `FRONTIER` (each arm no input took, with `path`, the arms `nearest` took), `EXCEPTIONS` (one record for each input that raised), `NOT COUNTED`, and `OPERATORS`. Without it, the report keeps the counts, the `FRONTIER` arms that an input reached, one line each under the `nearest` input to change, one line for each decision that no input reached, and one line for each error, as in [Try it without an app](#try-it-without-an-app). `--json` holds every field of the whole report.
 
 ```sh
 ruby bin/branchout explore examples/magic_value.rb MagicValue.classify \

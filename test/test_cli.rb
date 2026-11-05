@@ -147,22 +147,10 @@ class CLITest < Minitest::Test
         raised: 4 inputs
         tests: #{dir}/gate_test.rb
 
-        FRONTIER
-        id: if@4:4/then@4:4
-        loc: #{target}:4:4
-        cond: n.zero?
-        sense: cond-true
-        parent: reached
+        FRONTIER (add an input like the nearest above each arm, changed as the arm says)
         nearest: [-1,null]
-        next: add an input like nearest that makes `n.zero?` true
-
-        id: if@6:4/then@7:6
-        loc: #{target}:7:6
-        cond: n.positive?
-        sense: cond-true
-        parent: reached
-        nearest: [-1,null]
-        next: add an input like nearest that makes `n.positive?` true
+        #{target}:4:4 makes `n.zero?` true
+        #{target}:7:6 makes `n.positive?` true
 
         not reached yet; take the arms above first:
         #{target}:7 case (3 arms)
@@ -224,10 +212,7 @@ class CLITest < Minitest::Test
         "--strategy", "inputs", "--random", "0", "--inputs", path
       )
       assert status.success?, stderr
-      assert_includes stdout, "cond: y == x + 5"
-      assert_includes stdout, "parent: reached"
-      assert_includes stdout, "nearest: [138,0]"
-      assert_includes stdout, "sense: cond-true"
+      assert_includes stdout, "nearest: [138,0]\ntest/fixtures/arith.rb:7:8 makes `y == x + 5` true\n"
     end
   end
 
@@ -239,8 +224,7 @@ class CLITest < Minitest::Test
         "--strategy", "inputs", "--random", "0", "--inputs", path
       )
       assert status.success?, stderr
-      assert_includes stdout, "cond: x > 10"
-      assert_includes stdout, "parent: reached"
+      assert_includes stdout, "test/fixtures/call.rb:14:6 makes `x > 10` true\n"
       refute_includes stdout, "x == 9"
     end
   end
@@ -254,7 +238,7 @@ class CLITest < Minitest::Test
       )
       assert status.success?, stderr
       assert_includes stdout, "covered: 1 of "
-      assert_includes stdout, "FRONTIER\nid: if@10:4/then@11:6"
+      assert_includes stdout, "nearest: [2]\ntest/fixtures/tally.rb:11:6 makes `@seen > 3` true\n"
     end
   end
 
@@ -271,7 +255,7 @@ class CLITest < Minitest::Test
       )
       assert status.success?, stderr
       assert_includes stdout, "covered: 1 of "
-      assert_includes stdout, 'nearest: {"args":[5],"kwargs":{},"new":{"args":[10],"kwargs":{}}}'
+      assert_includes stdout, 'nearest: {"args":[5],"new":{"args":[10]}}'
       assert_includes File.read(test), "assert_equal 5, FixtureAccount.new(10).withdraw(5)"
       assert_includes File.read(test), "assert_equal -2, FixtureAccount.new(10, limit: 5).withdraw(12)"
       _out, err, status = Open3.capture3(RbConfig.ruby, test)
@@ -343,7 +327,7 @@ class CLITest < Minitest::Test
       assert_includes stdout, "arms_covered: 4\narms_total: 6"
       assert_includes stdout, "id: if@28:4/then@28:20\nloc: test/fixtures/cart.rb:28:20\ncond: @items.empty?\nsense: cond-true\nparent: reached"
       assert_includes stdout, "class: ArgumentError\nloc: test/fixtures/cart.rb:10\n" \
-                              'input: {"args":[],"kwargs":{},"setup":[{"args":["apple",0],"kwargs":{},"method":"add"}]}' \
+                              'input: {"args":[],"setup":[{"args":["apple",0],"method":"add"}]}' \
                               "\nmessage: quantity must be positive"
 
       source = File.read(test)
@@ -409,7 +393,7 @@ class CLITest < Minitest::Test
         )
         assert status.success?, stderr
         assert_includes stdout, "arms_covered: 2\n"
-        assert_includes stdout, 'input: {"args":[{"ruby":"fixture_account.withdraw(4)"}],"kwargs":{},"receiver":{"ruby":"FixtureAccount.new(10)"}}'
+        assert_includes stdout, 'input: {"args":[{"ruby":"fixture_account.withdraw(4)"}],"receiver":{"ruby":"FixtureAccount.new(10)"}}'
       end
       assert_includes File.read(minitest), "    fixture_account = FixtureAccount.new(10)\n" \
                                            "    assert_equal 4, fixture_account.withdraw(fixture_account.withdraw(4))\n"
@@ -495,7 +479,7 @@ class CLITest < Minitest::Test
       )
       assert status.success?, stderr
       assert_includes stdout, "covered: 3 of 4 arms"
-      assert_includes stdout, "FRONTIER\nid: if@17:11/then@17:24\nloc: test/fixtures/delegate.rb:17:24\ncond: doc.empty?"
+      assert_includes stdout, "nearest: [\"b\"]\ntest/fixtures/delegate.rb:17:24 makes `doc.empty?` true\n"
     end
   end
 
@@ -509,7 +493,7 @@ class CLITest < Minitest::Test
       )
       assert status.success?, stderr
       assert_includes stdout, "covered: 1 of 2 arms"
-      assert_includes stdout, "FRONTIER\nid: if@35:12/else@35:42"
+      assert_includes stdout, "nearest: [\"a=1\"]\ntest/fixtures/delegate.rb:35:42 makes `@text.include?(\"=\")` false\n"
     end
   end
 

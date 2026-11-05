@@ -2,14 +2,9 @@ branchout explore examples/arithmetic.rb Arithmetic.classify
 covered: 7 of 8 arms by 5 inputs
 raised: none
 
-FRONTIER
-id: if@18:4/then@19:6
-loc: examples/arithmetic.rb:19:6
-cond: x == 114514 && x == 0
-sense: cond-true
-parent: reached
+FRONTIER (add an input like the nearest above each arm, changed as the arm says)
 nearest: [0,0,0]
-next: add an input like nearest that makes `x == 114514 && x == 0` true
+examples/arithmetic.rb:19:6 makes `x == 114514 && x == 0` true
 
 OPERATORS (coverage does not see which side ran; vary each left side)
 examples/arithmetic.rb:18:22 && in `x == 114514 && x == 0`

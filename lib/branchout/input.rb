@@ -111,9 +111,20 @@ module Branchout
     end
 
     # Short form used in the text report. An input with only args prints as
-    # the args array so an agent can paste it back into inputs.json.
+    # the args array so an agent can paste it back into inputs.json. The
+    # entry form leaves out empty kwargs, which an inputs file may omit.
     def text
-      kwargs.empty? && receiver.nil? && setup.empty? && block.nil? ? Canon.json(args) : Canon.json(to_h)
+      return Canon.json(args) if kwargs.empty? && receiver.nil? && setup.empty? && block.nil?
+
+      Canon.json(short_h)
+    end
+
+    def short_h
+      hash = to_h
+      hash.delete("kwargs") if kwargs.empty?
+      hash["new"] = receiver.short_h if hash.key?("new")
+      hash["setup"] = setup.map { |call| call.arguments.short_h.merge("method" => call.method_name) } unless setup.empty?
+      hash
     end
 
     # Smaller is a simpler witness: absolute numeric size, then string

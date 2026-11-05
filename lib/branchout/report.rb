@@ -40,13 +40,16 @@ module Branchout
 
     def frontier_brief(lines, frontier)
       reached, waiting = frontier.partition { |arm| arm.parent == "reached" }
-      lines << "" << "FRONTIER"
+      lines << "" << (reached.any? ? "FRONTIER (add an input like the nearest above each arm, changed as the arm says)" : "FRONTIER")
       lines << "(none)" if frontier.empty?
-      reached.sort_by { |arm| [arm.line, arm.column, arm.id] }.each_with_index do |arm, index|
-        lines << "" if index.positive?
-        lines.concat(frontier_lines(arm))
-        want = WANTS.fetch(arm.sense, "takes the arm at `%s`") % arm.cond
-        lines << "next: add an input like nearest that #{want}"
+      # Consecutive arms share one nearest line, so a first run's single
+      # input is printed once, not once for each arm it reached.
+      shown = nil
+      reached.sort_by { |arm| [arm.line, arm.column, arm.id] }.each do |arm|
+        nearest = arm.nearest ? arm.nearest.text : "null"
+        lines << "nearest: #{nearest}" unless nearest == shown
+        shown = nearest
+        lines << "#{arm.loc} #{WANTS.fetch(arm.sense, "takes the arm at `%s`") % arm.cond}"
       end
       return if waiting.empty?
 

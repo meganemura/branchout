@@ -602,6 +602,38 @@ class CLITest < Minitest::Test
     end
   end
 
+  # An @ivar ||= or &&= on an ivar the file writes nowhere else memoizes
+  # across calls on one object, which each input builds anew, so no input
+  # varies its left side and OPERATORS leaves it out. One on an ivar that
+  # new sets, and a local's ||=, stay.
+  def test_memoizing_an_ivar_is_not_listed_as_an_operator
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "rates.rb")
+      File.write(target, <<~RUBY)
+        class Rates
+          def initialize(table = nil) = @table = table
+          def rate(code, fallback = nil)
+            fallback ||= 0
+            @cache ||= {}
+            @cache[code] ||= lookup(code) || fallback
+          end
+          def lookup(code)
+            @table ||= { "a" => 1 }
+            @seen &&= true
+            @table[code]
+          end
+        end
+      RUBY
+      stdout, stderr, status = run_cli("explore", target, "Rates#rate", "--strategy", "inputs", "--inputs", write_inputs(dir, { "inputs" => [["a"]] }))
+      assert status.success?, stderr
+      operators = stdout[/^OPERATORS.*?\n\n/m] || stdout[/^OPERATORS.*\z/m]
+      assert_includes operators, "fallback ||= 0"
+      assert_includes operators, "@table ||= { \"a\" => 1 }"
+      refute_includes operators, "@cache ||= {}"
+      refute_includes operators, "@seen &&= true"
+    end
+  end
+
   # An error whose message differs between two runs, as one that quotes a
   # generated id does, is pinned by its class alone.
   def test_an_error_whose_message_differs_between_runs_is_pinned_by_its_class

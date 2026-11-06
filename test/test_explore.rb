@@ -166,6 +166,25 @@ class ExploreTest < Minitest::Test
     end
   end
 
+  # rspec requires the files .rspec and -r name before the spec file, so
+  # the spec's first line comes too late and -r branchout/coverage loads
+  # after them; RUBYOPT loads it before rspec starts.
+  def test_a_helper_that_rspec_requires_first_is_named_with_the_way_around_it
+    dir = "test/fixtures/dotrspec"
+    rspec = ["-rrspec/core", "-e", "exit RSpec::Core::Runner.run(ARGV)", "--", "-I", "."]
+    stdout, stderr, status = Open3.capture3(RbConfig.ruby, "-I#{ROOT}/lib", *rspec, "pantry_explore_spec.rb", chdir: dir)
+    refute status.success?, stdout + stderr
+    assert_includes stdout.gsub(/\s+/, " "),
+                    "rspec required dot_helper before the explore file and before any -r branchout/coverage. " \
+                    "Start Coverage before rspec loads: RUBYOPT=\"-rbranchout/coverage\" bundle exec rspec <the explore file>, " \
+                    "or rspec --options /dev/null -r dot_helper <the explore file>."
+
+    stdout, stderr, status = Open3.capture3({"RUBYOPT" => "-I#{ROOT}/lib -rbranchout/coverage"}, RbConfig.ruby, *rspec, "pantry_explore_spec.rb",
+                                            chdir: dir)
+    assert status.success?, stdout + stderr
+    assert_includes stdout, "covered: 2 of 4 arms by 1 input\n"
+  end
+
   # The savepoint reason holds only for a let the input made. The spec
   # reads its let before explore, so only the missing let is the reason.
   def test_an_input_that_reads_a_let_is_refused

@@ -634,6 +634,13 @@ Rails のないスイートでも同じように動く。
 `.rspec` が `rails_helper` を require していると、スペックの 1 行目より前にアプリが起動する。
 そのため、イニシャライザが読むモデルは早すぎる時点で読み込まれ、explore はそれを断る。
 テスト環境が eager load する（`config.eager_load`。Rails は `ENV["CI"]` から決める）と、すべてのモデルが同じことになる。
+そのときは、rspec が何かを読み込む前に Coverage を始める。
+`BRANCHOUT=1 RUBYOPT=-rbranchout/coverage bundle exec rspec spec/models/loan_explore_spec.rb` と実行する。
+あるいは `BRANCHOUT=1 bundle exec rspec --options /dev/null -r rails_helper spec/models/loan_explore_spec.rb` と実行する。
+こちらは `.rspec` のほかのオプションも外れる。
+`rspec -r branchout/coverage` では解決しない。
+rspec はそれを `.rspec` が示すファイルのあとに require するからである。
+断るメッセージは、rspec が先に require したファイルと、この 2 つのコマンドを示す。
 Rails より前に準備すると、Coverage はすべての gem も計測する。
 クイックスタートのサンプルアプリでは、`spec/rails_helper.rb` の `config/environment` を読み込む行のすぐ後に置いた場合と比べて、探索の実行は起動が約 0.3 秒、入力 1 件ごとに約 12 ms 長くなった。
 起動中にモデルを読み込むものがなければ、その置き方のほうが速い。

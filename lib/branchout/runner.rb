@@ -203,12 +203,26 @@ module Branchout
       unless Coverage.peek_result[File.expand_path(@target.path)]&.key?(:branches)
         raise Error, "#{@target.display_path} loaded before branchout/coverage, so Coverage has no arms for it. " \
                      "Require \"branchout/coverage\" first in the test file that explores, before its helper, " \
-                     "and run that file alone."
+                     "and run that file alone.#{rspec_required_first}"
       end
       @target_required = true
       resolve
       @not_counted = callees_in_other_files(Coverage.result(stop: false, clear: true))
       @template = extract(Coverage.peek_result)
+    end
+
+    # rspec requires each file .rspec or -r names before the spec files,
+    # so a model those files load is loaded before the explore file's first
+    # line, and -r branchout/coverage comes after them too.
+    def rspec_required_first
+      return unless defined?(::RSpec) && ::RSpec.respond_to?(:configuration)
+
+      helpers = ::RSpec.configuration.requires.reject { |name| name.start_with?("branchout") }
+      return if helpers.empty?
+
+      " rspec required #{helpers.join(", ")} before the explore file and before any -r branchout/coverage. " \
+        "Start Coverage before rspec loads: RUBYOPT=\"-rbranchout/coverage\" bundle exec rspec <the explore file>, " \
+        "or rspec --options /dev/null -r #{helpers.join(" -r ")} <the explore file>."
     end
 
     # Kernel#load, as Rails uses for an initializer, leaves the file out of

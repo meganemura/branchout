@@ -589,6 +589,37 @@ class EmitterTest < Minitest::Test
     assert_equal %w[test_constants_empty_tests_1_returns_0 test_constants_1_tests_1_returns_0], Branchout::Emitters::Support.test_names(pins)
   end
 
+  # Ruby calls that share a long start, as factory calls do, are named by
+  # the keyword arguments that differ between them, and an error's class
+  # is never cut.
+  def test_ruby_calls_are_named_by_the_keywords_that_differ
+    call = ->(b, d) { Branchout::Code.parse(%(Widget.build(a: "some long shared value", c: "another shared value", b: #{b}, d: #{d}))) }
+    error = Branchout::Runner::ExceptionInfo.new(class_name: "Widget::PartNotFoundForThisLine")
+    pins = [[call.("nil", 1), { kind: :plain }, nil], [call.('"Y"', 1), { kind: :Y }, nil], [call.('"Y"', 2), { kind: :Y }, nil],
+            [call.('"missing"', 1), nil, error]].map do |arg, value, raised|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [arg]), value: value, error: raised, covers: [])
+    end
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Widget", :attributes_from, "Widget.attributes_from", "lib/widget.rb", File.join(ROOT, "lib/widget.rb"), [],
+                        [Struct.new(:name).new(:fact)])
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
+    spec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/widget_spec.rb"))
+    assert_equal ['returns kind: :plain when b is nil and d is 1', "returns kind: :Y when d is 1", "returns kind: :Y when d is 2",
+                  'raises Widget::PartNotFoundForThisLine when b is "missing" and d is 1'].sort,
+                 spec.scan(/^ *it ['"](.*)['"] do$/).flatten.sort
+    long = Branchout::Runner::ExceptionInfo.new(class_name: "Widget::Parts::PartNotFoundForThisLineOfTheOrderError")
+    texts = %w[alpha beta].map do |word|
+      pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: ["#{word} #{"x" * 60}"]), value: nil, error: long, covers: [])
+      Branchout::Emitters.render("rspec", Branchout::Engine::Result.new(pins: [pin, pins[0]], requires: [], load_paths: [], private_calls: []),
+                                 target, File.join(ROOT, "spec/widget_spec.rb")).scan(/^ *it ['"](.*)['"] do$/).flatten.first
+    end
+    texts.each { |text| assert text.start_with?("raises Widget::Parts::PartNotFoundForThisLineOfTheOrderError when fact is \""), text }
+    assert_operator texts.map(&:length).max, :<=, 80
+    assert_equal %w[test_widget_build_a_some_long_shared_value_c_returns_kind_plain test_d_1_returns_kind_y test_d_2_returns_kind_y
+                    test_widget_build_a_some_long_shared_value_c_raises_widget_part_not_found],
+                 Branchout::Emitters::Support.test_names(pins)
+  end
+
   # An Array argument is named by its parameter, as a whole when it holds
   # only scalars, and an empty one keeps a word in a minitest name.
   def test_an_array_argument_is_named_by_its_parameter

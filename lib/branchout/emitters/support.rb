@@ -514,6 +514,7 @@ module Branchout
       def collect_leaves(value, path, out, whole_arrays: false)
         value = written_value(value)
         children = case value
+          when Code then call_parts(value)
           when Hash then value.map { |key, item| [key.is_a?(Symbol) ? SymbolKey.new(key.to_s) : key.to_s, item] }
           when Array
             whole_arrays && value.none? { |item| collection?(item) } ? [] : value.each_with_index.map { |item, index| [index, item] }
@@ -709,7 +710,8 @@ module Branchout
       # +root+, when given, is the name the path starts from.
       def path_text(path, root = nil)
         path.each_with_object(+"#{root}") do |step, text|
-          text << if step.is_a?(Integer) then "[#{step}]"
+          text << if step.is_a?(CallHead) then ""
+                  elsif step.is_a?(Integer) then "[#{step}]"
                   elsif !step.is_a?(SymbolKey) then "[#{step.inspect}]"
                   elsif !step.name.match?(/\A[A-Za-z_][A-Za-z0-9_]*[?!]?\z/) then "[#{step.name.to_sym.inspect}]"
                   elsif text.empty? then step.name
@@ -777,6 +779,30 @@ module Branchout
 
         catch(:not_plain) { return plain_literal(body.first) }
         value
+      end
+
+      # The call before its keyword arguments, in a path into a Ruby call.
+      # It has no name of its own, so the leaf reads as the argument.
+      CallHead = Data.define
+
+      # A Ruby call with keyword arguments, such as a factory call, as its
+      # head and each keyword, so inputs that share a long call read apart
+      # by the keywords that differ (b is "Y") and not by a cut source.
+      # Empty for any other Ruby, which stays one leaf.
+      def call_parts(code)
+        body = Prism.parse(code.source).value.statements&.body || []
+        call = body.first if body.one?
+        return [] unless call.is_a?(Prism::CallNode) && call.block.nil? && call.arguments
+
+        *positional, keywords = call.arguments.arguments
+        return [] unless keywords.is_a?(Prism::KeywordHashNode) &&
+                         keywords.elements.all? { |pair| pair.is_a?(Prism::AssocNode) && pair.key.is_a?(Prism::SymbolNode) }
+
+        head = code.source[0...keywords.location.start_offset - call.location.start_offset].sub(/[(,\s]+\z/, "")
+        head = "#{head})" if call.opening_loc && !positional.empty?
+        [[CallHead.new, Code.new(head)]] + keywords.elements.map do |pair|
+          [SymbolKey.new(pair.key.unescaped), catch(:not_plain) { next plain_literal(pair.value) } || Code.new(pair.value.slice)]
+        end
       end
 
       def plain_literal(node)

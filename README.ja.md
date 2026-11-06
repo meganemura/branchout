@@ -588,6 +588,9 @@ RSpec のファイルは定数を describe し、その中で `.method` か `#me
 そのため Rails の params のような String キーの Hash が、Symbol で引けるようには読めない。
 JSON の入力 `[{"sku": "B"}]` は `items[0]["sku"] is "B"` と読み、Ruby のリテラル `{"ruby": "[{sku: \"B\"}]"}` は `items[0].sku is "B"` と読む。
 `{"ruby": ...}` の Ruby が単純なリテラルなら、どちらの形式でも同じようにその値で名付ける。
+`FactoryBot.build(:fact, a: "X", b: "Y")` のようにキーワード引数を持つ Ruby の呼び出しは、Hash と同じようにキーワードで名付ける（`when b is "Y"`）。
+そのため、長い先頭が同じファクトリ呼び出しも見分けられる。
+キーワードより前の呼び出しは、違うときだけ名付ける。
 Hash の結果は、各キーをリテラルと同じ形で書く（`returns "state" => "open"`、`returns due_cents: 0`）。
 String のキーの下にある葉は、それを持つリテラルで書き、同じキーの下の葉は一つのリテラルにまとめる（`returns "counts" => {"discarded" => 1}`、`returns "tests" => [{"file" => "a_spec.rb", "disposition" => "flaky"}]`）。
 context は、兄弟と見分けるのに要る値だけを述べる。
@@ -600,6 +603,7 @@ String のキーは、引数とその葉を持つリテラルで書く（`when d
 長い文字列は、兄弟と分かれたところで切る。
 切れ目が単語の途中に来るときは、その単語の前で切る。
 それでも 80 文字を超える example は、見分けるのに要る値を残し、先頭の結果のほうを切る（`returns ["require \"shop\"",... when target_path is "app/cart.rb"`）。
+例外を出す example は、例外のクラスを切らずに残し、そのあとの値を切る。
 ダブルクォートを含む文は、エスケープが要らないようにシングルクォートで書く。
 文の中の String の値がバックスラッシュを含むときも同じである（`'returns 1 when x is "say \"hi\""'`）。
 

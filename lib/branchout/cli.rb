@@ -151,6 +151,7 @@ module Branchout
       type_overrides = nil
       if opts[:inputs]
         user_inputs, type_overrides = InputFile.load(opts[:inputs])
+        InputFile.quoted_strings(user_inputs).each { |line| $stderr.puts "branchout: #{line}" }
       end
 
       case command

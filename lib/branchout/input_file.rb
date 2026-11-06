@@ -74,12 +74,31 @@ module Branchout
         Input.new(args: entry.fetch("args", []), kwargs: entry["kwargs"] || {}, receiver: receiver, setup: setup, pin_keys: pin_keys, block: block,
                   before: before)
       else
-        raise Error, "#{label} must be an array or an object"
+        raise Error, "#{label} must be an array or an object" if label.end_with?(" new")
+
+        raise Error, "#{label} is #{JSON.generate(entry)}, not a call; write each call as an array of its arguments, such as #{JSON.generate([entry])}"
       end
     rescue Error => e
       raise if e.message.start_with?(label)
 
       raise Error, "#{label} #{e.message}"
+    end
+
+    # A String argument wrapped in its own quotes, as "\"0306406150\"", is
+    # most often Ruby or JSON source written where a JSON value goes, and
+    # the method then gets the quotes too.
+    def quoted_strings(inputs)
+      inputs.each_with_index.flat_map do |input, index|
+        named = input.args.each_with_index.map { |value, at| ["args[#{at}]", value] } +
+                input.kwargs.map { |key, value| ["kwargs.#{key}", value] }
+        named.filter_map do |place, value|
+          next unless value.is_a?(String) && value.length >= 2 && value.match?(/\A(["']).*\z/m)
+
+          "inputs[#{index}] #{place} is the String #{value.inspect}, quotes included. " \
+            "An inputs file is JSON, so write #{value[1...-1].inspect} for the String #{value[1...-1]}, " \
+            "or {\"ruby\": \"...\"} for Ruby source. Keep the quotes only if the method should get them."
+        end
+      end
     end
 
     def code?(value)

@@ -185,6 +185,21 @@ class CLITest < Minitest::Test
     end
   end
 
+  # An inputs file is JSON, so a String argument written with its own
+  # quotes reaches the method with those quotes.
+  def test_a_string_argument_that_holds_its_own_quotes_is_named
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "code.rb")
+      File.write(target, "module Code\n  def self.parse(raw) = raw.empty? ? nil : raw.size\nend\n")
+      inputs = write_inputs(dir, {"inputs" => [["\"0306406150\""], ["abc"], [{"code" => "'x'"}]]})
+      _stdout, stderr, status = run_cli("explore", target, "Code.parse", "--inputs", inputs, "--strategy", "inputs")
+      assert status.success?, stderr
+      assert_equal 'branchout: inputs[0] args[0] is the String "\"0306406150\"", quotes included. ' \
+                   'An inputs file is JSON, so write "0306406150" for the String 0306406150, ' \
+                   "or {\"ruby\": \"...\"} for Ruby source. Keep the quotes only if the method should get them.\n", stderr
+    end
+  end
+
   def test_each_run_of_arms_with_one_nearest_input_gets_its_own_nearest_line
     Dir.mktmpdir do |dir|
       target = File.join(dir, "pair.rb")

@@ -83,6 +83,7 @@
   "returned": [
     {
       "returns": ":out_of_range",
+      "value": ":out_of_range",
       "inputs": [
         {
           "args": [
@@ -95,6 +96,7 @@
     },
     {
       "returns": ":large_gap",
+      "value": ":large_gap",
       "inputs": [
         {
           "args": [
@@ -107,6 +109,7 @@
     },
     {
       "returns": "-91",
+      "value": "-91",
       "inputs": [
         {
           "args": [

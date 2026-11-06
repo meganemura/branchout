@@ -92,7 +92,7 @@ app/models/loan.rb:8:4 makes `borrower.approved_cents + amount_cents > borrower.
 app/models/loan.rb:9:4 makes `amount_cents > 10_000 && !officer.fetch(:senior)` true
 
 RETURNED (coverage does not check a value; compare each with what the method should return)
-returns :approved for {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan)"}}
+returns :approved for inputs[0]
 
 OPERATORS (coverage does not see which side ran; vary each left side)
 app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
@@ -157,10 +157,10 @@ FRONTIER
 (none: every arm ran, which does not mean each value is right; check RETURNED)
 
 RETURNED (coverage does not check a value; compare each with what the method should return)
-returns :approved for {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan)"}}
-returns :already for {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan, :approved)"}}
-returns :needs_senior for {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan, amount_cents: 15_000)"}}
-returns :over_limit for {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan, amount_cents: 25_000)"}}
+returns :approved for inputs[0]
+returns :already for inputs[1]
+returns :needs_senior for inputs[3]
+returns :over_limit for inputs[2]
 
 OPERATORS (coverage does not see which side ran; vary each left side)
 app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
@@ -271,6 +271,9 @@ branchout は、メソッド自身のリテラルとシード付きの標本か�
 `RETURNED` は、各入力が返した値を、値ごとにまとめて示す。
 カバレッジは入力が通った腕を数えるだけで、値は確かめない。
 それぞれの行を、メソッドが返すべき値と見比べる。
+1 行に収まらない値は、ほかの値と見分けられる Hash の葉を先に示し、収まる範囲で残りの最上位のスカラーを続ける（`returns a Hash with due_cents: 900, discount: 10, discount_cents: 100, ...`）。
+入力ファイルの入力が 1 行に収まらないときは、そのファイルでの位置で示す（`inputs[3]`）。
+`--json` は、値全体を Ruby リテラル（`value`）で、入力全体もそのまま示す。
 `EXCEPTIONS` は、例外とそれを出した場所ごとに 1 行で、出した入力の件数とその 1 件を示す。
 `--verbose` を付けると、通った各腕の入力も表示する。
 

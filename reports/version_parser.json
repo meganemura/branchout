@@ -191,6 +191,7 @@
   "returned": [
     {
       "returns": ":blank",
+      "value": ":blank",
       "inputs": [
         {
           "args": [
@@ -202,6 +203,7 @@
     },
     {
       "returns": ":pre",
+      "value": ":pre",
       "inputs": [
         {
           "args": [
@@ -213,6 +215,7 @@
     },
     {
       "returns": ":other",
+      "value": ":other",
       "inputs": [
         {
           "args": [
@@ -224,6 +227,7 @@
     },
     {
       "returns": ":beta",
+      "value": ":beta",
       "inputs": [
         {
           "args": [
@@ -235,6 +239,7 @@
     },
     {
       "returns": ":rc",
+      "value": ":rc",
       "inputs": [
         {
           "args": [
@@ -246,6 +251,7 @@
     },
     {
       "returns": ":release",
+      "value": ":release",
       "inputs": [
         {
           "args": [

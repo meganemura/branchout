@@ -157,6 +157,7 @@
   "returned": [
     {
       "returns": ":miss",
+      "value": ":miss",
       "inputs": [
         {
           "args": [
@@ -178,6 +179,7 @@
     },
     {
       "returns": ":x_only",
+      "value": ":x_only",
       "inputs": [
         {
           "args": [
@@ -191,6 +193,7 @@
     },
     {
       "returns": ":need_z",
+      "value": ":need_z",
       "inputs": [
         {
           "args": [
@@ -204,6 +207,7 @@
     },
     {
       "returns": ":hit",
+      "value": ":hit",
       "inputs": [
         {
           "args": [

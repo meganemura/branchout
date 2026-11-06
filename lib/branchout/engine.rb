@@ -24,7 +24,9 @@ module Branchout
     # +covers+ lists the arms the input took, in source order.
     # +thawed+ marks an input that ran with unfrozen Strings (Runner::Execution).
     # +varying+ is Runner::Execution's: what differed between two runs.
-    Pin = Struct.new(:input, :value, :error, :covers, :thawed, :varying, keyword_init: true)
+    # +listed_at+ is the input's index in the inputs file, or nil for an
+    # input branchout made.
+    Pin = Struct.new(:input, :value, :error, :covers, :thawed, :varying, :listed_at, keyword_init: true)
     Cover = Struct.new(:line, :column, :text, keyword_init: true)
     Finding = Struct.new(:class_name, :message, :loc, :input, :stable_message, keyword_init: true)
 
@@ -219,9 +221,12 @@ module Branchout
       by_input = executions.to_h { |execution| [execution.input.canonical, execution] }
       keys = executions.select { |execution| execution.origin == :inputs }.map { |execution| execution.input.canonical } |
              covered.map { |arm| arm.input.canonical } | findings.map { |finding| finding.input.canonical }
+      listed = {}
+      @user_inputs.each_with_index { |input, at| listed[input.canonical] ||= at }
       keys.sort.map do |key|
         execution = by_input[key]
         Pin.new(
+          listed_at: (listed[key] if execution.origin == :inputs),
           input: execution.input,
           value: execution.value,
           error: execution.error,

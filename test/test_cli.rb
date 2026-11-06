@@ -230,8 +230,47 @@ class CLITest < Minitest::Test
       OUT
 
       json = JSON.parse(run_cli("explore", target, "Isbn.valid?", "--inputs", inputs, "--strategy", "inputs", "--json").first)
-      assert_equal [{"returns" => "true", "inputs" => [{"args" => ["0306406150"], "kwargs" => {}}, {"args" => ["0306406152"], "kwargs" => {}}]},
-                    {"returns" => "false", "inputs" => [{"args" => ["abc"], "kwargs" => {}}, {"args" => [nil], "kwargs" => {}}]}], json["returned"]
+      assert_equal [{"returns" => "true", "value" => "true", "inputs" => [{"args" => ["0306406150"], "kwargs" => {}}, {"args" => ["0306406152"], "kwargs" => {}}]},
+                    {"returns" => "false", "value" => "false", "inputs" => [{"args" => ["abc"], "kwargs" => {}}, {"args" => [nil], "kwargs" => {}}]}], json["returned"]
+    end
+  end
+
+  # A Hash names its keys whatever it holds, so two inputs that return
+  # Hashes with the same keys must show the values to be checked, and an
+  # input with setup is long enough to hide the value it returned.
+  def test_returned_hashes_show_their_values_and_a_long_input_its_place_in_the_inputs_file
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "tally.rb")
+      File.write(target, <<~RUBY)
+        class Tally
+          def initialize = @items = []
+          def add(name, cents) = @items << {name: name, cents: cents}
+          def total = {items: @items, count: @items.length, due_cents: @items.sum { |item| item[:cents] }}
+        end
+      RUBY
+      add = ->(name, cents) { {"method" => "add", "args" => [name, cents]} }
+      inputs = write_inputs(dir, {"inputs" => [
+        {"args" => [], "setup" => [add.("apple", 100), add.("pear", 50)]},
+        [],
+        {"args" => [], "setup" => [add.("pear", 50), add.("apple", 100)]},
+        {"args" => [], "setup" => [add.("fig", 150)]}
+      ]})
+      stdout, stderr, status = run_cli("explore", target, "Tally#total", "--inputs", inputs, "--strategy", "inputs")
+      assert status.success?, stderr
+      returned = stdout[/^RETURNED.*?\n\n/m]
+      assert_equal <<~OUT, returned
+        RETURNED (coverage does not check a value; compare each with what the method should return)
+        returns a Hash with count: 2, items[0].name: "apple", due_cents: 150, ... for inputs[0]
+        returns { items: [{ name: "fig", cents: 150 }], count: 1, due_cents: 150 } for inputs[3]
+        returns a Hash with count: 2, items[0].name: "pear", due_cents: 150, ... for inputs[2]
+        returns { items: [], count: 0, due_cents: 0 } for []
+
+      OUT
+
+      json = JSON.parse(run_cli("explore", target, "Tally#total", "--inputs", inputs, "--strategy", "inputs", "--json").first)
+      fig = json["returned"].find { |entry| entry["inputs"].first["setup"]&.one? }
+      assert_equal '{ items: [{ name: "fig", cents: 150 }], count: 1, due_cents: 150 }', fig["value"]
+      assert_equal [{"args" => [], "kwargs" => {}, "setup" => [{"args" => ["fig", 150], "kwargs" => {}, "method" => "add"}]}], fig["inputs"]
     end
   end
 
@@ -835,7 +874,8 @@ class CLITest < Minitest::Test
       assert status.success?, err
       assert_includes out, "\nPINNED BY CLASS (the emitted tests check only the class of these returned values, which have no Ruby literal; " \
                            "assert what matters in each by hand)\nvalue[:start_at] is a Time: [\"A\",{\"ruby\":\"Time.at(0)\"}]\n"
-      refute_includes out, "Date.new(2026, 4, 1)\"}]\n"
+      refute_includes out[/^PINNED BY CLASS.*?\n\n/m], "Date.new"
+      assert_includes out, "\nreturns a Hash with name: \"n\", start_at: a Time, end_at: nil for [\"A\",{\"ruby\":\"Time.at(0)\"}]\n"
       # The JSON report holds the same parts, with every input, with or
       # without --emit-tests.
       out, err, status = run_cli("explore", "test/fixtures/stamp.rb", "Stamp.attributes_from", "--strategy", "inputs",

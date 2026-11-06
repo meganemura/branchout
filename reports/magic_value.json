@@ -51,6 +51,7 @@
   "returned": [
     {
       "returns": ":ordinary",
+      "value": ":ordinary",
       "inputs": [
         {
           "args": [
@@ -62,6 +63,7 @@
     },
     {
       "returns": ":magic",
+      "value": ":magic",
       "inputs": [
         {
           "args": [

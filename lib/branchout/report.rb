@@ -73,21 +73,65 @@ module Branchout
     # Coverage counts the arms an input took, never what it returned, so a
     # wrong value in code with no branch of its own shows only here. Each
     # input of the inputs file and each arm's input, grouped by what it
-    # returned, as [outcome, inputs].
+    # returned, as [shown, value, pins]: +value+ is the Ruby literal of the
+    # whole value, or nil for one with no literal, and +shown+ fits a line.
     def returned(pins, pin_keys)
-      pins.reject(&:error).group_by do |pin|
-        next "a value that differed between two runs" if pin.varying == :whole
+      groups = pins.reject(&:error).group_by do |pin|
+        next [:shown, "a value that differed between two runs"] if pin.varying == :whole
 
         pinned = Emitters::Support.pinned_pin(pin, pin_keys)
-        Emitters::Support.outcome_text(pinned, []).delete_prefix("returns ")
-      end.map { |outcome, group| [outcome, group.map(&:input)] }
+        next [:value, pinned.value] if Emitters::Support.literal?(pinned.value)
+
+        shown = shown_hash(pinned.value, []) if Emitters::Support.keyed?(pinned.value)
+        [:shown, shown || Emitters::Support.outcome_text(pinned, []).delete_prefix("returns ")]
+      end
+      values = groups.keys.select { |kind, _| kind == :value }.map(&:last)
+      differences = values.zip(Emitters::Support.hash_differences(values)).to_h
+      groups.map do |(kind, value), group|
+        next [value, nil, group] if kind == :shown
+
+        whole = Emitters::Support.ruby_literal(Emitters::Support.described(value))
+        next [whole, whole, group] if whole.length <= SHOWN_WIDTH
+
+        shown = shown_hash(value, differences.fetch(value)) if Emitters::Support.keyed?(value)
+        [shown || "#{whole[0, SHOWN_WIDTH - 3]}...", whole, group]
+      end
+    end
+
+    SHOWN_WIDTH = 72
+    SHOWN_INPUT_WIDTH = 50
+
+    # A Hash too long for a line shows the leaves that tell it from the
+    # other values first, since a Hash with the same keys starts the same
+    # way, then the rest of its top-level scalars that fit, or nil when
+    # none fits. A part with no literal shows its class.
+    def shown_hash(value, differing)
+      leaf_text = ->(item) { Emitters::Support.literal?(item) ? Emitters::Support.ruby_literal(Emitters::Support.described(item)) : Emitters::Support.article(Emitters::Support.class_literal(item)) }
+      text = lambda do |entries|
+        omitted = entries.count { |path, _| path.one? } < value.size
+        "a Hash with #{Emitters::Support.entries_text(entries.map { |path, item| [path, leaf_text.(item)] })}#{", ..." if omitted}"
+      end
+      told = differing.map(&:first)
+      scalars = Emitters::Support.hash_leaves(value).select { |path, _| path.one? && !told.include?(path) }
+      entries = scalars.reduce(differing) { |kept, entry| text.(kept + [entry]).length <= SHOWN_WIDTH ? kept + [entry] : kept }
+      return if entries.empty?
+
+      line = text.(entries)
+      line.length <= SHOWN_WIDTH ? line : "#{line[0, SHOWN_WIDTH - 3]}..."
+    end
+
+    # An input from the inputs file too long for a line is named by its
+    # place there; --json and --verbose keep the whole input.
+    def shown_input(pin)
+      text = pin.input.text
+      text.length > SHOWN_INPUT_WIDTH && pin.listed_at ? "inputs[#{pin.listed_at}]" : text
     end
 
     def returned_brief(lines, groups)
       return if groups.empty?
 
       lines << "" << "RETURNED (coverage does not check a value; compare each with what the method should return)"
-      groups.each { |outcome, inputs| lines << "returns #{outcome} for #{inputs.map(&:text).join(", ")}" }
+      groups.each { |shown, _, group| lines << "returns #{shown} for #{group.map { |pin| shown_input(pin) }.join(", ")}" }
     end
 
     def exceptions_brief(lines, findings)
@@ -163,7 +207,7 @@ module Branchout
       lines = header_lines(result)
       section(lines, "COVERED", result.covered) { |arm| covered_lines(arm) }
       section(lines, "FRONTIER", result.frontier) { |arm| [*frontier_lines(arm), "path: #{format_path(arm.path)}"] }
-      section(lines, "RETURNED", returned(Array(result.pins), pin_keys)) { |outcome, inputs| ["returns: #{outcome}", *inputs.map { |input| "input: #{input.text}" }] }
+      section(lines, "RETURNED", returned(Array(result.pins), pin_keys)) { |shown, whole, group| ["returns: #{whole || shown}", *group.map { |pin| "input: #{pin.input.text}" }] }
       section(lines, "EXCEPTIONS", result.exceptions) { |finding| finding_lines(finding) }
       section(lines, "NOT COUNTED", Array(result.not_counted)) { |callee| callee_lines(callee) }
       section(lines, "OPERATORS", Array(result.operators)) { |found| operator_lines(found) }
@@ -191,7 +235,9 @@ module Branchout
         "covered" => result.covered.map { |arm| covered_hash(arm) },
         "arms_not_pinned" => result.covered.reject(&:pinned).map { |arm| covered_hash(arm) },
         "frontier" => result.frontier.map { |arm| frontier_hash(arm) },
-        "returned" => returned(Array(result.pins), pin_keys).map { |outcome, inputs| {"returns" => outcome, "inputs" => inputs.map(&:to_h)} },
+        "returned" => returned(Array(result.pins), pin_keys).map { |shown, whole, group|
+          {"returns" => shown, "value" => whole, "inputs" => group.map { |pin| pin.input.to_h }}.compact
+        },
         "exceptions" => result.exceptions.map { |finding| finding_hash(finding) },
         "not_counted" => Array(result.not_counted).map { |callee| callee_hash(callee) },
         "operators_not_counted" => Array(result.operators).map { |found| operator_hash(found) },

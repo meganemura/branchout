@@ -74,7 +74,7 @@ app/models/loan.rb:8:4 makes `borrower.approved_cents + amount_cents > borrower.
 app/models/loan.rb:9:4 makes `amount_cents > 10_000 && !officer.fetch(:senior)` true
 
 RETURNED (coverage does not check a value; compare each with what the method should return)
-returns :approved for {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan)"}}
+returns :approved for inputs[0]
 
 OPERATORS (coverage does not see which side ran; vary each left side)
 app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
@@ -129,10 +129,10 @@ FRONTIER
 (none: every arm ran, which does not mean each value is right; check RETURNED)
 
 RETURNED (coverage does not check a value; compare each with what the method should return)
-returns :approved for {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan)"}}
-returns :already for {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan, :approved)"}}
-returns :needs_senior for {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan, amount_cents: 15_000)"}}
-returns :over_limit for {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan, amount_cents: 25_000)"}}
+returns :approved for inputs[0]
+returns :already for inputs[1]
+returns :needs_senior for inputs[3]
+returns :over_limit for inputs[2]
 
 OPERATORS (coverage does not see which side ran; vary each left side)
 app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
@@ -226,7 +226,7 @@ shipping.rb:5:18 <= in `weight <= 2`
 Pass --verbose for every covered arm and the run settings.
 ```
 
-branchout ran 13 inputs that it made from the method's own literals and from a seeded sample. They took 5 of the 6 arms. `FRONTIER` is the arm that no input took: `express` was never true, so add an input like `nearest` that makes it true. `RETURNED` shows what each input returned, grouped by value: coverage counts the arms an input took and never checks a value, so read each line against what the method should return. `EXCEPTIONS` gives one line for each error and the place that raised it, with how many inputs raised it and one of them. `--verbose` also prints the input that took each covered arm.
+branchout ran 13 inputs that it made from the method's own literals and from a seeded sample. They took 5 of the 6 arms. `FRONTIER` is the arm that no input took: `express` was never true, so add an input like `nearest` that makes it true. `RETURNED` shows what each input returned, grouped by value: coverage counts the arms an input took and never checks a value, so read each line against what the method should return. A value longer than a line shows the Hash leaves that tell it from the other values first, then the rest of its top-level scalars that fit (`returns a Hash with due_cents: 900, discount: 10, discount_cents: 100, ...`), and an input from the inputs file longer than a line shows its place there (`inputs[3]`). `--json` gives each whole value as a Ruby literal (`value`) and each whole input. `EXCEPTIONS` gives one line for each error and the place that raised it, with how many inputs raised it and one of them. `--verbose` also prints the input that took each covered arm.
 
 The emitted spec pins each return value and each error:
 

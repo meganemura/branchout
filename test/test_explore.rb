@@ -206,6 +206,24 @@ class ExploreTest < Minitest::Test
     refute_includes stdout, "rspec required"
   end
 
+  # A helper that is the model itself loaded it, and one that loaded it
+  # with Kernel#load leaves no position to compare.
+  def test_a_helper_that_is_the_model_or_loads_it_with_load_is_not_the_way_around_it
+    dir = "test/fixtures/dotrspec"
+    rspec = ["-rrspec/core", "-e", "exit RSpec::Core::Runner.run(ARGV)", "--", "-I", "."]
+    [[["../suite/active_record", "../suite/pantry"], "pantry_explore_spec.rb", " -r ../suite/active_record"],
+     [["load_helper"], "pantry_loaded_spec.rb", nil]].each do |helpers, spec, harmless|
+      stdout, stderr, status = Open3.capture3(RbConfig.ruby, "-I#{ROOT}/lib", *rspec, "--options", File::NULL, "-r", "plain_helper",
+                                              *helpers.flat_map { |name| ["-r", name] }, spec, chdir: dir)
+      refute status.success?, stdout + stderr
+      second_form = harmless ? ", or rspec --options /dev/null -r plain_helper#{harmless} <the explore file>, " : ". "
+      assert_includes stdout.gsub(/\s+/, " "),
+                      "rspec required #{["plain_helper", *helpers].join(", ")} before the explore file and before any -r branchout/coverage. " \
+                      "Start Coverage before rspec loads: RUBYOPT=\"-rbundler/setup -rbranchout/coverage\" bundle exec rspec " \
+                      "<the explore file>#{second_form}"
+    end
+  end
+
   # bundle exec loads rspec in its own process, which read RUBYOPT before
   # Bundler set the load path, so a bare -rbranchout/coverage there loads an
   # installed branchout, or none, instead of the bundle's. The refusal's

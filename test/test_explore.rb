@@ -139,6 +139,33 @@ class ExploreTest < Minitest::Test
                     "without it write FactoryBot.create."
   end
 
+  # Each input runs twice. A Hash leaf that differs between the runs, as a
+  # generated id or a SecureRandom token does, is left out of the pin, and
+  # a value that differs as a whole is not pinned, so the emitted test
+  # passes on its first run.
+  def test_a_value_that_differs_between_two_runs_is_not_pinned
+    Dir.mktmpdir do |dir|
+      emit_to = File.join(dir, "ticket_test.rb")
+      inputs = '[{"args":["bolt"]},{"args":["nut"],"kwargs":{"line":{"ruby":"serial"}}}]'
+      stdout, stderr, status = run_suite("#{SUITE}/ticket_explore_test.rb", "INPUTS" => inputs, "EMIT_TO" => emit_to)
+      assert status.success?, stdout + stderr
+      assert_includes stderr, "branchout: [\"bolt\"] returned a Hash whose token differed between two runs, " \
+                              "so its test pins only part.\n"
+      assert_includes stderr, "branchout: {\"args\":[\"nut\"],\"kwargs\":{\"line\":{\"ruby\":\"serial\"}}} " \
+                              "returned a Hash whose token, line differed between two runs, so its test pins only part.\n"
+      emitted = File.read(emit_to)
+      assert_includes emitted, "assert_equal({part: \"bolt\"}, Ticket.attributes_from(\"bolt\").slice(:part))"
+      stdout, stderr, status = run_suite(emit_to)
+      assert status.success?, stdout + stderr
+      assert_includes stdout, "2 runs, 2 assertions, 0 failures, 0 errors"
+
+      stdout, stderr, status = run_suite("#{SUITE}/ticket_explore_test.rb", "INPUTS" => "[[]]", "EMIT_TO" => emit_to, "ENTRY" => "Ticket.code")
+      assert status.success?, stdout + stderr
+      assert_includes stderr, "branchout: [] returned a value that differed between two runs, so it has no test.\n"
+      assert_includes File.read(emit_to), "skip \"branchout did not discover an input\""
+    end
+  end
+
   # The savepoint reason holds only for a let the input made. The spec
   # reads its let before explore, so only the missing let is the reason.
   def test_an_input_that_reads_a_let_is_refused

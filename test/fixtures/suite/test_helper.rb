@@ -16,4 +16,7 @@ class SuiteCase < Minitest::Test
   def teardown = ActiveRecord::Base.rows.replace(@rows)
 
   def owner = "ada"
+
+  # A new value on each call, as a factory sequence gives.
+  def serial = "L-#{SecureRandom.hex(3)}"
 end

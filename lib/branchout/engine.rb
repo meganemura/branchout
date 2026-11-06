@@ -21,7 +21,8 @@ module Branchout
 
     # +covers+ lists the arms the input took, in source order.
     # +thawed+ marks an input that ran with unfrozen Strings (Runner::Execution).
-    Pin = Struct.new(:input, :value, :error, :covers, :thawed, keyword_init: true)
+    # +varying+ is Runner::Execution's: what differed between two runs.
+    Pin = Struct.new(:input, :value, :error, :covers, :thawed, :varying, keyword_init: true)
     Cover = Struct.new(:line, :column, :text, keyword_init: true)
     Finding = Struct.new(:class_name, :message, :loc, :input, :stable_message, keyword_init: true)
 
@@ -219,7 +220,8 @@ module Branchout
           value: execution.value,
           error: execution.error,
           covers: covers_of(target, execution),
-          thawed: execution.thawed
+          thawed: execution.thawed,
+          varying: execution.varying
         )
       end
     end

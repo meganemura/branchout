@@ -10,7 +10,10 @@ module Branchout
     # +thawed+ is true when the input ran with unfrozen Strings, because
     # with frozen ones, as literals in an emitted test are, it raised
     # FrozenError.
-    Execution = Struct.new(:input, :value, :error, :lines, :branches, :path_ids, :origin, :thawed, keyword_init: true)
+    # +varying+ is nil when a second run gave the same value, :whole when
+    # the value differed as a whole, or the keys of a returned Hash whose
+    # values differed.
+    Execution = Struct.new(:input, :value, :error, :lines, :branches, :path_ids, :origin, :thawed, :varying, keyword_init: true)
     # +name+ is the missing name of a NameError, which is stable where its
     # message is not: Ruby 3.4 reworded both NameError and NoMethodError.
     # +message+ has its line breaks folded for reports; a test pins
@@ -59,15 +62,69 @@ module Branchout
     # and no emitted test would, so there the FrozenError stays.
     def execute(input)
       check_receiver(input)
-      frozen = attempt(input, false)
-      return frozen unless frozen.error&.class_name == "FrozenError"
-      return frozen if @host && !@rolled_back
-
-      thawed = attempt(input, true)
-      thawed.error&.class_name == "FrozenError" ? frozen : thawed
+      run = attempt(input, false)
+      if run.error&.class_name == "FrozenError" && repeatable?
+        thawed = attempt(input, true)
+        run = thawed unless thawed.error&.class_name == "FrozenError"
+      end
+      compare_with_second_run(run) if repeatable?
+      run
     end
 
     private
+
+    # A second run starts from the rows the first saw only when the first
+    # was rolled back.
+    def repeatable?
+      !@host || @rolled_back
+    end
+
+    # A value made anew on each run, such as a generated id, a factory
+    # sequence, or a SecureRandom token, would fail the emitted test on its
+    # first run, so the input runs once more and what differs is not pinned.
+    # An error whose message differs is pinned by its class alone.
+    def compare_with_second_run(run)
+      again = attempt(run.input, run.thawed)
+      if run.error && again.error&.class_name == run.error.class_name
+        unless again.error.message == run.error.message && again.error.exact_message == run.error.exact_message
+          run.error = run.error.dup.tap do |error|
+            error.stable_message = false
+            error.exact_message = nil
+            error.message_pattern = nil
+          end
+        end
+      elsif run.error || again.error
+        run.varying = :whole
+      else
+        run.varying = Runner.differing(run.value, again.value)
+      end
+    end
+
+    # nil when +first+ and +second+ would be pinned the same, the String
+    # keys of a Hash whose values differ when only some do, else :whole.
+    def self.differing(first, second)
+      return nil if same_pin?(first, second)
+      return :whole unless first.is_a?(Hash) && second.is_a?(Hash) && first.keys == second.keys
+
+      keys = first.keys.reject { |key| same_pin?(first[key], second[key]) }
+      stable = first.reject { |key, _| keys.include?(key) }
+      stable.empty? || !Emitters::Support.literal?(stable) ? :whole : keys.map(&:to_s)
+    end
+
+    # A literal is pinned by its value, anything else by its class and the
+    # literals inside it.
+    def self.same_pin?(first, second)
+      return first.eql?(second) if Emitters::Support.literal?(first) || Emitters::Support.literal?(second)
+      return false unless first.class == second.class
+
+      case first
+      when Array then first.length == second.length && first.zip(second).all? { |a, b| same_pin?(a, b) }
+      when Hash then first.keys == second.keys && first.all? { |key, item| same_pin?(item, second[key]) }
+      when Struct, Data then same_pin?(first.to_h, second.to_h)
+      else true
+      end
+    end
+    private_class_method :same_pin?
 
     def attempt(input, thawed)
       value, error = @host ? refusing_lets(input) { outcome(input, thawed) } : outcome(input, thawed)

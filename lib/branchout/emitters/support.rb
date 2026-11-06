@@ -548,9 +548,15 @@ module Branchout
         pin.error ? pin : pin.dup.tap { |copy| copy.value = pinned_value(pin.value, keys_for(pin, pin_keys)) }
       end
 
-      # The keys that pin +pin+'s Hash: its input's own, or else +pin_keys+.
+      # The keys that pin +pin+'s Hash: its input's own, or else +pin_keys+,
+      # without the keys whose values differed between two runs.
       def keys_for(pin, pin_keys)
-        pin.input.pin_keys || pin_keys
+        keys = pin.input.pin_keys || pin_keys
+        return keys unless pin.varying.is_a?(Array)
+
+        stable = pin.value.keys.map(&:to_s) - pin.varying
+        chosen = keys & stable
+        chosen.empty? ? stable : chosen
       end
 
       def outcome_text(pin, differing, short: false)

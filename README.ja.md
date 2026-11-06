@@ -652,6 +652,12 @@ ActiveRecord が読み込まれていれば、各入力はセーブポイント�
 既定の場合と、`Branchout::ROLL_BACK` を呼ぶ `around:` の場合がそれにあたる。
 `Branchout::RUN_ONLY` などそれ以外の `around:` では `FrozenError` を固定する。
 その `around:` が 1 回目の実行の行を取り消したかどうかを branchout は判断できないためである。
+`Branchout::ROLL_BACK` の中で動いた入力は、CLI の各入力と同じく、もう一度実行する。
+そのため、生成された UUID の id、ファクトリのシーケンス、`SecureRandom` のトークンのように実行ごとに作られる値は固定しない。
+返された Hash は、2 回とも同じ値だったキーだけを固定する。
+値全体が違った入力にはテストを書かない。
+メッセージが違った例外は、クラスだけを固定する。
+そうした入力はどれも標準エラーに示す。
 戦略は `strategies:` で変えない限り `inputs` だけで、`timeout:` は指定しない限り 1 秒である（`nil` で切る）。
 `target:`、`emit_tests:`、`format:`、`json:`、`verbose:`、`pin_keys:`、`requires:`、`seed:`、`random:`、`mutate_cap:` は、CLI の同名のフラグと同じ意味である。
 minitest では、同じ呼び出しを `ActiveSupport::TestCase` のテストに書き、`BRANCHOUT=1 bin/rails test` で動かす。

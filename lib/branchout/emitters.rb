@@ -31,6 +31,7 @@ module Branchout
       pins = project_pins(result.pins, destination)
       Support.write_file(destination, emitter_for(format).render(result.dup.tap { |copy| copy.pins = pins }, target, destination,
                                                                  require_by_name: require_by_name, pin_keys: pin_keys))
+      varying = result.pins.select(&:varying).map { |pin| varying_warning(pin, pin_keys) }
       passed = pins.flat_map { |pin| Support.machine_paths(pin.input) }.uniq
       pinned = pins.flat_map do |pin|
         message = pin.error.exact_message || pin.error.message if pin.error&.stable_message
@@ -39,7 +40,7 @@ module Branchout
       existing, missing = passed.partition { |path| File.exist?(path) }
       outside = Support.required_outside_project(result.requires, (target.path unless result.target_required), destination,
                                                  by_name: require_by_name, load_paths: result.load_paths)
-      outside.map do |path|
+      varying + outside.map do |path|
         "branchout: the emitted test requires #{path} by its path, outside the test's project, so the test runs only where " \
           "that file sits on this machine. Emit the test under that file's project, or #{require_by_name ? "pass -I with a directory that holds it" : "pass --require-by-name"} " \
           "to require it through the load path."
@@ -62,10 +63,18 @@ module Branchout
                                  require_by_name: require_by_name, pin_keys: pin_keys, from: from)
     end
 
+    def varying_warning(pin, pin_keys)
+      return "branchout: #{pin.input.text} returned a value that differed between two runs, so it has no test." if pin.varying == :whole
+
+      "branchout: #{pin.input.text} returned a Hash whose #{pin.varying.join(", ")} differed between two runs, " \
+        "so its test pins only #{Support.keys_for(pin, pin_keys).join(", ")}."
+    end
+
     # Each pin with the paths under the test's project in its input, its
     # returned value, and its error message written from the test's file.
+    # A pin whose value differed as a whole between two runs is left out.
     def project_pins(pins, destination)
-      pins.map do |pin|
+      pins.reject { |pin| pin.varying == :whole }.map do |pin|
         pin.dup.tap do |copy|
           copy.input = Support.project_paths(pin.input, destination)
           copy.value = Support.project_value(pin.value, destination)

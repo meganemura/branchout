@@ -634,6 +634,24 @@ class CLITest < Minitest::Test
     end
   end
 
+  # A method whose only branch is a memo gets a hint that names the memo
+  # and says what an input cannot do and what to do instead.
+  def test_a_method_whose_only_branch_is_a_memo_says_how_to_test_the_memo
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "quote.rb")
+      File.write(target, "class Quote\n  def total = @total ||= Pricing.sum(1, 2)\nend\nmodule Pricing\n  def self.sum(a, b) = a + b\nend\n")
+      _stdout, stderr, status = run_cli("explore", target, "Quote#total", "--strategy", "inputs", "--random", "0",
+                                        "--inputs", write_inputs(dir, { "inputs" => [[]] }))
+      assert status.success?, stderr
+      assert_equal "branchout: Quote#total and the methods it calls in #{target} have no arm that branch coverage counts, " \
+                   "and their only branch is the memo `@total ||= Pricing.sum(1, 2)` at #{target}:2:21. Its cached side runs " \
+                   "only on a second call on the same object, which no input makes. Explore the methods its right side calls " \
+                   "(NOT COUNTED lists those in other files), and test the memo by hand: call the method twice on one object " \
+                   "and check that the second call returns the first value without running the right side again. " \
+                   "--emit-tests still pins the return value or error of each input.\n", stderr
+    end
+  end
+
   # An error whose message differs between two runs, as one that quotes a
   # generated id does, is pinned by its class alone.
   def test_an_error_whose_message_differs_between_runs_is_pinned_by_its_class

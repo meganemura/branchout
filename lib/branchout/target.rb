@@ -37,6 +37,9 @@ module Branchout
     # out: it memoizes across calls on one object, and each input builds
     # its own receiver, so no input can vary its left side.
     attr_reader :operators
+    # Each @ivar ||= or &&= that OPERATORS leaves out, for the hint on a
+    # method whose only branch is a memo.
+    attr_reader :memos
     # Each <, <=, >, and >= of the counted code. Coverage sees no side of
     # them either, so every arm can be taken with no input where the sides
     # are equal, where > and >= part.
@@ -141,6 +144,7 @@ module Branchout
 
       written = ivars_written(result.value)
       @operators = bodies.flat_map { |body| operators_in(body, written) }.sort_by { |found| [found.line, found.column] }
+      @memos = bodies.flat_map { |body| operators_in(body, written, memos: true) }.sort_by { |found| [found.line, found.column] }
       @boundaries = bodies.flat_map { |body| boundaries_in(body) }.sort_by { |found| [found.line, found.column] }
       collect_literals(entry_def.node.parameters)
       bodies.each { |body| collect_literals(body) }
@@ -368,18 +372,20 @@ module Branchout
       acc
     end
 
-    def operators_in(node, written, acc = [])
+    # +memos+ picks the memos instead of the operators.
+    def operators_in(node, written, acc = [], memos: false)
       return acc if node.type == :def_node
 
       memo = %i[instance_variable_or_write_node instance_variable_and_write_node].include?(node.type) && !written.include?(node.name)
-      if !memo && (node.type == :or_node || node.type == :and_node || node.type.to_s.end_with?("_or_write_node", "_and_write_node"))
+      branching = node.type == :or_node || node.type == :and_node || node.type.to_s.end_with?("_or_write_node", "_and_write_node")
+      if branching && memo == memos
         operator = node.operator_loc
         line = operator.start_line
         column = operator.start_column
         acc << Operator.new(loc: "#{display_path}:#{line}:#{column}", line: line, column: column, op: operator.slice,
                             text: cut(squash(node.slice)))
       end
-      node.compact_child_nodes.each { |child| operators_in(child, written, acc) }
+      node.compact_child_nodes.each { |child| operators_in(child, written, acc, memos: memos) }
       acc
     end
 

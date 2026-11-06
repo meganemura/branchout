@@ -177,6 +177,15 @@ module Branchout
                        "but it branches at the operators OPERATORS lists, and coverage does not see which side of " \
                        "||, &&, ||=, or &&= ran. Give inputs that make each left side truthy and falsy. " \
                        "--emit-tests still pins the return value or error of each input."
+        elsif result.covered.empty? && result.frontier.empty? && !Array(result.memos).empty?
+          memos = result.memos.map { |found| "`#{found.text}` at #{found.loc}" }
+          $stderr.puts "branchout: #{entry} and the methods it calls in #{result.target} have no arm that branch coverage counts, " \
+                       "and their only #{memos.one? ? "branch is the memo" : "branches are the memos"} #{memos.join(", ")}. " \
+                       "#{memos.one? ? "Its cached side runs" : "The cached side of each runs"} only on a second call on the same object, " \
+                       "which no input makes. Explore the methods #{memos.one? ? "its right side calls" : "their right sides call"} " \
+                       "(NOT COUNTED lists those in other files), and test #{memos.one? ? "the memo" : "each memo"} by hand: call the method twice on one object and check that the second call returns " \
+                       "the first value without running the right side again. " \
+                       "--emit-tests still pins the return value or error of each input."
         elsif result.covered.empty? && result.frontier.empty?
           $stderr.puts "branchout: #{entry} and the methods it calls in #{result.target} have no branches. " \
                        "Only a bare call, a self. call, and a call on new are followed; target the method that branches. " \

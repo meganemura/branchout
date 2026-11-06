@@ -524,6 +524,17 @@ class EmitterTest < Minitest::Test
                           "part_id: \"0190a6b2-7c1e-7d4b-9a2f-3c5d8e1f2a3b\", quantity: 1) }"
     test = Branchout::Emitters.render("minitest", result, target, File.join(ROOT, "test/booking_test.rb"))
     assert_includes test, "Booking.new(start_at: Date.new(2026, 1, 1), end_at: nil, part_id: "
+
+    # A sibling whose new takes other arguments or other keywords is no
+    # sibling to compare keywords with.
+    pins = [Branchout::Input.new(args: [], kwargs: { "x" => 1, "y" => 1 }), Branchout::Input.new(args: [5], kwargs: { "x" => 2, "y" => 1 }),
+            Branchout::Input.new(args: [], kwargs: { "x" => 3 })].map do |receiver|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [], receiver: receiver), value: :ok, error: nil, covers: [])
+    end
+    spec = Branchout::Emitters.render("rspec", Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: []),
+                                      target, File.join(ROOT, "spec/booking_spec.rb"))
+    assert_equal ['context "with new(x: 1, y: 1)"', 'context "with new(5, x: 2, y: 1)"', 'context "with new(x: 3)"'],
+                 spec.scan(/^ *(context .*) do$/).flatten
   end
 
   # Hash outcomes with the same keys are named by the scalar entries that

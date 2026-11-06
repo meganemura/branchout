@@ -828,6 +828,7 @@ ln -s /path/to/branchout/skills/branchout .agents/skills/branchout
 - 経路は腕の集合であり、順序ではない。`&&`、`||`、`||=`、`&&=` は腕にならず、`OPERATORS` に挙がる。`while` と `until` が記録するのは本体の腕で、条件は実行されたが本体に入らなかったことは行カウントで補う。
 - 修飾子の `unless` は then と else が同じ位置になることがある。id の腕名で区別する。
 - 追うのは同じファイルの裸呼び出し、`self.` 呼び出し、裸の `new(...)` に対する呼び出しだけである。
+  `Enumerable` を include したクラスの `select(&:ok?)` のように、そうして呼んだ Enumerable のメソッドは、そのファイルが定義する `each` まで追う。
   `Other.new.check(x)` のような別のレシーバーへの呼び出しは追わない。
   入口がどの腕にも届かないとき、`explore` は stderr に警告を出す。
   この場合は分岐するメソッドを対象にする。

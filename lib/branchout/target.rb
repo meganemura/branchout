@@ -39,6 +39,8 @@ module Branchout
     # are equal, where > and >= part.
     attr_reader :boundaries
 
+    ENUMERABLE_CALLS = Enumerable.instance_methods.to_set.freeze
+
     def self.parse(path, entry, type_overrides: nil)
       new(path, entry, type_overrides: type_overrides).tap(&:parse)
     end
@@ -117,6 +119,10 @@ module Branchout
             argument_edges << [call, callee.node.parameters]
           else
             @outside_calls << [info.singleton, call.name]
+            # Enumerable's methods are C, so they hide no arms of their own,
+            # but they run the each this file defines.
+            each = find.(info.singleton, :each) if ENUMERABLE_CALLS.include?(call.name)
+            queue << each if each
           end
         end
         next unless info.singleton

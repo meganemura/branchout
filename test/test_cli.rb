@@ -703,6 +703,19 @@ class CLITest < Minitest::Test
 
   # An arm whose only input differed as a whole between two runs has no
   # test, so the report names it beside the arms it counts as covered.
+  # An Enumerable method called on self, such as select, runs the class's
+  # own each, so the arms each reaches are counted from the entry.
+  def test_an_enumerable_method_on_self_counts_the_arms_each_reaches
+    Dir.mktmpdir do |dir|
+      items = '[Picks::Item.new(start: nil, ok: true, name: "a"), Picks::Item.new(start: 1, ok: true, name: "b")]'
+      inputs = write_inputs(dir, { "inputs" => [{ "new" => [{ "ruby" => items }], "args" => [] }] })
+      stdout, stderr, status = run_cli("explore", "test/fixtures/picks.rb", "Picks#names", "--strategy", "inputs", "--inputs", inputs)
+      assert status.success?, stderr
+      assert_empty stderr
+      assert_includes stdout, "covered: 2 of 2 arms by 1 input\n"
+    end
+  end
+
   def test_an_arm_whose_only_input_has_no_test_is_reported_as_not_pinned
     Dir.mktmpdir do |dir|
       inputs = write_inputs(dir, { "inputs" => [["A"], ["B"]] })

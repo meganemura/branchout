@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "minitest/autorun"
+require "date"
 require "json"
 require "open3"
 require "branchout"
@@ -1226,6 +1227,44 @@ class EmitterTest < Minitest::Test
 
   def run_cli(*args)
     CLIProcess.run(*args, chdir: ROOT)
+  end
+
+  module ValueObjects
+    Positional = Struct.new(:a, :b, keyword_init: false)
+    Keywords = Struct.new(:a, keyword_init: true)
+    Doubled = Data.define(:n) do
+      def initialize(n:) = super(n: n * 2)
+    end
+    Once = Data.define(:n) do
+      def initialize(n:)
+        raise ArgumentError, "made twice" if self.class.instance_variable_get(:@made)
+
+        self.class.instance_variable_set(:@made, true)
+        super
+      end
+    end
+    Moved = Data.define(:a)
+    MOVED = Moved.new(a: 1)
+    remove_const(:Moved)
+    Moved = Data.define(:a)
+  end
+
+  # A value object has a literal only when its class's new with its
+  # members, by position or by keyword as the class takes them, makes an
+  # equal value.
+  def test_a_value_object_has_a_literal_only_when_new_reads_it_back
+    support = Branchout::Emitters::Support
+    positional = ValueObjects::Positional.new(1, 2)
+    assert support.literal?(positional)
+    assert_equal "EmitterTest::ValueObjects::Positional.new(1, 2)", support.ruby_literal(positional)
+    assert support.literal?(ValueObjects::Keywords.new(a: 1))
+    assert_equal "EmitterTest::ValueObjects::Keywords.new(a: 1)", support.ruby_literal(ValueObjects::Keywords.new(a: 1))
+    refute support.literal?(ValueObjects::Doubled.new(n: 1))
+    refute support.literal?(ValueObjects::Once.new(n: 1))
+    refute support.literal?(ValueObjects::MOVED)
+    refute support.literal?(Branchout::Code.parse("1"))
+    refute support.literal?(DateTime.new(2026, 1, 1))
+    assert_equal [Branchout::Code.parse("a = 1"), Branchout::Code.parse("b(a)")], support.statements(Branchout::Code.parse("a = 1\nb(a)"))
   end
 
   def test_literal_values_class_pins_and_cover_comments

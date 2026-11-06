@@ -41,6 +41,16 @@ class TargetTest < Minitest::Test
     end
   end
 
+  # A comparison in a def nested in the method is not part of the counted
+  # code either.
+  def test_boundaries_skip_a_nested_def
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, "cmp.rb")
+      File.write(path, "module Cmp\n  def self.pick(a, b)\n    def self.inner(c, d) = c < d\n    a >= b\n  end\nend\n")
+      assert_equal [[">=", "a >= b"]], Branchout::Target.parse(path, "Cmp.pick").boundaries.map { |found| [found.op, found.text] }
+    end
+  end
+
   def test_call_graph_skips_uncalled_helpers
     target = Branchout::Target.parse(File.join(@root, "test/fixtures/call.rb"), "FixtureCall.entry")
     assert_equal [0, 10], target.literals.ints

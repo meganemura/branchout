@@ -596,6 +596,9 @@ class CLITest < Minitest::Test
                                          "--inputs", path)
       assert_includes stdout, "operators_not_counted: 3\nboundaries_not_counted: 2\n"
       assert_includes stdout, "\nBOUNDARIES\nloc: test/fixtures/window.rb:8:50\nop: >\ntext: start_date > on\n"
+      stdout, _stderr, _status = run_cli("explore", "test/fixtures/operators.rb", "FixtureGate.allow?", "--strategy", "inputs",
+                                         "--inputs", write_inputs(dir, { "inputs" => [[nil, true]] }))
+      refute_includes stdout, "BOUNDARIES"
     end
   end
 

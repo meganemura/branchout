@@ -132,7 +132,8 @@ class ExploreTest < Minitest::Test
     inputs = '[{"args":["bolt"]},{"args":[{"ruby":"create(:part)"}]}]'
     stdout, stderr, status = run_suite("#{SUITE}/ticket_explore_test.rb", "INPUTS" => inputs)
     refute status.success?, stdout + stderr
-    assert_includes stdout.gsub(/\s+/, " "),
+    # Ruby 3.3 quotes the method name with a backtick.
+    assert_includes stdout.gsub(/\s+/, " ").sub("`create'", "'create'"),
                     "Branchout::Error: the input {\"args\":[{\"ruby\":\"create(:part)\"}],\"kwargs\":{}} raised NoMethodError in its own Ruby " \
                     "before Ticket.attributes_from ran: undefined method 'create' for an instance of TicketExploreTest. " \
                     "Fix the input: a bare create or build needs FactoryBot::Syntax::Methods in the suite; " \

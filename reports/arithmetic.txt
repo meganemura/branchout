@@ -6,6 +6,12 @@ FRONTIER (add an input like the nearest above each arm, changed as the arm says)
 nearest: [0,0,0]
 examples/arithmetic.rb:19:6 makes `x == 114514 && x == 0` true
 
+RETURNED (coverage does not check a value; compare each with what the method should return)
+returns :miss for [0,0,0], [114514,0,0]
+returns :x_only for [138,0,0]
+returns :need_z for [138,143,0]
+returns :hit for [138,143,7]
+
 OPERATORS (coverage does not see which side ran; vary each left side)
 examples/arithmetic.rb:18:22 && in `x == 114514 && x == 0`
 

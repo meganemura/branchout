@@ -154,6 +154,68 @@
       ]
     }
   ],
+  "returned": [
+    {
+      "returns": ":miss",
+      "inputs": [
+        {
+          "args": [
+            0,
+            0,
+            0
+          ],
+          "kwargs": {}
+        },
+        {
+          "args": [
+            114514,
+            0,
+            0
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    {
+      "returns": ":x_only",
+      "inputs": [
+        {
+          "args": [
+            138,
+            0,
+            0
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    {
+      "returns": ":need_z",
+      "inputs": [
+        {
+          "args": [
+            138,
+            143,
+            0
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    {
+      "returns": ":hit",
+      "inputs": [
+        {
+          "args": [
+            138,
+            143,
+            7
+          ],
+          "kwargs": {}
+        }
+      ]
+    }
+  ],
   "exceptions": [],
   "not_counted": [],
   "operators_not_counted": [

@@ -3,6 +3,10 @@ covered: 2 of 2 arms by 2 inputs
 raised: none
 
 FRONTIER
-(none)
+(none: every arm ran, which does not mean each value is right; check RETURNED)
+
+RETURNED (coverage does not check a value; compare each with what the method should return)
+returns :ordinary for [0]
+returns :magic for [114514]
 
 Pass --verbose for every covered arm and the run settings.

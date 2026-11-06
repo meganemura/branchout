@@ -91,6 +91,9 @@ app/models/loan.rb:7:4 makes `state == "approved"` true
 app/models/loan.rb:8:4 makes `borrower.approved_cents + amount_cents > borrower.limit_cents` true
 app/models/loan.rb:9:4 makes `amount_cents > 10_000 && !officer.fetch(:senior)` true
 
+RETURNED (coverage does not check a value; compare each with what the method should return)
+returns :approved for {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan)"}}
+
 OPERATORS (coverage does not see which side ran; vary each left side)
 app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
 
@@ -151,7 +154,13 @@ raised: none
 tests: spec/models/loan_approve_spec.rb
 
 FRONTIER
-(none)
+(none: every arm ran, which does not mean each value is right; check RETURNED)
+
+RETURNED (coverage does not check a value; compare each with what the method should return)
+returns :approved for {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan)"}}
+returns :already for {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan, :approved)"}}
+returns :needs_senior for {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan, amount_cents: 15_000)"}}
+returns :over_limit for {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan, amount_cents: 25_000)"}}
 
 OPERATORS (coverage does not see which side ran; vary each left side)
 app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
@@ -168,6 +177,8 @@ Finished in 0.35302 seconds (files took 0.98271 seconds to load)
 ```
 
 これですべての腕を通った。
+これは各腕が動いたことしか言わないので、`RETURNED` の各行を、メソッドがすべきことと見比べる。
+ここでは、各ローンが状態と金額に合った答えを得ている。
 書き出したスペックは、`BRANCHOUT` なしで、ほかのスペックと同じように動く。
 
 ```sh
@@ -239,9 +250,12 @@ FRONTIER (add an input like the nearest above each arm, changed as the arm says)
 nearest: [1]
 shipping.rb:6:14 makes `express` true
 
+RETURNED (coverage does not check a value; compare each with what the method should return)
+returns 5 for [1]
+returns 7 for [3]
+
 EXCEPTIONS
-ArgumentError at shipping.rb:3: weight must be positive
-  inputs: [-1], [-2], [0]
+ArgumentError at shipping.rb:3 raised by 3 inputs, such as [-1]: weight must be positive
 
 BOUNDARIES (each comparison in the counted code, listed whether or not an input made both sides equal; coverage does not see which did)
 shipping.rb:5:18 <= in `weight <= 2`
@@ -254,7 +268,10 @@ branchout は、メソッド自身のリテラルとシード付きの標本か�
 `FRONTIER` は、どの入力も通らなかった腕である。
 ここでは `express` が一度も真にならなかった。
 `nearest` のような入力で、`express` を真にするものを足す。
-`EXCEPTIONS` は、例外を出した入力の一覧である。
+`RETURNED` は、各入力が返した値を、値ごとにまとめて示す。
+カバレッジは入力が通った腕を数えるだけで、値は確かめない。
+それぞれの行を、メソッドが返すべき値と見比べる。
+`EXCEPTIONS` は、例外とそれを出した場所ごとに 1 行で、出した入力の件数とその 1 件を示す。
 `--verbose` を付けると、通った各腕の入力も表示する。
 
 書き出したスペックは、各戻り値と各例外を固定する。
@@ -340,11 +357,14 @@ raised: 3 inputs
 tests: shipping_spec.rb
 
 FRONTIER
-(none)
+(none: every arm ran, which does not mean each value is right; check RETURNED)
+
+RETURNED (coverage does not check a value; compare each with what the method should return)
+returns 5 for [1]
+returns 14 for {"args":[3],"kwargs":{"express":true}}
 
 EXCEPTIONS
-ArgumentError at shipping.rb:3: weight must be positive
-  inputs: [-1], [-2], [0]
+ArgumentError at shipping.rb:3 raised by 3 inputs, such as [-1]: weight must be positive
 
 BOUNDARIES (each comparison in the counted code, listed whether or not an input made both sides equal; coverage does not see which did)
 shipping.rb:5:18 <= in `weight <= 2`
@@ -386,8 +406,8 @@ Finished in 0.00228 seconds (files took 0.07051 seconds to load)
 このリポジトリのチェックアウトでは、`ruby bin/branchout` が `branchout` と同じコマンドを実行する。
 種ファイルの入力は `[0]` の 1 件である。
 `--verbose` はレポート全体を出す。
-動いた戦略の実行の設定と件数のあとに、`COVERED`（各腕を通った入力）、`FRONTIER`（どの入力も通らなかった各腕と、`nearest` が通った腕の `path`）、`EXCEPTIONS`（例外を出した入力ごとに 1 件）、`NOT COUNTED`、`OPERATORS`、`BOUNDARIES` が続く。
-付けないときのレポートは、件数と、入力が届いた `FRONTIER` の腕を、変えるべき `nearest` の入力の下に 1 行ずつと、どの入力も届かなかった決定ごとに 1 行と、例外ごとに 1 行を残す。
+動いた戦略の実行の設定と件数のあとに、`COVERED`（各腕を通った入力）、`FRONTIER`（どの入力も通らなかった各腕と、`nearest` が通った腕の `path`）、`RETURNED`（各値と、それを返した入力）、`EXCEPTIONS`（例外を出した入力ごとに 1 件）、`NOT COUNTED`、`OPERATORS`、`BOUNDARIES` が続く。
+付けないときのレポートは、件数と、入力が届いた `FRONTIER` の腕を、変えるべき `nearest` の入力の下に 1 行ずつと、どの入力も届かなかった決定ごとに 1 行と、返した値ごとに 1 行と、例外とそれを出した場所ごとに 1 行を残す。
 [アプリなしで試す](#アプリなしで試す) の出力がその形である。
 `--json` は、レポート全体のすべての項目を持つ。
 
@@ -430,6 +450,10 @@ sense: cond-true
 parent: reached
 nearest: [0]
 path: if@5:4/else@8:6
+
+RETURNED
+returns: :ordinary
+input: [0]
 
 EXCEPTIONS
 (none)

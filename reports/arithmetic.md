@@ -66,6 +66,20 @@ parent: reached
 nearest: [0,0,0]
 path: if@18:4/else@21:6, if@8:4/else@18:4
 
+RETURNED
+returns: :miss
+input: [0,0,0]
+input: [114514,0,0]
+
+returns: :x_only
+input: [138,0,0]
+
+returns: :need_z
+input: [138,143,0]
+
+returns: :hit
+input: [138,143,7]
+
 EXCEPTIONS
 (none)
 

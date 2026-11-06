@@ -3,6 +3,14 @@ covered: 12 of 12 arms by 6 inputs
 raised: none
 
 FRONTIER
-(none)
+(none: every arm ran, which does not mean each value is right; check RETURNED)
+
+RETURNED (coverage does not check a value; compare each with what the method should return)
+returns :blank for [""]
+returns :pre for ["-"]
+returns :other for ["0"]
+returns :beta for ["0-beta1"]
+returns :rc for ["0-rc1"]
+returns :release for ["0.0.0"]
 
 Pass --verbose for every covered arm and the run settings.

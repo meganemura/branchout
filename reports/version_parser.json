@@ -188,6 +188,74 @@
   ],
   "arms_not_pinned": [],
   "frontier": [],
+  "returned": [
+    {
+      "returns": ":blank",
+      "inputs": [
+        {
+          "args": [
+            ""
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    {
+      "returns": ":pre",
+      "inputs": [
+        {
+          "args": [
+            "-"
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    {
+      "returns": ":other",
+      "inputs": [
+        {
+          "args": [
+            "0"
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    {
+      "returns": ":beta",
+      "inputs": [
+        {
+          "args": [
+            "0-beta1"
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    {
+      "returns": ":rc",
+      "inputs": [
+        {
+          "args": [
+            "0-rc1"
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    {
+      "returns": ":release",
+      "inputs": [
+        {
+          "args": [
+            "0.0.0"
+          ],
+          "kwargs": {}
+        }
+      ]
+    }
+  ],
   "exceptions": [],
   "not_counted": [],
   "operators_not_counted": [],

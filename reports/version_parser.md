@@ -90,6 +90,25 @@ input: ["0"]
 FRONTIER
 (none)
 
+RETURNED
+returns: :blank
+input: [""]
+
+returns: :pre
+input: ["-"]
+
+returns: :other
+input: ["0"]
+
+returns: :beta
+input: ["0-beta1"]
+
+returns: :rc
+input: ["0-rc1"]
+
+returns: :release
+input: ["0.0.0"]
+
 EXCEPTIONS
 (none)
 

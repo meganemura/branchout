@@ -30,6 +30,13 @@ input: [114514]
 FRONTIER
 (none)
 
+RETURNED
+returns: :ordinary
+input: [0]
+
+returns: :magic
+input: [114514]
+
 EXCEPTIONS
 (none)
 

@@ -111,6 +111,13 @@ class CLITest < Minitest::Test
       FRONTIER
       (none)
 
+      RETURNED
+      returns: :plain
+      input: [0]
+
+      returns: :magic
+      input: [114514]
+
       EXCEPTIONS
       (none)
 
@@ -164,9 +171,11 @@ class CLITest < Minitest::Test
         not reached yet; take the arms above first:
         #{target}:7 case (3 arms)
 
+        RETURNED (coverage does not check a value; compare each with what the method should return)
+        returns :empty for [-1,null]
+
         EXCEPTIONS
-        ArgumentError at #{target}:3: too big
-          inputs: [6,"a"], [7,"a"], [8,"a"] and 1 more
+        ArgumentError at #{target}:3 raised by 4 inputs, such as [6,"a"]: too big
 
         OPERATORS (coverage does not see which side ran; vary each left side)
         #{target}:11:8 || in `if n.positive? case mode when "a" then :a when "b" then :b end end || (mode.nil? && :empty)`
@@ -182,6 +191,68 @@ class CLITest < Minitest::Test
       stdout, stderr, status = run_cli("explore", target, "Gate.pick", "--inputs", raising, "--strategy", "inputs", "--random", "0")
       assert status.success?, stderr
       assert_includes stdout, "\nFRONTIER\nno input reached these decisions:\n#{target}:3 n > 5 (2 arms)\n#{target}:4 n.zero? (2 arms)\n"
+    end
+  end
+
+  # Full coverage says each arm ran, not that a value is right: an ISBN-10
+  # whose check digit is never checked returns true for a wrong digit, and
+  # only the returned values show it.
+  def test_a_fully_covered_method_shows_what_each_input_returned
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "isbn.rb")
+      File.write(target, <<~RUBY)
+        module Isbn
+          def self.valid?(raw)
+            digits = raw.to_s.delete("-")
+            return false unless digits.length == 10
+
+            digits.count("0-9X") == 10
+          end
+        end
+      RUBY
+      inputs = write_inputs(dir, {"inputs" => [["0306406152"], ["0306406150"], ["abc"], [nil]]})
+      stdout, stderr, status = run_cli("explore", target, "Isbn.valid?", "--inputs", inputs, "--strategy", "inputs")
+      assert status.success?, stderr
+      assert_equal <<~OUT, stdout
+        branchout explore #{target} Isbn.valid?
+        covered: 2 of 2 arms by 4 inputs
+        raised: none
+
+        FRONTIER
+        (none: every arm ran, which does not mean each value is right; check RETURNED)
+
+        RETURNED (coverage does not check a value; compare each with what the method should return)
+        returns true for ["0306406150"], ["0306406152"]
+        returns false for ["abc"], [null]
+
+        Pass --verbose for every covered arm and the run settings.
+      OUT
+
+      json = JSON.parse(run_cli("explore", target, "Isbn.valid?", "--inputs", inputs, "--strategy", "inputs", "--json").first)
+      assert_equal [{"returns" => "true", "inputs" => [{"args" => ["0306406150"], "kwargs" => {}}, {"args" => ["0306406152"], "kwargs" => {}}]},
+                    {"returns" => "false", "inputs" => [{"args" => ["abc"], "kwargs" => {}}, {"args" => [nil], "kwargs" => {}}]}], json["returned"]
+    end
+  end
+
+  # Inputs that raise one error at one place are one line, whatever each
+  # message says about its own input.
+  def test_one_raise_with_many_messages_is_one_line
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "code.rb")
+      File.write(target, <<~RUBY)
+        module Code
+          def self.parse(raw)
+            raise ArgumentError, "not a code: \#{raw}" unless raw.is_a?(String)
+
+            raw.upcase
+          end
+        end
+      RUBY
+      inputs = write_inputs(dir, {"inputs" => [[1], [2], [3], ["a"]]})
+      stdout, stderr, status = run_cli("explore", target, "Code.parse", "--inputs", inputs, "--strategy", "inputs")
+      assert status.success?, stderr
+      assert_includes stdout, "\nEXCEPTIONS\nArgumentError at #{target}:3 raised by 3 inputs, such as [1]: not a code: 1\n\n"
+      refute_includes stdout, "not a code: 2"
     end
   end
 

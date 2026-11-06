@@ -48,6 +48,30 @@
   ],
   "arms_not_pinned": [],
   "frontier": [],
+  "returned": [
+    {
+      "returns": ":ordinary",
+      "inputs": [
+        {
+          "args": [
+            0
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    {
+      "returns": ":magic",
+      "inputs": [
+        {
+          "args": [
+            114514
+          ],
+          "kwargs": {}
+        }
+      ]
+    }
+  ],
   "exceptions": [],
   "not_counted": [],
   "operators_not_counted": [],

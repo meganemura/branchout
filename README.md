@@ -73,6 +73,9 @@ app/models/loan.rb:7:4 makes `state == "approved"` true
 app/models/loan.rb:8:4 makes `borrower.approved_cents + amount_cents > borrower.limit_cents` true
 app/models/loan.rb:9:4 makes `amount_cents > 10_000 && !officer.fetch(:senior)` true
 
+RETURNED (coverage does not check a value; compare each with what the method should return)
+returns :approved for {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan)"}}
+
 OPERATORS (coverage does not see which side ran; vary each left side)
 app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
 
@@ -123,7 +126,13 @@ raised: none
 tests: spec/models/loan_approve_spec.rb
 
 FRONTIER
-(none)
+(none: every arm ran, which does not mean each value is right; check RETURNED)
+
+RETURNED (coverage does not check a value; compare each with what the method should return)
+returns :approved for {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan)"}}
+returns :already for {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan, :approved)"}}
+returns :needs_senior for {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan, amount_cents: 15_000)"}}
+returns :over_limit for {"args":[{"ruby":"{name: 'Grace', senior: false}"}],"receiver":{"ruby":"create(:loan, amount_cents: 25_000)"}}
 
 OPERATORS (coverage does not see which side ran; vary each left side)
 app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
@@ -139,7 +148,7 @@ Finished in 0.35302 seconds (files took 0.98271 seconds to load)
 1 example, 0 failures
 ```
 
-Every arm is covered. The emitted spec runs as any other spec, without `BRANCHOUT`:
+Every arm is covered. That says only that each arm ran, so read each `RETURNED` line against what the method should do: here each loan gets the answer its state and amount call for. The emitted spec runs as any other spec, without `BRANCHOUT`:
 
 ```sh
 bundle exec rspec spec/models/loan_approve_spec.rb --format documentation
@@ -204,9 +213,12 @@ FRONTIER (add an input like the nearest above each arm, changed as the arm says)
 nearest: [1]
 shipping.rb:6:14 makes `express` true
 
+RETURNED (coverage does not check a value; compare each with what the method should return)
+returns 5 for [1]
+returns 7 for [3]
+
 EXCEPTIONS
-ArgumentError at shipping.rb:3: weight must be positive
-  inputs: [-1], [-2], [0]
+ArgumentError at shipping.rb:3 raised by 3 inputs, such as [-1]: weight must be positive
 
 BOUNDARIES (each comparison in the counted code, listed whether or not an input made both sides equal; coverage does not see which did)
 shipping.rb:5:18 <= in `weight <= 2`
@@ -214,7 +226,7 @@ shipping.rb:5:18 <= in `weight <= 2`
 Pass --verbose for every covered arm and the run settings.
 ```
 
-branchout ran 13 inputs that it made from the method's own literals and from a seeded sample. They took 5 of the 6 arms. `FRONTIER` is the arm that no input took: `express` was never true, so add an input like `nearest` that makes it true. `EXCEPTIONS` lists the inputs that raised. `--verbose` also prints the input that took each covered arm.
+branchout ran 13 inputs that it made from the method's own literals and from a seeded sample. They took 5 of the 6 arms. `FRONTIER` is the arm that no input took: `express` was never true, so add an input like `nearest` that makes it true. `RETURNED` shows what each input returned, grouped by value: coverage counts the arms an input took and never checks a value, so read each line against what the method should return. `EXCEPTIONS` gives one line for each error and the place that raised it, with how many inputs raised it and one of them. `--verbose` also prints the input that took each covered arm.
 
 The emitted spec pins each return value and each error:
 
@@ -298,11 +310,14 @@ raised: 3 inputs
 tests: shipping_spec.rb
 
 FRONTIER
-(none)
+(none: every arm ran, which does not mean each value is right; check RETURNED)
+
+RETURNED (coverage does not check a value; compare each with what the method should return)
+returns 5 for [1]
+returns 14 for {"args":[3],"kwargs":{"express":true}}
 
 EXCEPTIONS
-ArgumentError at shipping.rb:3: weight must be positive
-  inputs: [-1], [-2], [0]
+ArgumentError at shipping.rb:3 raised by 3 inputs, such as [-1]: weight must be positive
 
 BOUNDARIES (each comparison in the counted code, listed whether or not an input made both sides equal; coverage does not see which did)
 shipping.rb:5:18 <= in `weight <= 2`
@@ -335,7 +350,7 @@ A coding agent adding tests can see that a branch was missed and still not know 
 
 The method follows concolic testing ([DART](https://doi.org/10.1145/1065010.1065036), [CUTE](https://doi.org/10.1145/1094811.1094816)) and LLM-guided concolic work such as [ConcoLLMic](https://concollmic.github.io/). branchout is inspired by concolic testing but does no symbolic solving. The agent proposes inputs from the branch frontier.
 
-From a checkout of this repository, `ruby bin/branchout` runs the same command as `branchout`. The seed file holds one input, `[0]`. `--verbose` prints the whole report: the run settings of the strategies that ran and the counts, then `COVERED` (the input that took each arm), `FRONTIER` (each arm no input took, with `path`, the arms `nearest` took), `EXCEPTIONS` (one record for each input that raised), `NOT COUNTED`, `OPERATORS`, and `BOUNDARIES`. Without it, the report keeps the counts, the `FRONTIER` arms that an input reached, one line each under the `nearest` input to change, one line for each decision that no input reached, and one line for each error, as in [Try it without an app](#try-it-without-an-app). `--json` holds every field of the whole report.
+From a checkout of this repository, `ruby bin/branchout` runs the same command as `branchout`. The seed file holds one input, `[0]`. `--verbose` prints the whole report: the run settings of the strategies that ran and the counts, then `COVERED` (the input that took each arm), `FRONTIER` (each arm no input took, with `path`, the arms `nearest` took), `RETURNED` (each value and the inputs that returned it), `EXCEPTIONS` (one record for each input that raised), `NOT COUNTED`, `OPERATORS`, and `BOUNDARIES`. Without it, the report keeps the counts, the `FRONTIER` arms that an input reached, one line each under the `nearest` input to change, one line for each decision that no input reached, one line for each returned value, and one line for each error and the place that raised it, as in [Try it without an app](#try-it-without-an-app). `--json` holds every field of the whole report.
 
 ```sh
 ruby bin/branchout explore examples/magic_value.rb MagicValue.classify \
@@ -376,6 +391,10 @@ sense: cond-true
 parent: reached
 nearest: [0]
 path: if@5:4/else@8:6
+
+RETURNED
+returns: :ordinary
+input: [0]
 
 EXCEPTIONS
 (none)

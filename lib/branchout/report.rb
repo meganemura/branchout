@@ -20,7 +20,7 @@ module Branchout
     # input reached but did not take. The run settings and the covered arms
     # are in +verbose+ and in the JSON.
     def text(result, tests: nil, verbose: false, verbose_flag: "--verbose", pin_keys: [])
-      return full_text(result) if verbose
+      return full_text(result, pin_keys) if verbose
 
       total = result.covered.length + result.frontier.length
       raised = result.exceptions.length
@@ -31,6 +31,7 @@ module Branchout
       ]
       lines << "tests: #{Target.display_path(tests)}" if tests
       frontier_brief(lines, result.frontier)
+      returned_brief(lines, returned(Array(result.pins), pin_keys))
       exceptions_brief(lines, result.exceptions)
       not_pinned_brief(lines, result.covered.reject(&:pinned))
       pinned_by_class_brief(lines, result.pins, pin_keys) if tests
@@ -44,7 +45,7 @@ module Branchout
     def frontier_brief(lines, frontier)
       reached, waiting = frontier.partition { |arm| arm.parent == "reached" }
       lines << "" << (reached.any? ? "FRONTIER (add an input like the nearest above each arm, changed as the arm says)" : "FRONTIER")
-      lines << "(none)" if frontier.empty?
+      lines << "(none: every arm ran, which does not mean each value is right; check RETURNED)" if frontier.empty?
       # Consecutive arms share one nearest line, so a first run's single
       # input is printed once, not once for each arm it reached.
       nearest = ->(arm) { arm.nearest ? arm.nearest.text : "null" }
@@ -69,15 +70,36 @@ module Branchout
       "#{number} #{noun}#{"s" unless number == 1}"
     end
 
+    # Coverage counts the arms an input took, never what it returned, so a
+    # wrong value in code with no branch of its own shows only here. Each
+    # input of the inputs file and each arm's input, grouped by what it
+    # returned, as [outcome, inputs].
+    def returned(pins, pin_keys)
+      pins.reject(&:error).group_by do |pin|
+        next "a value that differed between two runs" if pin.varying == :whole
+
+        pinned = Emitters::Support.pinned_pin(pin, pin_keys)
+        Emitters::Support.outcome_text(pinned, []).delete_prefix("returns ")
+      end.map { |outcome, group| [outcome, group.map(&:input)] }
+    end
+
+    def returned_brief(lines, groups)
+      return if groups.empty?
+
+      lines << "" << "RETURNED (coverage does not check a value; compare each with what the method should return)"
+      groups.each { |outcome, inputs| lines << "returns #{outcome} for #{inputs.map(&:text).join(", ")}" }
+    end
+
     def exceptions_brief(lines, findings)
       return if findings.empty?
 
       lines << "" << "EXCEPTIONS"
-      findings.group_by { |finding| [finding.class_name, finding.loc, finding.message] }.each do |(name, loc, message), group|
-        lines << "#{name}#{" at #{loc}" if loc}: #{message}"
-        shown = group.first(SHOWN_INPUTS).map { |finding| finding.input.text }.join(", ")
-        more = group.length - SHOWN_INPUTS
-        lines << "  inputs: #{shown}#{" and #{more} more" if more.positive?}"
+      # A message often quotes its own input, so one raise grouped by
+      # message would print once for each input that reached it.
+      findings.group_by { |finding| [finding.class_name, finding.loc] }.each do |(name, loc), group|
+        first = group.first
+        by = group.one? ? first.input.text : "#{count(group.length, "input")}, such as #{first.input.text}"
+        lines << "#{name}#{" at #{loc}" if loc} raised by #{by}: #{first.message}"
       end
     end
 
@@ -137,10 +159,11 @@ module Branchout
       boundaries.each { |found| lines << "#{found.loc} #{found.op} in `#{found.text}`" }
     end
 
-    def full_text(result)
+    def full_text(result, pin_keys = [])
       lines = header_lines(result)
       section(lines, "COVERED", result.covered) { |arm| covered_lines(arm) }
       section(lines, "FRONTIER", result.frontier) { |arm| [*frontier_lines(arm), "path: #{format_path(arm.path)}"] }
+      section(lines, "RETURNED", returned(Array(result.pins), pin_keys)) { |outcome, inputs| ["returns: #{outcome}", *inputs.map { |input| "input: #{input.text}" }] }
       section(lines, "EXCEPTIONS", result.exceptions) { |finding| finding_lines(finding) }
       section(lines, "NOT COUNTED", Array(result.not_counted)) { |callee| callee_lines(callee) }
       section(lines, "OPERATORS", Array(result.operators)) { |found| operator_lines(found) }
@@ -168,6 +191,7 @@ module Branchout
         "covered" => result.covered.map { |arm| covered_hash(arm) },
         "arms_not_pinned" => result.covered.reject(&:pinned).map { |arm| covered_hash(arm) },
         "frontier" => result.frontier.map { |arm| frontier_hash(arm) },
+        "returned" => returned(Array(result.pins), pin_keys).map { |outcome, inputs| {"returns" => outcome, "inputs" => inputs.map(&:to_h)} },
         "exceptions" => result.exceptions.map { |finding| finding_hash(finding) },
         "not_counted" => Array(result.not_counted).map { |callee| callee_hash(callee) },
         "operators_not_counted" => Array(result.operators).map { |found| operator_hash(found) },

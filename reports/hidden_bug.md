@@ -42,6 +42,16 @@ input: [11,11]
 FRONTIER
 (none)
 
+RETURNED
+returns: :out_of_range
+input: [0,0]
+
+returns: :large_gap
+input: [100,11]
+
+returns: -91
+input: [11,11]
+
 EXCEPTIONS
 class: ZeroDivisionError
 loc: examples/hidden_bug.rb:9

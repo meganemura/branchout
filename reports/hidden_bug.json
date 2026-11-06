@@ -80,6 +80,44 @@
   ],
   "arms_not_pinned": [],
   "frontier": [],
+  "returned": [
+    {
+      "returns": ":out_of_range",
+      "inputs": [
+        {
+          "args": [
+            0,
+            0
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    {
+      "returns": ":large_gap",
+      "inputs": [
+        {
+          "args": [
+            100,
+            11
+          ],
+          "kwargs": {}
+        }
+      ]
+    },
+    {
+      "returns": "-91",
+      "inputs": [
+        {
+          "args": [
+            11,
+            11
+          ],
+          "kwargs": {}
+        }
+      ]
+    }
+  ],
   "exceptions": [
     {
       "class": "ZeroDivisionError",

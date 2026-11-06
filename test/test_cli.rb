@@ -270,7 +270,7 @@ class CLITest < Minitest::Test
                    'An inputs file is JSON, so write "0306406150" for the String 0306406150, ' \
                    "or {\"ruby\": \"...\"} for Ruby source. Keep the quotes only if the method should get them.\n" \
                    "branchout: inputs[3] kwargs.to is the String \"''\", quotes included. " \
-                   'An inputs file is JSON, so write "" for the String , ' \
+                   'An inputs file is JSON, so write "" for the empty String, ' \
                    "or {\"ruby\": \"...\"} for Ruby source. Keep the quotes only if the method should get them.\n", stderr
     end
   end

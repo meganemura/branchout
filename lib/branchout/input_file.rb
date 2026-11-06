@@ -92,8 +92,9 @@ module Branchout
         named.filter_map do |place, value|
           next unless value.is_a?(String) && value.length >= 2 && value.match?(/\A(["']).*\z/m)
 
+          unquoted = value[1...-1]
           "inputs[#{index}] #{place} is the String #{value.inspect}, quotes included. " \
-            "An inputs file is JSON, so write #{value[1...-1].inspect} for the String #{value[1...-1]}, " \
+            "An inputs file is JSON, so write #{unquoted.inspect} for the #{unquoted.empty? ? "empty String" : "String #{unquoted}"}, " \
             "or {\"ruby\": \"...\"} for Ruby source. Keep the quotes only if the method should get them."
         end
       end

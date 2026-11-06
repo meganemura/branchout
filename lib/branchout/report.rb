@@ -81,15 +81,15 @@ module Branchout
       end
     end
 
-def not_pinned_brief(lines, arms)
-  return if arms.empty?
+    def not_pinned_brief(lines, arms)
+      return if arms.empty?
 
-  lines << "" << "NOT PINNED (each input that took these arms returned a value that differed between two runs, so no emitted test checks them)"
-  arms.group_by { |arm| arm.input.text }.each do |input, group|
-    lines << "input: #{input}"
-    group.each { |arm| lines << "#{arm.loc} #{WANTS.fetch(arm.sense, "takes the arm at `%s`") % arm.cond}" }
-  end
-end
+      lines << "" << "NOT PINNED (each input that took these arms returned a value that differed between two runs, so no emitted test checks them)"
+      arms.group_by { |arm| arm.input.text }.each do |input, group|
+        lines << "input: #{input}"
+        group.each { |arm| lines << "#{arm.loc} #{WANTS.fetch(arm.sense, "takes the arm at `%s`") % arm.cond}" }
+      end
+    end
 
     # Each part of a returned value that an emitted test can check only by
     # its class, with the inputs that returned it.
@@ -108,7 +108,7 @@ end
       end
     end
 
-def not_counted_brief(lines, callees)
+    def not_counted_brief(lines, callees)
       return if callees.empty?
 
       lines << "" << "NOT COUNTED (arms in other files; explore each as its own entry)"

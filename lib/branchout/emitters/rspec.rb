@@ -464,7 +464,7 @@ module Branchout
           others = peers.map { |pin| pin.input.receiver }.grep(Input).map(&:to_h).uniq
                         .select { |other| other["args"] == mine["args"] && other["kwargs"].keys.sort == mine["kwargs"].keys.sort && other != mine }
           differing = mine["kwargs"].select { |key, value| others.any? { |other| !other["kwargs"][key].eql?(value) } }
-          return step.label if others.empty? || differing.empty?
+          return step.label if differing.empty?
 
           "with #{differing.map { |key, value| "#{Support.keyword_literal(key)}: #{value.is_a?(Code) ? value.source : value_text(value, [])}" }.join(", ")}"
         end

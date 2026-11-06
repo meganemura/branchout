@@ -665,6 +665,21 @@ module Branchout
         end
       end
 
+      # [path, class name] for each part of +value+ that has no literal, as
+      # the RSpec matcher reaches it: into a Hash, an Array, and the members
+      # of a Struct or Data, and no further.
+      def class_pins(value, path = "")
+        return [] if literal?(value)
+
+        case value
+        when Hash
+          value.flat_map { |key, item| literal?(key) ? class_pins(item, "#{path}[#{ruby_literal(key)}]") : [[path, class_literal(value)]] }.uniq
+        when Array then value.each_with_index.flat_map { |item, index| class_pins(item, "#{path}[#{index}]") }
+        when Struct, Data then value.to_h.flat_map { |key, item| class_pins(item, "#{path}.#{key}") }
+        else [[path, class_literal(value)]]
+        end
+      end
+
       def article(name)
         name.match?(/\A[AEIOU]/) ? "an #{name}" : "a #{name}"
       end

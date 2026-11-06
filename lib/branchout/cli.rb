@@ -192,7 +192,7 @@ module Branchout
           warnings.each { |line| $stderr.puts line }
           warn_unnamed(result, target, opts[:emit_tests]) if opts[:require_by_name]
         end
-        $stdout.write(opts[:json] ? Report.json(result) : Report.text(result, tests: opts[:emit_tests], verbose: opts[:verbose]))
+        $stdout.write(opts[:json] ? Report.json(result) : Report.text(result, tests: opts[:emit_tests], verbose: opts[:verbose], pin_keys: opts[:pin_keys]))
       when "baselines"
         info = {
           target: Target.display_path(File.expand_path(target)),

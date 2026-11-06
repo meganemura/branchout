@@ -19,7 +19,7 @@ module Branchout
     # The default leads with what to act on: the counts, then each arm an
     # input reached but did not take. The run settings and the covered arms
     # are in +verbose+ and in the JSON.
-    def text(result, tests: nil, verbose: false, verbose_flag: "--verbose")
+    def text(result, tests: nil, verbose: false, verbose_flag: "--verbose", pin_keys: [])
       return full_text(result) if verbose
 
       total = result.covered.length + result.frontier.length
@@ -33,6 +33,7 @@ module Branchout
       frontier_brief(lines, result.frontier)
       exceptions_brief(lines, result.exceptions)
       not_pinned_brief(lines, result.covered.reject(&:pinned))
+      pinned_by_class_brief(lines, result.pins, pin_keys) if tests
       not_counted_brief(lines, Array(result.not_counted))
       operators_brief(lines, Array(result.operators))
       boundaries_brief(lines, Array(result.boundaries))
@@ -89,6 +90,23 @@ def not_pinned_brief(lines, arms)
     group.each { |arm| lines << "#{arm.loc} #{WANTS.fetch(arm.sense, "takes the arm at `%s`") % arm.cond}" }
   end
 end
+
+    # Each part of a returned value that an emitted test can check only by
+    # its class, with the inputs that returned it.
+    def pinned_by_class_brief(lines, pins, pin_keys)
+      parts = pins.reject { |pin| pin.error || pin.varying == :whole }.flat_map do |pin|
+        Emitters::Support.class_pins(Emitters::Support.pinned_value(pin.value, Emitters::Support.keys_for(pin, pin_keys))).map { |part| [part, pin.input] }
+      end
+      return if parts.empty?
+
+      lines << "" << "PINNED BY CLASS (the emitted tests check only the class of these returned values, which have no Ruby literal; " \
+                     "assert what matters in each by hand)"
+      parts.group_by(&:first).each do |(path, name), group|
+        inputs = group.map { |_, input| input.text }.uniq
+        more = inputs.length - SHOWN_INPUTS
+        lines << "value#{path} is #{Emitters::Support.article(name)}: #{inputs.first(SHOWN_INPUTS).join(", ")}#{" and #{more} more" if more.positive?}"
+      end
+    end
 
 def not_counted_brief(lines, callees)
       return if callees.empty?

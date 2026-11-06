@@ -720,11 +720,14 @@ class CLITest < Minitest::Test
       assert_includes out, "2 runs, 3 assertions, 0 failures"
 
       # A Time has no literal, so minitest pins it by its class beside the
-      # literal keys.
-      inputs = write_inputs(dir, { "inputs" => [["A", { "ruby" => "Time.at(0)" }]] })
-      _out, err, status = run_cli("explore", "test/fixtures/stamp.rb", "Stamp.attributes_from", "--strategy", "inputs",
-                                  "--inputs", inputs, "--emit-tests", test)
+      # literal keys, and the report names it.
+      inputs = write_inputs(dir, { "inputs" => [["A", { "ruby" => "Time.at(0)" }], ["A", { "ruby" => "Date.new(2026, 4, 1)" }]] })
+      out, err, status = run_cli("explore", "test/fixtures/stamp.rb", "Stamp.attributes_from", "--strategy", "inputs",
+                                 "--inputs", inputs, "--emit-tests", test)
       assert status.success?, err
+      assert_includes out, "\nPINNED BY CLASS (the emitted tests check only the class of these returned values, which have no Ruby literal; " \
+                           "assert what matters in each by hand)\nvalue[:start_at] is a Time: [\"A\",{\"ruby\":\"Time.at(0)\"}]\n"
+      refute_includes out, "Date.new(2026, 4, 1)\"}]\n"
       assert_includes File.read(test), "    value = Stamp.attributes_from(\"A\", Time.at(0))\n" \
                                        "    assert_equal({ name: \"n\", end_at: nil }, value.slice(:name, :end_at))\n" \
                                        "    assert_kind_of Time, value[:start_at]\n"

@@ -169,7 +169,8 @@ class ExploreTest < Minitest::Test
 
   # rspec requires the files .rspec and -r name before the spec file, so
   # the spec's first line comes too late and -r branchout/coverage loads
-  # after them; RUBYOPT loads it before rspec starts.
+  # after them; RUBYOPT loads it before rspec starts. A helper that loaded
+  # the model, as a rails_helper does, cannot be the way around it.
   def test_a_helper_that_rspec_requires_first_is_named_with_the_way_around_it
     dir = "test/fixtures/dotrspec"
     rspec = ["-rrspec/core", "-e", "exit RSpec::Core::Runner.run(ARGV)", "--", "-I", "."]
@@ -177,8 +178,20 @@ class ExploreTest < Minitest::Test
     refute status.success?, stdout + stderr
     assert_includes stdout.gsub(/\s+/, " "),
                     "rspec required dot_helper before the explore file and before any -r branchout/coverage. " \
-                    "Start Coverage before rspec loads: RUBYOPT=\"-rbranchout/coverage\" bundle exec rspec <the explore file>, " \
-                    "or rspec --options /dev/null -r dot_helper <the explore file>."
+                    "Start Coverage before rspec loads: RUBYOPT=\"-rbundler/setup -rbranchout/coverage\" bundle exec rspec <the explore file>."
+
+    stdout, stderr, status = Open3.capture3(RbConfig.ruby, "-I#{ROOT}/lib", *rspec, "--options", File::NULL, "-r", "plain_helper",
+                                            "-r", "dot_helper", "pantry_explore_spec.rb", chdir: dir)
+    refute status.success?, stdout + stderr
+    assert_includes stdout.gsub(/\s+/, " "),
+                    "rspec required plain_helper, dot_helper before the explore file and before any -r branchout/coverage. " \
+                    "Start Coverage before rspec loads: RUBYOPT=\"-rbundler/setup -rbranchout/coverage\" bundle exec rspec <the explore file>, " \
+                    "or rspec --options /dev/null -r plain_helper <the explore file>, which leaves out the helpers that loaded it."
+
+    stdout, stderr, status = Open3.capture3(RbConfig.ruby, "-I#{ROOT}/lib", *rspec, "--options", File::NULL, "-r", "plain_helper",
+                                            "pantry_explore_spec.rb", chdir: dir)
+    assert status.success?, stdout + stderr
+    assert_includes stdout, "covered: 2 of 4 arms by 1 input\n"
 
     stdout, stderr, status = Open3.capture3({"RUBYOPT" => "-I#{ROOT}/lib -rbranchout/coverage"}, RbConfig.ruby, *rspec, "pantry_explore_spec.rb",
                                             chdir: dir)
@@ -191,6 +204,41 @@ class ExploreTest < Minitest::Test
     refute status.success?, stdout + stderr
     assert_includes stdout.gsub(/\s+/, " "), "and run that file alone. "
     refute_includes stdout, "rspec required"
+  end
+
+  # bundle exec loads rspec in its own process, which read RUBYOPT before
+  # Bundler set the load path, so a bare -rbranchout/coverage there loads an
+  # installed branchout, or none, instead of the bundle's. The refusal's
+  # command must load the copy the Gemfile names, as a path or git gem.
+  def test_the_refusals_rubyopt_loads_the_bundles_branchout
+    dir = File.join(ROOT, "test/fixtures/dotrspec")
+    rspec = ["-rrspec/core", "-e", "exit RSpec::Core::Runner.run(ARGV)", "--", "-I", "."]
+    stdout, = Open3.capture3(RbConfig.ruby, "-I#{ROOT}/lib", *rspec, "pantry_explore_spec.rb", chdir: dir)
+    rubyopt = stdout.gsub(/\s+/, " ")[/RUBYOPT="([^"]+)" bundle exec rspec/, 1]
+    refute_nil rubyopt, stdout
+
+    Dir.mktmpdir do |bundle|
+      gemfile = File.join(bundle, "Gemfile")
+      File.write(gemfile, <<~GEMFILE)
+        source "https://rubygems.org"
+        gem "rspec-core", #{Gem.loaded_specs.fetch("rspec-core") { Gem::Specification.find_by_name("rspec-core") }.version.to_s.inspect}
+        gem "branchout", path: #{ROOT.inspect}
+      GEMFILE
+      env = {"BUNDLE_GEMFILE" => gemfile, "PATH" => "#{RbConfig::CONFIG.fetch("bindir")}#{File::PATH_SEPARATOR}#{ENV.fetch("PATH")}"}
+      without_bundle do
+        _out, err, status = Open3.capture3(env, "bundle", "install", "--local", "--quiet", chdir: dir)
+        assert status.success?, err
+        stdout, stderr, status = Open3.capture3(env.merge("RUBYOPT" => rubyopt), "bundle", "exec", "rspec", "-I", ".",
+                                                "pantry_explore_spec.rb", chdir: dir)
+        assert status.success?, stdout + stderr
+        assert_includes stderr, "branchout/coverage from #{ROOT}/lib/branchout/coverage.rb\n"
+        assert_includes stdout, "covered: 2 of 4 arms by 1 input\n"
+      end
+    end
+  end
+
+  def without_bundle(&block)
+    defined?(Bundler) ? Bundler.with_unbundled_env(&block) : yield
   end
 
   # An input's before Ruby makes the rows the entry reads, in the input's

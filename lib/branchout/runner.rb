@@ -217,16 +217,35 @@ module Branchout
 
     # rspec requires each file .rspec or -r names before the spec files,
     # so a model those files load is loaded before the explore file's first
-    # line, and -r branchout/coverage comes after them too.
+    # line, and -r branchout/coverage comes after them too. bundle exec
+    # reads RUBYOPT before Bundler sets the load path, so the command names
+    # bundler/setup first, or a path or git gem would not be found.
     def rspec_required_first
       return unless defined?(::RSpec) && ::RSpec.respond_to?(:configuration)
 
       helpers = ::RSpec.configuration.requires.reject { |name| name.start_with?("branchout") }
       return if helpers.empty?
 
+      harmless = helpers_done_before_target(helpers)
       " rspec required #{helpers.join(", ")} before the explore file and before any -r branchout/coverage. " \
-        "Start Coverage before rspec loads: RUBYOPT=\"-rbranchout/coverage\" bundle exec rspec <the explore file>, " \
-        "or rspec --options /dev/null -r #{helpers.join(" -r ")} <the explore file>."
+        "Start Coverage before rspec loads: RUBYOPT=\"-rbundler/setup -rbranchout/coverage\" bundle exec rspec <the explore file>" +
+        (harmless.empty? ? "." : ", or rspec --options /dev/null -r #{harmless.join(" -r ")} <the explore file>, " \
+                                 "which leaves out the helpers that loaded it.")
+    end
+
+    # Ruby adds a file to $LOADED_FEATURES when its load ends, so a helper
+    # listed before the target finished without loading it. A helper listed
+    # after it, such as a rails_helper that booted the app, may be the one
+    # that did, and so may every helper rspec required after that one.
+    def helpers_done_before_target(helpers)
+      target_at = $LOADED_FEATURES.index(File.realpath(@target.path))
+      return [] unless target_at
+
+      helpers.take_while do |name|
+        _kind, path = $LOAD_PATH.resolve_feature_path(name)
+        at = path && $LOADED_FEATURES.index(path)
+        at && at < target_at
+      end
     end
 
     # Kernel#load, as Rails uses for an initializer, leaves the file out of

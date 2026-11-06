@@ -666,12 +666,15 @@ Rails のないスイートでも同じように動く。
 そのため、イニシャライザが読むモデルは早すぎる時点で読み込まれ、explore はそれを断る。
 テスト環境が eager load する（`config.eager_load`。Rails は `ENV["CI"]` から決める）と、すべてのモデルが同じことになる。
 そのときは、rspec が何かを読み込む前に Coverage を始める。
-`BRANCHOUT=1 RUBYOPT=-rbranchout/coverage bundle exec rspec spec/models/loan_explore_spec.rb` と実行する。
-あるいは `BRANCHOUT=1 bundle exec rspec --options /dev/null -r rails_helper spec/models/loan_explore_spec.rb` と実行する。
-こちらは `.rspec` のほかのオプションも外れる。
+`BRANCHOUT=1 RUBYOPT="-rbundler/setup -rbranchout/coverage" bundle exec rspec spec/models/loan_explore_spec.rb` と実行する。
+`bundle exec` は Bundler がロードパスを設定する前に `RUBYOPT` を読むので、`-rbundler/setup` を先に置く。
+それがないと、`-rbranchout/coverage` は Gemfile が示すものではなくインストール済みの branchout を読み込む。
+Gemfile が branchout を `path:` や `git:` で固定していれば `LoadError` になる。
 `rspec -r branchout/coverage` では解決しない。
 rspec はそれを `.rspec` が示すファイルのあとに require するからである。
-断るメッセージは、rspec が先に require したファイルと、この 2 つのコマンドを示す。
+断るメッセージは、rspec が先に require したファイルと、このコマンドを示す。
+`.rspec` が、モデルを読み込むヘルパーの前に読み込まないヘルパーを require しているとき（`rails_helper` の前の `spec_helper` など）、断るメッセージは `rspec --options /dev/null -r spec_helper <探索のファイル>` も示す。
+これはモデルを読み込んだヘルパーと、`.rspec` のほかのオプションを外す。
 Rails より前に準備すると、Coverage はすべての gem も計測する。
 クイックスタートのサンプルアプリでは、`spec/rails_helper.rb` の `config/environment` を読み込む行のすぐ後に置いた場合と比べて、探索の実行は起動が約 0.3 秒、入力 1 件ごとに約 12 ms 長くなった。
 起動中にモデルを読み込むものがなければ、その置き方のほうが速い。

@@ -631,6 +631,29 @@ class CLITest < Minitest::Test
     end
   end
 
+  # An input that raises on one run and returns on the other has no test.
+  def test_an_input_that_raises_on_only_one_run_has_no_test
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "flip.rb")
+      File.write(target, <<~RUBY)
+        module Flip
+          def self.call(key)
+            @calls = (@calls || 0) + 1
+            raise ArgumentError, "odd" if @calls.odd?
+
+            nil
+          end
+        end
+      RUBY
+      test = File.join(dir, "flip_test.rb")
+      _out, err, status = run_cli("explore", target, "Flip.call", "--strategy", "inputs", "--inputs",
+                                  write_inputs(dir, { "inputs" => [["a"]] }), "--emit-tests", test)
+      assert status.success?, err
+      assert_includes err, "branchout: [\"a\"] returned a value that differed between two runs, so it has no test.\n"
+      assert_includes File.read(test), "skip \"branchout did not discover an input\""
+    end
+  end
+
   def test_operators_sit_beside_the_arms_of_safe_navigation_and_in_json
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [[nil, true]] })

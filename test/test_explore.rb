@@ -184,6 +184,13 @@ class ExploreTest < Minitest::Test
                                             chdir: dir)
     assert status.success?, stdout + stderr
     assert_includes stdout, "covered: 2 of 4 arms by 1 input\n"
+
+    # A model Ruby itself loaded first is not rspec's doing.
+    stdout, stderr, status = Open3.capture3(RbConfig.ruby, "-I#{ROOT}/lib", "-r./dot_helper", *rspec, "--options", File::NULL,
+                                            "pantry_explore_spec.rb", chdir: dir)
+    refute status.success?, stdout + stderr
+    assert_includes stdout.gsub(/\s+/, " "), "and run that file alone. "
+    refute_includes stdout, "rspec required"
   end
 
   # An input's before Ruby makes the rows the entry reads, in the input's

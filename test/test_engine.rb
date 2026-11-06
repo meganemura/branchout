@@ -53,4 +53,30 @@ class EngineTest < Minitest::Test
     assert(plain.pins.all? { |pin| pin.input.args.first.is_a?(String) })
     assert(typed.pins.any? { |pin| pin.input.args.first.is_a?(Integer) })
   end
+  Box = Struct.new(:n)
+
+  # Two runs pin the same when each literal is equal and every other value
+  # has the same class and shape. A Hash keeps its stable keys only when
+  # some stay, and they are literals.
+  def test_differing_names_what_two_runs_would_pin_apart
+    differing = Branchout::Runner.method(:differing)
+    assert_nil differing.(1, 1)
+    assert_equal :whole, differing.(1, 2)
+    assert_equal ["b"], differing.({ a: 1, b: 2 }, { a: 1, b: 3 })
+    assert_equal :whole, differing.({ a: 1 }, { a: 2 })
+    assert_equal :whole, differing.({ a: 1 }, { b: 1 })
+    assert_equal :whole, differing.({ a: Object.new, b: 1 }, { a: Object.new, b: 2 })
+    assert_equal :whole, differing.(1, { a: 1 })
+    assert_nil differing.(Object.new, Object.new)
+    assert_equal :whole, differing.(Object.new, Box.new(1))
+    assert_equal :whole, differing.(Object.new, "x")
+    assert_nil differing.([Object.new], [Object.new])
+    assert_equal :whole, differing.([Object.new], [Object.new, Object.new])
+    assert_equal :whole, differing.([Object.new, 1], [Object.new, 2])
+    assert_nil differing.([{ k: Object.new }], [{ k: Object.new }])
+    assert_equal :whole, differing.([{ k: Object.new }], [{ j: Object.new }])
+    assert_equal :whole, differing.([{ k: Object.new, n: 1 }], [{ k: Object.new, n: 2 }])
+    assert_nil differing.(Box.new(1), Box.new(1))
+    assert_equal :whole, differing.(Box.new(1), Box.new(2))
+  end
 end

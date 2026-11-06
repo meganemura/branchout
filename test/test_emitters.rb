@@ -210,7 +210,7 @@ class EmitterTest < Minitest::Test
     end
   end
 
-  def test_a_value_with_no_literal_is_pinned_by_its_class
+  def test_a_struct_whose_members_have_literals_is_pinned_by_value
     Dir.mktmpdir do |dir|
       inputs = File.join(dir, "inputs.json")
       File.write(inputs, JSON.generate({ "inputs" => [[1]] }))
@@ -223,12 +223,46 @@ class EmitterTest < Minitest::Test
         )
         assert status.success?, err
       end
-      assert_includes File.read(test), "assert_kind_of FixtureShape::Point, FixtureShape.build(1)"
-      assert_includes File.read(spec), "expect(described_class.build(1)).to a_kind_of(FixtureShape::Point).and(have_attributes(x: 1))"
+      assert_includes File.read(test), "assert_equal FixtureShape::Point.new(x: 1), FixtureShape.build(1)"
+      assert_includes File.read(spec), "expect(described_class.build(1)).to eq(FixtureShape::Point.new(x: 1))"
       _out, err, status = Open3.capture3(RbConfig.ruby, "-rrspec/autorun", "-e", "", spec)
       assert status.success?, err
       _out, err, status = Open3.capture3(RbConfig.ruby, test)
       assert status.success?, err
+    end
+  end
+
+  # A Date, and a Data or Struct whose members all have a literal, are
+  # pinned by value, so a test fails when a date moves by a day. A member
+  # with no literal leaves its value object pinned by its class.
+  def test_dates_and_value_objects_are_pinned_by_value
+    Dir.mktmpdir do |dir|
+      FileUtils.cp(File.join(ROOT, "test/fixtures/calendar.rb"), dir)
+      inputs = File.join(dir, "inputs.json")
+      receiver = { "ruby" => "FixtureCalendar.new(Date.new(2026, 1, 1))" }
+      File.write(inputs, JSON.generate({ "inputs" => [0, 3].map { |days| { "receiver" => receiver, "args" => [days] } } }))
+      emitted = %w[plan_test.rb plan_spec.rb].map do |name|
+        destination = File.join(dir, name)
+        _out, err, status = CLIProcess.run("explore", "calendar.rb", "FixtureCalendar#plan", "--inputs", inputs, "--strategy", "inputs",
+                                    "--emit-tests", destination, chdir: dir)
+        assert status.success?, err
+        destination
+      end
+      value = '{ kind: "span", start_at: Date.new(2026, 1, 4), slots: [FixtureCalendar::Slot.new(name: "a", on: Date.new(2026, 1, 4), ' \
+              'note: nil), FixtureCalendar::Pair.new(name: "b", on: Date.new(2026, 1, 1))] }'
+      assert_includes File.read(emitted[0]), "assert_equal(#{value}, fixture_calendar.plan(3))"
+      assert_includes File.read(emitted[1]), "expect(fixture_calendar.plan(3)).to eq(#{value})"
+      run_emitted = ->(path) { Open3.capture3(RbConfig.ruby, *(path.end_with?("_spec.rb") ? ["-rrspec/autorun", "-e", ""] : []), path, chdir: dir) }
+      emitted.each { |path| assert run_emitted.(path)[2].success?, run_emitted.(path)[1] }
+      source = File.join(dir, "calendar.rb")
+      File.write(source, File.read(source).sub("Pair.new(\"b\", @start)", "Pair.new(\"b\", @start + 1)"))
+      emitted.each { |path| refute run_emitted.(path)[2].success?, "#{path} passed with a date moved by a day" }
+
+      marks = File.join(dir, "marks_spec.rb")
+      _out, err, status = CLIProcess.run("explore", "calendar.rb", "FixtureCalendar#marks", "--inputs", inputs, "--strategy", "inputs",
+                                  "--emit-tests", marks, chdir: dir)
+      assert status.success?, err
+      assert_includes File.read(marks), "match([a_kind_of(FixtureCalendar::Mark).and(have_attributes(name: \"m\", at: a_kind_of(Object)))])"
     end
   end
 

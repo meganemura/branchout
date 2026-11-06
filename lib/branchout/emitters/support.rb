@@ -323,6 +323,9 @@ module Branchout
         when String then thawed ? "+#{value.inspect}" : value.inspect
         when Symbol then value.inspect
         when Code then value.source
+        when Struct, Data
+          members = value.to_h.map { |key, item| positional?(value) ? ruby_literal(item, thawed: thawed) : "#{keyword_literal(key)}: #{ruby_literal(item, thawed: thawed)}" }
+          "#{value.class.name}.new(#{members.join(", ")})"
         when Set then "Set[#{value.map { |item| ruby_literal(item, thawed: thawed) }.join(", ")}]"
         when Array
           "[#{value.map { |item| ruby_literal(item, thawed: thawed) }.join(", ")}]"
@@ -331,6 +334,8 @@ module Branchout
           # up key by key, and Hash equality ignores order anyway.
           value.empty? ? "{}" : "{ #{value.map { |key, item| "#{hash_key_literal(key)} #{ruby_literal(item, thawed: thawed)}" }.join(", ")} }"
         else
+          return "Date.new(#{value.year}, #{value.mon}, #{value.mday})" if plain_date?(value)
+
           raise Error, "cannot emit a literal for #{value.class}"
         end
       end
@@ -348,8 +353,35 @@ module Branchout
         when Float then value.finite?
         when Array, Set then value.all? { |item| literal?(item) }
         when Hash then value.all? { |key, item| literal?(key) && literal?(item) }
-        else false
+        when Code then false
+        when Struct, Data then value_object?(value)
+        else plain_date?(value)
         end
+      end
+
+      # A Date of the default calendar reads back from Date.new(year, month,
+      # day). A DateTime, or a Date of another calendar reform, does not.
+      def plain_date?(value)
+        defined?(::Date) && value.instance_of?(::Date) && value.start == ::Date::ITALY
+      end
+
+      # A Data or a Struct reads back from its class's new when its class's
+      # name leads to it, each member has a literal, and new with those
+      # members makes an equal value: an initialize of its own may change
+      # what it is given.
+      def value_object?(value)
+        name = value.class.name
+        return false unless name && Object.const_get(name).equal?(value.class)
+        return false unless value.to_h.each_value.all? { |item| literal?(item) }
+
+        positional?(value) ? value.class.new(*value.to_a) == value : value.class.new(**value.to_h) == value
+      rescue StandardError
+        false
+      end
+
+      # A Struct made with keyword_init: false takes its members by position.
+      def positional?(value)
+        value.is_a?(Struct) && value.class.keyword_init? == false
       end
 
       # A value with no Ruby literal, such as a Set or a Struct, is pinned by
@@ -586,11 +618,12 @@ module Branchout
         case value
         when Hash then "returns a Hash of #{value.keys.map(&:to_s).join(", ")}"
         when Array
-          if value.all? { |item| collection?(item) } then "returns an Array of #{value.length}"
-          elsif value.any? { |item| collection?(item) } then "returns [#{value.map { |item| item_text(item) }.join(", ")}]"
+          if value.all? { |item| composite?(item) } then "returns an Array of #{value.length}"
+          elsif value.any? { |item| composite?(item) } then "returns [#{value.map { |item| item_text(item) }.join(", ")}]"
           else "returns #{text[0, 37]}..."
           end
         when String then "returns #{text[0...word_end(text, 0, 37)]}..."
+        when Struct, Data then "returns #{article(value.class.name)}"
         else "returns #{text}"
         end
       end
@@ -611,6 +644,7 @@ module Branchout
         case item
         when Hash then item.empty? ? "{}" : "a Hash of #{item.keys.map(&:to_s).join(", ")}"
         when Array then item.empty? ? "[]" : "an Array of #{item.length}"
+        when Struct, Data then article(item.class.name)
         else ruby_literal(item)
         end
       end
@@ -858,12 +892,13 @@ module Branchout
         when {}, [] then ["empty", value.is_a?(Hash) ? "hash" : "array"]
         when Hash then ["hash", *value.keys.each_with_index.map { |key, index| Key.new(key.to_s, index.positive?) }]
         when Array
-          if value.all? { |item| collection?(item) } then ["array", "of", value.length.to_s]
+          if value.all? { |item| composite?(item) } then ["array", "of", value.length.to_s]
           # Any other Array says so, so [nil] is not named as nil, [3] not
           # as 3, and ["Done", []] not as the String "Done".
           elsif mixed_array?(value) then ["array", *value.flat_map { |item| collection?(item) ? shape_words(item) : value_words(item) }]
           else ["array", *value_words(value)]
           end
+        when Struct, Data then snake_words(value.class.name)
         else value_words(value)
         end
       end
@@ -887,6 +922,12 @@ module Branchout
 
       def collection?(value)
         value.is_a?(Hash) || value.is_a?(Array)
+      end
+
+      # A value object reads as one thing, as a collection does, and not as
+      # the scalars it holds.
+      def composite?(value)
+        collection?(value) || value.is_a?(Struct) || value.is_a?(Data)
       end
 
       def mixed_array?(value)

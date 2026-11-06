@@ -557,10 +557,13 @@ Ruby 3.4 でメッセージの文言が変わったためである。
 バックトレースのフレーム（`lib/x.rb:3:in 'Box.run'`）を含むメッセージは正規表現で照合し、フレームのラベルだけはどちらの書式でも通す。
 Ruby 3.4 はラベルを `` `run' `` から `'Box.run'` に変えたためである。
 `raised in:` の行のように、フレームを含む String の戻り値も同じように照合する。
-`Set` は要素で固定する（`Set[1, 2]`）。
-`Object` のように Ruby のリテラルで書けない戻り値は、クラスだけを固定する。
-RSpec では、`Struct` と `Data` の値はクラスとメンバーで固定し、それを含む Array や Hash は要素ごとに固定する（`match([a_kind_of(Rule).and(have_attributes(action: "borrow"))])`）。
-minitest は `Struct` をクラスだけで固定する。
+`Set` は要素で固定し（`Set[1, 2]`）、`Date` は値で固定する（`Date.new(2026, 4, 1)`）。
+メンバーがすべてリテラルで書ける `Struct` と `Data` は、クラスとメンバーの値で固定する（`eq(Rule.new(action: "borrow", on: Date.new(2026, 4, 1)))`）。
+`==` がメンバーを比べるためである。
+自前の `initialize` がそのメンバーから別の値を作るものは、この形では固定しない。
+`Object`、`Time`、レコードのように Ruby のリテラルで書けない戻り値は、クラスだけを固定する。
+RSpec では、そうした値を含む `Struct` と `Data` はクラスとメンバーで固定し、それを含む Array や Hash は要素ごとに固定する（`match([a_kind_of(Rule).and(have_attributes(action: "borrow", at: a_kind_of(Time)))])`）。
+minitest はそれをクラスだけで固定する。
 期待する Hash は値そのもののキー順で書くので、失敗時の差分をキーごとに見比べられる。
 private や protected の入口と private な `new` は、`explore` と同じく `send` で呼ぶ。
 String の引数は素のリテラルで書き、ファイルの `frozen_string_literal` がそれを凍結する。
@@ -692,7 +695,7 @@ ActiveRecord が読み込まれていれば、各入力はセーブポイント�
 `Branchout::ROLL_BACK` の中で動いた入力は、CLI の各入力と同じく、もう一度実行する。
 そのため、生成された UUID の id、ファクトリのシーケンス、`SecureRandom` のトークンのように実行ごとに作られる値は固定しない。
 返された Hash は、2 回とも同じ値だったキーだけを固定する（RSpec では `include`、minitest では `slice` を使う）。
-`Date` やレコードのようにリテラルのない値は、クラスで固定する。
+`Time` やレコードのようにリテラルのない値は、クラスで固定する。
 値全体が違った入力にはテストを書かない。
 メッセージが違った例外は、クラスだけを固定する。
 そうした入力はどれも標準エラーに示す。

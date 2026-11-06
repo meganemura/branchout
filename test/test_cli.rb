@@ -654,9 +654,9 @@ class CLITest < Minitest::Test
     end
   end
 
-  # A generated id beside a Date: the Date has no literal, so it is pinned
-  # by its class, and the test pins every key but the id.
-  def test_a_hash_with_a_varying_id_pins_its_other_keys_and_a_date_by_class
+  # A generated id beside a Date: the Date is pinned by its value, and the
+  # test pins every key but the id.
+  def test_a_hash_with_a_varying_id_pins_its_other_keys_and_a_date_by_value
     Dir.mktmpdir do |dir|
       inputs = write_inputs(dir, { "inputs" => [["A", { "ruby" => "Date.new(2026, 4, 1)" }], ["B", nil]] })
       spec = File.join(dir, "stamp_spec.rb")
@@ -669,16 +669,27 @@ class CLITest < Minitest::Test
       end
       assert_includes File.read(spec),
                       "expect(described_class.attributes_from(\"A\", Date.new(2026, 4, 1))).to " \
-                      "include({ name: \"n\", start_at: a_kind_of(Date), end_at: nil })\n"
-      assert_includes File.read(test), "    value = Stamp.attributes_from(\"A\", Date.new(2026, 4, 1))\n" \
-                                       "    assert_equal({ name: \"n\", end_at: nil }, value.slice(:name, :end_at))\n" \
-                                       "    assert_kind_of Date, value[:start_at]\n"
+                      "include({ name: \"n\", start_at: Date.new(2026, 4, 1), end_at: nil })\n"
+      assert_includes File.read(test), "    assert_equal({ name: \"n\", start_at: Date.new(2026, 4, 1), end_at: nil }, " \
+                                       "Stamp.attributes_from(\"A\", Date.new(2026, 4, 1)).slice(:name, :start_at, :end_at))\n"
       out, err, status = Open3.capture3(RbConfig.ruby, "-rrspec/autorun", "-e", "", spec)
       assert status.success?, out + err
       assert_includes out, "2 examples, 0 failures"
       out, err, status = Open3.capture3(RbConfig.ruby, test)
       assert status.success?, out + err
-      assert_includes out, "2 runs, 4 assertions, 0 failures"
+      assert_includes out, "2 runs, 3 assertions, 0 failures"
+
+      # A Time has no literal, so minitest pins it by its class beside the
+      # literal keys.
+      inputs = write_inputs(dir, { "inputs" => [["A", { "ruby" => "Time.at(0)" }]] })
+      _out, err, status = run_cli("explore", "test/fixtures/stamp.rb", "Stamp.attributes_from", "--strategy", "inputs",
+                                  "--inputs", inputs, "--emit-tests", test)
+      assert status.success?, err
+      assert_includes File.read(test), "    value = Stamp.attributes_from(\"A\", Time.at(0))\n" \
+                                       "    assert_equal({ name: \"n\", end_at: nil }, value.slice(:name, :end_at))\n" \
+                                       "    assert_kind_of Time, value[:start_at]\n"
+      out, err, status = Open3.capture3(RbConfig.ruby, test)
+      assert status.success?, out + err
     end
   end
 
@@ -919,8 +930,8 @@ class CLITest < Minitest::Test
     end
   end
 
-  # An RSpec example pins an Array of Structs by its size and each
-  # element's class and members, so a changed member fails it.
+  # An RSpec example pins an Array of Structs whose members have literals
+  # by value, so a changed member fails it.
   def test_rspec_pins_the_members_of_structs_in_an_array
     Dir.mktmpdir do |dir|
       target = File.join(dir, "rules.rb")
@@ -934,8 +945,8 @@ class CLITest < Minitest::Test
       assert status.success?, err
       text = File.read(spec)
       assert_includes text, "    it \"returns an Array of 2\" do\n"
-      assert_includes text, "expect(described_class.list(2)).to match([a_kind_of(Rules::Rule).and(have_attributes(action: \"a0\", args: [0], tags: Set[0])), " \
-                            "a_kind_of(Rules::Rule).and(have_attributes(action: \"a1\", args: [1], tags: Set[1]))])\n"
+      assert_includes text, "expect(described_class.list(2)).to eq([Rules::Rule.new(action: \"a0\", args: [0], tags: Set[0]), " \
+                            "Rules::Rule.new(action: \"a1\", args: [1], tags: Set[1])])\n"
       _out, err, status = Open3.capture3(RbConfig.ruby, "-rrspec/autorun", "-e", "", spec)
       assert status.success?, err
       File.write(target, source.sub("[i]", "[i + 1]"))

@@ -705,6 +705,35 @@ class EmitterTest < Minitest::Test
     assert_equal [%w[test_0_returns_hash], ["returns a Hash"]], names.([{ Object.new => 1 }])
   end
 
+  # A before that runs a block through tap is named by the block when its
+  # siblings differ there, beside the keywords that differ. A label over
+  # 80 characters keeps the fewest of them that tell it from each sibling.
+  def test_a_before_with_a_tap_block_is_named_by_its_block
+    befores = ['FactoryBot.create(:part, code: "A").tap { |p| p.update!(size: 1) }',
+               'FactoryBot.create(:part, code: "A").tap { |p| p.update!(size: 2) }',
+               'FactoryBot.create(:part, code: "B").tap { |p| p.update!(size: 3) }',
+               "Shelf.reset!\nFactoryBot.create(:part).tap { |p| p.update!(size: 4) }",
+               "Shelf.reset!\nFactoryBot.create(:part).tap { |p| p.update!(size: 5) }"]
+    pins = befores.each_with_index.map do |before, index|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1], before: Branchout::Code.parse(before)), value: index, error: nil, covers: [])
+    end
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Parts", :count, "Parts.count", "lib/parts.rb", File.join(ROOT, "lib/parts.rb"), [], [Struct.new(:name).new(:n)])
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
+    spec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/parts_spec.rb"))
+    assert_equal ["after FactoryBot.create(:part).tap { |p| p.update!(size: 1) }", "after FactoryBot.create(:part).tap { |p| p.update!(size: 2) }",
+                  'after FactoryBot.create(:part) with code: "B"',
+                  "after FactoryBot.create(:part).tap { |p| p.update!(size: 4) }", "after FactoryBot.create(:part).tap { |p| p.update!(size: 5) }"],
+                 spec.scan(/^ *context ['"](.*)['"] do$/).flatten
+    pins = ['FactoryBot.create(:part, code: "A").tap { |p| p.x }', 'FactoryBot.create(:part, code: "B").tap { |p| p.y }'].map do |before|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1], before: Branchout::Code.parse(before)), value: 1, error: nil, covers: [])
+    end
+    spec = Branchout::Emitters.render("rspec", Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: []),
+                                      target, File.join(ROOT, "spec/parts_spec.rb"))
+    assert_equal ['after FactoryBot.create(:part) with code: "A" and .tap { |p| p.x }','after FactoryBot.create(:part) with code: "B" and .tap { |p| p.y }'],
+                 spec.scan(/^ *context ['"](.*)['"] do$/).flatten
+  end
+
   def test_ruby_calls_are_named_by_the_keywords_that_differ
     call = ->(b, d) { Branchout::Code.parse(%(Widget.build(a: "some long shared value", c: "another shared value", b: #{b}, d: #{d}))) }
     error = Branchout::Runner::ExceptionInfo.new(class_name: "Widget::PartNotFoundForThisLine")

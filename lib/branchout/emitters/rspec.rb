@@ -281,7 +281,7 @@ module Branchout
         # the calls, then the facts.
         def label(steps, peers = [], short: false)
           receiver = steps.select { |step| step.kind == :let }.map { |step| receiver_step_label(step, peers) }
-          calls = steps.select { |step| CALLS.include?(step.kind) }.map { |step| call_label(step, peers) }
+          calls = steps.select { |step| CALLS.include?(step.kind) }.map { |step| call_label(step, peers, short: short) }
           facts = steps.select { |step| step.kind == :fact }.map { |step| fact_label(step.leaf, peers, short: short) }
           parts = receiver
           parts += ["after #{series(calls)}"] unless calls.empty?
@@ -294,8 +294,9 @@ module Branchout
         # create(:part) with size: 1. A before of several statements is
         # named by the statements that differ from a sibling's of as many
         # statements, each in that way. Any other step is named by its
-        # source, on one line.
-        def call_label(step, peers)
+        # source, on one line. +short+ keeps only the keywords and block that tell it
+        # from each sibling, as a fact is kept.
+        def call_label(step, peers, short: false)
           return step.label unless step.leaf
 
           mine = Support.statements(step.leaf[1])
@@ -304,18 +305,34 @@ module Branchout
           telling = mine.each_index.select { |index| others.any? { |other| other[index] != mine[index] } }
           return step.label if telling.empty? || telling.length == mine.length && mine.length > 1
 
-          series(telling.map { |index| keyword_label(mine[index], others.map { |other| other[index] }) }).gsub(/\s*\n\s*/, " ")
+          series(telling.map { |index| keyword_label(mine[index], others.map { |other| other[index] }, short: short) }).gsub(/\s*\n\s*/, " ")
         end
 
-        def keyword_label(code, others)
+        def keyword_label(code, others, short: false)
           head, *keywords = Support.call_parts(code)
           others = others.reject { |other| other == code }.map { |other| Support.call_parts(other) }
                          .select { |parts| parts.first == head }.map { |parts| parts.drop(1).to_h }
-          differing = keywords.select { |key, value| others.any? { |other| !other.key?(key) || !other[key].eql?(value) } }
+          tells = ->((key, value), other) { !other.key?(key) || !other[key].eql?(value) }
+          differing = keywords.select { |keyword| others.any? { |other| tells.(keyword, other) } }
           return code.source if differing.empty?
 
-          texts = differing.map { |key, value| "#{key}: #{value.is_a?(Code) ? value.source : value_text(value, [])}" }
-          "#{head[1].source} with #{texts.join(", ")}"
+          if short
+            left = others.select { |other| differing.any? { |keyword| tells.(keyword, other) } }
+            chosen = []
+            until left.empty?
+              best = differing.max_by { |keyword| [left.count { |other| tells.(keyword, other) }, -differing.index(keyword)] }
+              chosen << best
+              left.reject! { |other| tells.(best, other) }
+            end
+            differing &= chosen
+          end
+
+          block, keywords = differing.partition { |key, _| key.is_a?(Support::TapBlock) }
+          texts = keywords.map { |key, value| "#{key}: #{value.is_a?(Code) ? value.source : value_text(value, [])}" }
+          tapped = block.map { |key, value| ".#{key.name} #{value.source}" }.join
+          return "#{head[1].source}#{tapped}" if texts.empty?
+
+          "#{head[1].source} with #{texts.join(", ")}#{" and #{tapped}" unless tapped.empty?}"
         end
 
         def series(words)

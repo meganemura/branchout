@@ -126,6 +126,19 @@ class ExploreTest < Minitest::Test
     end
   end
 
+  # The input's own Ruby raised before the entry ran, so the error says
+  # nothing about the entry, and a test that pinned it would keep it.
+  def test_an_input_whose_own_ruby_raises_is_refused
+    inputs = '[{"args":["bolt"]},{"args":[{"ruby":"create(:part)"}]}]'
+    stdout, stderr, status = run_suite("#{SUITE}/ticket_explore_test.rb", "INPUTS" => inputs)
+    refute status.success?, stdout + stderr
+    assert_includes stdout.gsub(/\s+/, " "),
+                    "Branchout::Error: the input {\"args\":[{\"ruby\":\"create(:part)\"}],\"kwargs\":{}} raised NoMethodError in its own Ruby " \
+                    "before Ticket.attributes_from ran: undefined method 'create' for an instance of TicketExploreTest. " \
+                    "Fix the input: a bare create or build needs FactoryBot::Syntax::Methods in the suite; " \
+                    "without it write FactoryBot.create."
+  end
+
   # The savepoint reason holds only for a let the input made. The spec
   # reads its let before explore, so only the missing let is the reason.
   def test_an_input_that_reads_a_let_is_refused

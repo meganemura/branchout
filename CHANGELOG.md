@@ -13,3 +13,4 @@ First release. branchout runs a Ruby method on many inputs, shows the branch arm
 - A report prints an exception message as Ruby wrote it, on one line: only line breaks become spaces, so the blank String a `FrozenError` quotes keeps its spaces.
 - `Branchout.explore` takes `requires:` as one path in a String too, as the README and its refusal write it.
 - `--verbose` with `--json`, and `verbose: true` with `json: true`, are refused: the JSON report always holds every arm and the run settings.
+- An input whose own Ruby raises before the entry runs, such as a bare `create` in a suite without `FactoryBot::Syntax::Methods`, stops explore with a message that names the input. Before, its error was listed as the entry's and pinned in the emitted test.

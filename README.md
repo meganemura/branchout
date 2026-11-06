@@ -38,7 +38,7 @@ RSpec.describe Loan, type: :model do
 end
 ```
 
-The first line starts coverage before `rails_helper` boots the app, so that branchout can count the arms of the model's file. A helper that starts SimpleCov can stay as it is: branchout takes over coverage for this run. Without `BRANCHOUT` the example is skipped, so the file can stay in the suite. Each input runs in a savepoint that is rolled back, so no input sees the rows of another.
+The first line starts coverage before `rails_helper` boots the app, so that branchout can count the arms of the model's file. A helper that starts SimpleCov can stay as it is: branchout takes over coverage for this run. Without `BRANCHOUT` the example is skipped, so the file can stay in the suite. Each input runs in a savepoint that is rolled back, so no input sees the rows of another. A bare `create` or `build` needs `FactoryBot::Syntax::Methods` included in the suite's configuration; without it, write `FactoryBot.create(:loan)`. An input whose own Ruby raises, before the method runs, stops explore with a message that names the input, so its error is never pinned as the method's.
 
 3. Run it:
 

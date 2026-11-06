@@ -1482,16 +1482,19 @@ class CLITest < Minitest::Test
     end
   end
 
-  # An input's Ruby that raises before the call has no line in the target.
-  def test_an_error_raised_before_the_call_has_no_line
+  # An input's Ruby that raises before the call says nothing about the
+  # entry, so it is refused, not pinned.
+  def test_an_error_raised_by_the_inputs_own_ruby_is_refused
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [[{ "ruby" => "raise ArgumentError, 'no row'" }]] })
       stdout, stderr, status = run_cli(
         "explore", "--verbose", "test/fixtures/spin.rb", "FixtureSpin.forever",
         "--strategy", "inputs", "--random", "0", "--inputs", path
       )
-      assert status.success?, stderr
-      assert_includes stdout, "class: ArgumentError\nloc: null\n"
+      refute status.success?
+      assert_equal "", stdout
+      assert_equal "branchout: the input {\"args\":[{\"ruby\":\"raise ArgumentError, 'no row'\"}],\"kwargs\":{}} raised ArgumentError " \
+                   "in its own Ruby before FixtureSpin.forever ran: no row. Fix the input.\n", stderr
     end
   end
 

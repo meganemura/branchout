@@ -7,6 +7,7 @@ require "branchout/coverage"
 require "minitest/autorun"
 require_relative "active_record"
 require_relative "pantry"
+require_relative "ticket"
 
 # Each test's rows are undone after it, as a transactional test does.
 class SuiteCase < Minitest::Test

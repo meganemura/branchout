@@ -77,6 +77,8 @@ module Branchout
 
     def outcome(input, thawed)
       [invoke(input, thawed), nil]
+    rescue Error
+      raise
     rescue Exception => e # rubocop:disable Lint/RescueException
       [nil, ExceptionInfo.from(e, @target.display_path, @target.path, fallback_line: @target.ranges.first&.begin)]
     end
@@ -336,9 +338,11 @@ module Branchout
     def run_entry(input, thawed)
       scope = new_scope
       run = proc do
-        receiver = prepared_receiver(input, scope, thawed) unless @target.singleton
-        args, kwargs = fresh_arguments(input, scope, thawed)
-        block = scope.eval("proc #{input.block.source}", "(input)") if input.block
+        receiver, args, kwargs, block = built_by_input(input) do
+          receiver = prepared_receiver(input, scope, thawed) unless @target.singleton
+          args, kwargs = fresh_arguments(input, scope, thawed)
+          [receiver, args, kwargs, (scope.eval("proc #{input.block.source}", "(input)") if input.block)]
+        end
         if @target.singleton
           measure { @method.call(*args, **kwargs, &block) }
         else
@@ -350,6 +354,32 @@ module Branchout
       else
         run.call
       end
+    end
+
+    # FactoryBot's methods that a suite reaches bare only when it includes
+    # FactoryBot::Syntax::Methods.
+    FACTORY_METHODS = %i[create build build_stubbed attributes_for create_list build_list].freeze
+
+    # An error raised in the input's own Ruby, before the entry runs and
+    # outside the target's file, says nothing about the entry, and a test
+    # that pinned it would keep it, so explore stops. An error raised by new
+    # or a setup call is the class's own and is pinned.
+    def built_by_input(input)
+      yield
+    rescue Error, Timeout::Error
+      raise
+    rescue Exception => e # rubocop:disable Lint/RescueException
+      raise unless e.backtrace_locations.to_a.any? { |frame| frame.path == "(input)" } &&
+                   e.backtrace_locations.take_while { |frame| frame.path != "(input)" }.none? { |frame| own_file?(frame.path) }
+
+      factory = " a bare #{e.name} or build needs FactoryBot::Syntax::Methods in the suite; without it write FactoryBot.#{e.name}." if
+        e.is_a?(NoMethodError) && FACTORY_METHODS.include?(e.name)
+      raise Error, "the input #{Canon.json(input.to_h)} raised #{e.class} in its own Ruby before #{@target.entry} ran: " \
+                   "#{ExceptionInfo.one_line(e.message)}. Fix the input#{factory ? ":#{factory}" : "."}"
+    end
+
+    def own_file?(path)
+      File.expand_path(path) == File.expand_path(@target.path)
     end
 
     # Each input gets a new receiver, as an emitted test does, so one input

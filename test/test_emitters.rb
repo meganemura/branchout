@@ -682,6 +682,29 @@ class EmitterTest < Minitest::Test
                  spec.scan(/^ *it ['"](.*)['"] do$/).flatten
   end
 
+  # A Hash or an Array with a part that has no literal, as --pin-keys or a
+  # varying id leaves one, is named in both formats by the literal leaves
+  # that differ between siblings, else by its keys or its size.
+  def test_a_value_with_a_part_that_has_no_literal_is_named_alike_in_both_formats
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Bill", :total, "Bill.total", "lib/bill.rb", File.join(ROOT, "lib/bill.rb"), [], [Struct.new(:name).new(:n)])
+    names = lambda do |values, pin_keys: []|
+      pins = values.each_with_index.map do |value, index|
+        Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [index]), value: value, error: nil, covers: [])
+      end
+      result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
+      %w[minitest rspec].map do |format|
+        Branchout::Emitters.render(format, result, target, File.join(ROOT, "x"), pin_keys: pin_keys)
+                           .scan(/^ *(?:def (test_\w+)|it ['"](.*)['"] do)$/).map(&:compact).flatten
+      end
+    end
+    assert_equal [%w[test_0_returns_due_cents_0 test_1_returns_due_cents_100], ["returns due_cents: 0 when n is 0", "returns due_cents: 100 when n is 1"]],
+                 names.([{ due_cents: 0, at: Object.new, note: "x" }, { due_cents: 100, at: Object.new, note: "x" }], pin_keys: %w[due_cents at])
+    assert_equal [%w[test_0_returns_hash_name_and_at], ["returns a Hash of name, at"]], names.([{ name: "n", at: Object.new }])
+    assert_equal [%w[test_0_returns_array_of_2], ["returns an Array of 2"]], names.([[1, Object.new]])
+    assert_equal [%w[test_0_returns_hash], ["returns a Hash"]], names.([{ Object.new => 1 }])
+  end
+
   def test_ruby_calls_are_named_by_the_keywords_that_differ
     call = ->(b, d) { Branchout::Code.parse(%(Widget.build(a: "some long shared value", c: "another shared value", b: #{b}, d: #{d}))) }
     error = Branchout::Runner::ExceptionInfo.new(class_name: "Widget::PartNotFoundForThisLine")
@@ -1947,12 +1970,12 @@ class RenderTest < Minitest::Test
 
   # An entry with no arguments has no input words, so its name is the
   # outcome alone. An Array of objects with no literal is described by
-  # its size.
+  # its size in both formats.
   def test_an_array_of_objects_from_no_arguments
     pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: []), value: [Object.new, Object.new], error: nil, covers: [])
     result = Branchout::Engine::Result.new(pins: [pin], requires: [], load_paths: [], private_calls: [])
     assert_includes Branchout::Emitters.render("minitest", result, box_all, File.join(EmitterTest::ROOT, "test/x_test.rb")),
-                    "  def test_returns_array\n    value = Box.all\n    assert_kind_of Object, value[0]\n    assert_kind_of Object, value[1]\n" \
+                    "  def test_returns_array_of_2\n    value = Box.all\n    assert_kind_of Object, value[0]\n    assert_kind_of Object, value[1]\n" \
                     "    assert_equal([value[0], value[1]], value)\n"
     assert_includes Branchout::Emitters.render("rspec", result, box_all, File.join(EmitterTest::ROOT, "spec/x_spec.rb")),
                     "    it \"returns an Array of 2\" do\n"

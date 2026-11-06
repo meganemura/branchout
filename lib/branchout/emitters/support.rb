@@ -598,11 +598,6 @@ module Branchout
 
       def outcome_text(pin, differing, short: false)
         return "raises #{pin.error.class_name}" if pin.error
-        unless literal?(pin.value)
-          return "returns an Array of #{pin.value.length}" if pin.value.is_a?(Array)
-
-          return "returns #{article(class_literal(pin.value))}"
-        end
 
         value = pin.value
         unless differing.empty?
@@ -610,6 +605,12 @@ module Branchout
             [short ? telling_path(path, differing.map(&:first)) : path, ruby_literal(described(item))]
           end
           return "returns #{entries_text(entries, merge: !short)}"
+        end
+        unless literal?(value)
+          return "returns an Array of #{value.length}" if value.is_a?(Array)
+          return "returns a Hash of #{value.keys.map(&:to_s).join(", ")}" if keyed?(value)
+
+          return "returns #{article(class_literal(value))}"
         end
 
         text = ruby_literal(described(value))
@@ -755,7 +756,9 @@ module Branchout
       # than OUTCOME_LIMIT is left out, so both formats name the same
       # leaves. A value that is not a Hash has none.
       def hash_differences(values, inputs = [])
-        leaves = values.map { |value| value.is_a?(Hash) && literal?(value) ? named_leaves(value) : nil }
+        # A part with no literal is checked by its class, so it tells no
+        # sibling apart.
+        leaves = values.map { |value| named_leaves(value).select { |_, (_, leaf)| literal?(leaf) } if keyed?(value) }
         echoes = leaves.each_index.map { |index| inputs[index] ? inputs[index].args.map { |arg| written_value(arg) }.grep(Hash).map { |arg| named_leaves(arg) }.reduce({}, :merge) : {} }
         distinct = leaves.compact.uniq.sort_by(&:inspect)
         paths = distinct.flat_map(&:keys).uniq
@@ -1014,11 +1017,16 @@ module Branchout
       # siblings differ in a leaf is named by those leaves.
       def outcome_words(pin, differing = [])
         return ["raises", *snake_words(pin.error.class_name)] if pin.error
-        return ["returns", *snake_words(class_literal(pin.value))] unless literal?(pin.value)
         return outcome_entry_words(differing) unless differing.empty?
+        return ["returns", *shape_words(pin.value)] if literal?(pin.value) || keyed?(pin.value)
+        return ["returns", "array", "of", pin.value.length.to_s] if pin.value.is_a?(Array)
 
-        ["returns", *shape_words(pin.value)]
+        ["returns", *snake_words(class_literal(pin.value))]
       end
+
+      # A Hash whose keys all have a literal, so RSpec matches it key by key
+      # and a name can say its keys.
+      def keyed?(value) = value.is_a?(Hash) && value.each_key.all? { |key| literal?(key) }
 
       # A Hash is named by its keys and an Array of collections by its size,
       # so the start of a long value does not fill the name.

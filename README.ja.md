@@ -600,6 +600,8 @@ Hash の結果は、兄弟どうしを見分けられる最少の葉で名付け
 入れ子の葉も対象になる（`returns_due_cents_0_and_discount_100`）。
 minitest と RSpec は同じ葉を使う。
 兄弟がないときはキーで名付ける（`returns_hash_lines_and_discount_cents`）。
+`--pin-keys` や実行ごとに変わる id のために、リテラルのない部分を持つ Hash や配列は、リテラルのある部分で両方の形式とも同じように名付ける。
+兄弟を見分ける葉（`returns_due_cents_100`、RSpec では `returns due_cents: 100`）、なければキー（`returns_hash_name_and_start_at`、RSpec では `returns a Hash of name, start_at, end_at`）か要素数（`returns_array_of_2`、RSpec では `returns an Array of 2`）を使う。
 2 つ目からのキーの前には `and` を置き、キーは途中で切らない。
 スカラーの配列は `array` を付けて名付ける（`[nil]` は `returns_array_nil`）。
 `nil`、`true`、`false` と読める文字列やシンボルには `text` を付ける（`returns_text_nil`）。

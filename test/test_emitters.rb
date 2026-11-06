@@ -701,6 +701,34 @@ class EmitterTest < Minitest::Test
     contexts.each { |text| assert_match(/\A'after make\(:part, "x+\.\.\. \(input \h{6}\)'\z/, text) }
   end
 
+  # A before of several lines keeps each line indented in both formats, and
+  # siblings are named by the line that differs, by its keywords.
+  def test_a_before_of_several_lines_is_indented_and_named_by_the_line_that_differs
+    before = lambda do |enabled|
+      Branchout::Code.parse(%(owner = FactoryBot.create(:owner, id: "00000000-0000-0000-0000-000000000001")\n) +
+                            %(group = FactoryBot.create(:group, owner_id: owner.id)\n) +
+                            %(FactoryBot.create(:membership, group_id: group.id, enabled: #{enabled})))
+    end
+    pins = %w[true false nil].map do |enabled|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [], before: before.(enabled)), value: enabled == "true" ? :member : :none, error: nil, covers: [])
+    end
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Group", :status, "Group.status", "lib/group.rb", File.join(ROOT, "lib/group.rb"), [], [])
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
+    spec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/group_spec.rb"))
+    assert_equal ['context "after FactoryBot.create(:membership) with enabled: true"',
+                  'context "after FactoryBot.create(:membership) with enabled: false"',
+                  'context "after FactoryBot.create(:membership) with enabled: nil"'],
+                 spec.scan(/^ *(context .*) do$/).flatten
+    assert_includes spec, %(      before do\n        owner = FactoryBot.create(:owner, id: "00000000-0000-0000-0000-000000000001")\n) +
+                          %(        group = FactoryBot.create(:group, owner_id: owner.id)\n) +
+                          %(        FactoryBot.create(:membership, group_id: group.id, enabled: true)\n      end\n)
+    test = Branchout::Emitters.render("minitest", result, target, File.join(ROOT, "test/group_test.rb"))
+    assert_includes test, %(    owner = FactoryBot.create(:owner, id: "00000000-0000-0000-0000-000000000001")\n) +
+                          %(    group = FactoryBot.create(:group, owner_id: owner.id)\n) +
+                          %(    FactoryBot.create(:membership, group_id: group.id, enabled: true)\n    assert_equal :member, Group.status\n)
+  end
+
   # An input's before Ruby is a before of its own context in RSpec.
   def test_an_inputs_before_is_a_before_of_its_context
     stocked = Branchout::Input.new(args: ["bolt"], before: Branchout::Code.parse('create(:part, sku: "bolt")'))

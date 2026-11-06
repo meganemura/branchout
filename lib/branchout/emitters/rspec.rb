@@ -102,7 +102,7 @@ module Branchout
           unless befores.empty?
             out << "" unless out.empty?
             out << "#{indent}before do"
-            befores.each { |step| out << "#{indent}  #{step.code}" }
+            befores.each { |step| step.code.each_line(chomp: true) { |line| out << "#{indent}  #{line}" } }
             out << "#{indent}end"
           end
           texts = member_texts(node.members)
@@ -291,15 +291,28 @@ module Branchout
 
         # An input's before that calls the method a sibling's before calls,
         # with other keywords, is named by the keywords that differ:
-        # create(:part) with size: 1. Any other step is named by its source.
+        # create(:part) with size: 1. A before of several statements is
+        # named by the statements that differ from a sibling's of as many
+        # statements, each in that way. Any other step is named by its
+        # source, on one line.
         def call_label(step, peers)
           return step.label unless step.leaf
 
-          head, *keywords = Support.call_parts(step.leaf[1])
+          mine = Support.statements(step.leaf[1])
           others = peers.filter_map { |pin| pin.input.before }.uniq.reject { |code| code == step.leaf[1] }
-                        .map { |code| Support.call_parts(code) }.select { |parts| parts.first == head }.map { |parts| parts.drop(1).to_h }
+                        .map { |code| Support.statements(code) }.select { |statements| statements.length == mine.length }
+          telling = mine.each_index.select { |index| others.any? { |other| other[index] != mine[index] } }
+          return step.label if telling.empty? || telling.length == mine.length && mine.length > 1
+
+          series(telling.map { |index| keyword_label(mine[index], others.map { |other| other[index] }) })
+        end
+
+        def keyword_label(code, others)
+          head, *keywords = Support.call_parts(code)
+          others = others.reject { |other| other == code }.map { |other| Support.call_parts(other) }
+                         .select { |parts| parts.first == head }.map { |parts| parts.drop(1).to_h }
           differing = keywords.select { |key, value| others.any? { |other| !other.key?(key) || !other[key].eql?(value) } }
-          return step.label if differing.empty?
+          return code.source if differing.empty?
 
           texts = differing.map { |key, value| "#{key}: #{value.is_a?(Code) ? value.source : value_text(value, [])}" }
           "#{head[1].source} with #{texts.join(", ")}"
@@ -342,7 +355,7 @@ module Branchout
           @steps[pin] ||= begin
             input = pin.input
             steps = []
-            steps << Step.new(:before, input.before.source, input.before.source, [[:before], input.before]) if input.before
+            steps << Step.new(:before, Support.statements(input.before).map(&:source).join("; "), input.before.source, [[:before], input.before]) if input.before
             unless @target.singleton
               steps << Step.new(:let, receiver_label(input), Support.receiver_text(input, @const, @private_calls, thawed: pin.thawed))
             end

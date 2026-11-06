@@ -511,7 +511,8 @@ ruby bin/branchout baselines examples/magic_value.rb MagicValue.classify \
 保存済みのレコードのように `new` では作れないレシーバーは、`receiver` に Ruby で書く（`{"receiver": {"ruby": "Factories.loan(3)"}, "args": [{"ruby": "loan.amount"}]}`）。
 レシーバーには、出力するテストと同じ名前（クラス名のスネークケース）が付くので、引数と `setup` からそのレシーバーを読める。
 `before` の Ruby は、レシーバーと引数より前に、その入力のセーブポイントの中で動き、クラスメソッドが探す行のようにメソッドが読むものを作る（`{"before": {"ruby": "FactoryBot.create(:part, sku: \"A\")"}, "args": ["A"]}`）。
-RSpec はそれを入力の context の `before` として書き、minitest は呼び出しの前の行として書く。
+RSpec はそれを入力の context の `before` として書き、minitest は呼び出しの前の行として書く。どちらも各行を字下げする。
+複数行の `before` は、兄弟の入力と違う行で名前を付け、呼び出しは違うキーワードで名前を付ける（`after FactoryBot.create(:membership) with enabled: false`）。
 `new`、`receiver`、`setup`、`kwargs`、`block`、`before` のどれかがあるエントリは、位置引数のない呼び出しなら `args` を省ける（`{"receiver": {"ruby": "FactoryBot.build(:user)"}}`）。
 型推論が違うときは、`"types"` に位置引数 1 つにつき `int`、`float`、`string`、`array`、`hash`、`bool` のいずれかを置く。
 既定値が `[]`、`{}`、`true`、`false` の引数はその型になる。

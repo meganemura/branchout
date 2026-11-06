@@ -242,7 +242,7 @@ module Branchout
           receiver_text(input, const, private_calls, thawed: thawed)
         end
         call = ->(on) { with_block(call_text(on, target.method_name, argument_list(input, thawed: thawed), private_calls), input.block) }
-        before = input.before ? [input.before.source] : []
+        before = input.before ? input.before.source.lines(chomp: true) : []
         return [before, call.(receiver)] if input.setup.empty? && !input.receiver.is_a?(Code)
 
         name = input.receiver.is_a?(Code) ? built_receiver_name(target) : receiver_name(target)
@@ -815,6 +815,13 @@ module Branchout
 
         catch(:not_plain) { return plain_literal(body.first) }
         value
+      end
+
+      # The statements of Ruby source, each as its own Code, so sources
+      # that share some lines read apart by the lines that differ.
+      def statements(code)
+        body = Prism.parse(code.source).value.statements&.body || []
+        body.length < 2 ? [code] : body.map { |node| Code.new(node.slice) }
       end
 
       # The call before its keyword arguments, in a path into a Ruby call.

@@ -45,9 +45,9 @@ class EmitterTest < Minitest::Test
       spec_source = File.read(spec)
       test_source = File.read(test)
       assert_includes spec_source, "RSpec.describe FixtureScale do\n  describe \".scale\" do\n"
-      assert_includes spec_source, "expect(FixtureScale.scale(0, 0)).to eq(:out_of_range)"
-      assert_includes spec_source, "expect(FixtureScale.scale(11, 11)).to eq(-91)"
-      assert_includes spec_source, 'expect { FixtureScale.scale(24, 12) }.to raise_error(ZeroDivisionError, "divided by 0")'
+      assert_includes spec_source, "expect(described_class.scale(0, 0)).to eq(:out_of_range)"
+      assert_includes spec_source, "expect(described_class.scale(11, 11)).to eq(-91)"
+      assert_includes spec_source, 'expect { described_class.scale(24, 12) }.to raise_error(ZeroDivisionError, "divided by 0")'
       refute_includes spec_source, "require \"minitest"
       assert_includes test_source, "assert_equal :out_of_range, FixtureScale.scale(0, 0)"
       assert_includes test_source, "assert_raises(ZeroDivisionError)"
@@ -185,7 +185,7 @@ class EmitterTest < Minitest::Test
         assert_includes source, "assert_equal \"A\", FixtureLabel.shout(\"a\")"
         refute_includes source, "+\""
         refute_includes source, "FrozenError"
-        assert_includes File.read(spec), "expect(FixtureLabel.shout(\"a\")).to eq(\"A\")"
+        assert_includes File.read(spec), "expect(described_class.shout(\"a\")).to eq(\"A\")"
         refute_includes File.read(spec), "+\""
         _out, err, status = Open3.capture3(RbConfig.ruby, test)
         assert status.success?, err
@@ -224,7 +224,7 @@ class EmitterTest < Minitest::Test
         assert status.success?, err
       end
       assert_includes File.read(test), "assert_kind_of FixtureShape::Point, FixtureShape.build(1)"
-      assert_includes File.read(spec), "expect(FixtureShape.build(1)).to a_kind_of(FixtureShape::Point).and(have_attributes(x: 1))"
+      assert_includes File.read(spec), "expect(described_class.build(1)).to a_kind_of(FixtureShape::Point).and(have_attributes(x: 1))"
       _out, err, status = Open3.capture3(RbConfig.ruby, "-rrspec/autorun", "-e", "", spec)
       assert status.success?, err
       _out, err, status = Open3.capture3(RbConfig.ruby, test)
@@ -244,7 +244,7 @@ class EmitterTest < Minitest::Test
       assert status.success?, err
       # The expected Hash keeps the value's own key order, so a failure diff
       # lines up key by key with the actual value.
-      assert_includes File.read(test), 'assert_equal({"n" => 0, "as" => :zero}, FixtureShape.build(0))'
+      assert_includes File.read(test), 'assert_equal({ "n" => 0, "as" => :zero }, FixtureShape.build(0))'
       _out, err, status = Open3.capture3(RbConfig.ruby, test)
       assert status.success?, err
     end
@@ -272,8 +272,8 @@ class EmitterTest < Minitest::Test
       assert_includes test_source, "    assert_equal :Missing, error.name\n"
       refute_includes test_source, "undefined"
       spec_source = File.read(spec)
-      assert_includes spec_source, "expect { T.f(0) }.to raise_error(NoMethodError) { |error| expect(error.name).to eq(:upcase) }"
-      assert_includes spec_source, "expect { T.f(1) }.to raise_error(NameError) { |error| expect(error.name).to eq(:Missing) }"
+      assert_includes spec_source, "expect { described_class.f(0) }.to raise_error(NoMethodError) { |error| expect(error.name).to eq(:upcase) }"
+      assert_includes spec_source, "expect { described_class.f(1) }.to raise_error(NameError) { |error| expect(error.name).to eq(:Missing) }"
       _out, err, status = Open3.capture3(RbConfig.ruby, test)
       assert status.success?, err
     end
@@ -313,10 +313,10 @@ class EmitterTest < Minitest::Test
       assert_includes out, "6 examples, 0 failures"
       sources = paths.map { |path| File.read(path) }.join
       assert_includes sources, "assert_equal :open, FixtureVault.send(:new, 3).send(:check, 3)"
-      assert_includes sources, "let(:fixture_vault) { FixtureVault.send(:new, 3) }"
+      assert_includes sources, "let(:fixture_vault) { described_class.send(:new, 3) }"
       assert_includes sources, "expect(fixture_vault.send(:peek, 3)).to eq(:match)"
       assert_includes sources, "assert_equal :shut, FixtureVault.send(:new, 3).unlock(4)"
-      assert_includes sources, 'expect(FixtureVault.send(:seal, "")).to eq(:blank)'
+      assert_includes sources, 'expect(described_class.send(:seal, "")).to eq(:blank)'
     end
   end
 
@@ -352,7 +352,7 @@ class EmitterTest < Minitest::Test
 
   def test_literals_calls_and_class_names
     support = Branchout::Emitters::Support
-    assert_equal '{"b" => true, c: +"x", "a" => [nil, false], d?: 1, "e f": 2, "+": 3}',
+    assert_equal '{ "b" => true, c: +"x", "a" => [nil, false], d?: 1, "e f": 2, "+": 3 }',
                  support.ruby_literal({ "b" => true, c: "x", "a" => [nil, false], d?: 1, "e f": 2, "+": 3 }, thawed: true)
     target = Struct.new(:singleton, :const_name, :method_name, :entry).new(true, "Foo::Bar", :baz?, "Foo::Bar.baz?")
     input = Branchout::Input.new(args: [1], kwargs: { "z" => 1, "a b" => "s" })
@@ -637,7 +637,7 @@ class EmitterTest < Minitest::Test
       end
 
       it "returns :stocked" do
-        expect(Ticket.stocked("bolt")).to eq(:stocked)
+        expect(described_class.stocked("bolt")).to eq(:stocked)
       end
     end
     RUBY
@@ -726,7 +726,7 @@ class EmitterTest < Minitest::Test
     assert_equal ["returns tax: 1", "returns tax: 0"], support.outcomes(pins, %w[tax]).values
     assert_equal %w[test_1_returns_tax_1 test_2_returns_tax_0], support.test_names(pins, %w[tax])
     own = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1], pin_keys: %w[id]), value: value, error: nil, covers: [])
-    assert_equal ["returns {\"id\" => \"r\"}"], support.outcomes([own], %w[tax]).values
+    assert_equal ["returns { \"id\" => \"r\" }"], support.outcomes([own], %w[tax]).values
     assert_equal %w[id], support.keys_for(own, %w[tax])
     assert_equal %w[tax], support.keys_for(pins.first, %w[tax])
   end
@@ -957,7 +957,7 @@ class EmitterTest < Minitest::Test
     assert_includes Branchout::Emitters.render("minitest", result, target, File.join(ROOT, "test/x_test.rb")),
                     "    assert_match(#{literal}, Box.put(1))\n"
     assert_includes Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/x_spec.rb")),
-                    "expect(Box.put(1)).to match(#{literal})"
+                    "expect(described_class.put(1)).to match(#{literal})"
   end
 
   # A setter or an operator in a setup call has no plain form that keeps
@@ -1024,7 +1024,7 @@ class EmitterTest < Minitest::Test
     first = Branchout::Emitters.render("rspec", result, target, destination)
     second = Branchout::Emitters.render("rspec", result, target, destination)
     assert_equal first, second
-    assert_includes first, "expect(FixtureMagic.classify(114514)).to eq(:magic)"
+    assert_includes first, "expect(described_class.classify(114514)).to eq(:magic)"
   end
 
   def run_cli(*args)
@@ -1057,11 +1057,11 @@ class EmitterTest < Minitest::Test
       rspec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/cart_spec.rb"))
       if pin.error
         assert_includes minitest, "    error = assert_raises(KeyError) do\n      #{arrange}      cart.add(\"apple\", qty: 2)\n      cart.total\n    end\n"
-        assert_includes rspec, "    let(:cart) { Shop::Cart.new(\"EUR\") }\n\n    it 'raises KeyError after add(\"apple\", qty: 2)' do\n" \
+        assert_includes rspec, "    let(:cart) { described_class.new(\"EUR\") }\n\n    it 'raises KeyError after add(\"apple\", qty: 2)' do\n" \
                                "      expect {\n        cart.add(\"apple\", qty: 2)\n        total\n      }.to raise_error(KeyError)\n"
       else
         assert_includes minitest, "    #{arrange}    cart.add(\"apple\", qty: 2)\n    assert_equal 7, cart.total\n"
-        assert_includes rspec, "    subject(:total) { cart.total }\n\n    let(:cart) { Shop::Cart.new(\"EUR\") }\n\n" \
+        assert_includes rspec, "    subject(:total) { cart.total }\n\n    let(:cart) { described_class.new(\"EUR\") }\n\n" \
                                "    before do\n      cart.add(\"apple\", qty: 2)\n    end\n\n    it \"returns 7\" do\n      expect(total).to eq(7)\n"
       end
     end
@@ -1073,7 +1073,7 @@ class EmitterTest < Minitest::Test
     minitest = Branchout::Emitters.render("minitest", result, target, File.join(ROOT, "test/cart_test.rb"))
     rspec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/cart_spec.rb"))
     assert_includes minitest, "#{thawed_comment("    ")}    cart = Shop::Cart.new(+\"EUR\")\n    cart.add(+\"apple\", qty: 2)\n"
-    assert_includes rspec, "    let(:cart) { Shop::Cart.new(+\"EUR\") }\n\n    before do\n      cart.add(+\"apple\", qty: 2)\n    end\n\n" \
+    assert_includes rspec, "    let(:cart) { described_class.new(+\"EUR\") }\n\n    before do\n      cart.add(+\"apple\", qty: 2)\n    end\n\n" \
                            "    it \"returns 7\" do\n#{thawed_comment("      ")}      expect(total).to eq(7)\n"
   end
 
@@ -1156,7 +1156,7 @@ class EmitterTest < Minitest::Test
       RSpec.describe Shop::Cart do
         describe "#total" do
           context "with new" do
-            let(:cart) { Shop::Cart.new }
+            let(:cart) { described_class.new }
 
             it "returns 0 when tax is 1" do
               expect(cart.total(1, true)).to eq(0)
@@ -1195,7 +1195,7 @@ class EmitterTest < Minitest::Test
           end
 
           context 'with new("EUR")' do
-            let(:cart) { Shop::Cart.new("EUR") }
+            let(:cart) { described_class.new("EUR") }
 
             it "returns 5 when tax is 1" do
               expect(cart.total(1, true)).to eq(5)
@@ -1422,7 +1422,7 @@ class EmitterTest < Minitest::Test
     end
     bare = pin.(Branchout::Input.new(args: []), 1, [Branchout::Engine::Cover.new(line: 1, column: 0, text: "if x -> then")])
     source = render.(target_for.("Example", :describe), [bare])
-    assert_includes source, "    subject { object.describe }\n\n    let(:object) { Example.new }\n"
+    assert_includes source, "    subject { object.describe }\n\n    let(:object) { described_class.new }\n"
     assert_includes source, "      # covers:\n      #   line 1: if x -> then\n      expect(subject).to eq(1)\n"
     assert_includes render.(target_for.("End", :total), [bare]), "    subject(:total) { object.total }\n"
     assert_includes render.(target_for.("Total", :total), [bare]), "    subject { total.total }\n"
@@ -1465,14 +1465,14 @@ class EmitterTest < Minitest::Test
     shaped = [pin.(Branchout::Input.new(args: [1]), { total: 1, tax: 0 }), pin.(Branchout::Input.new(args: [2]), [struct.new(1)]),
               pin.(Branchout::Input.new(args: [3]), { "s" => Set[1] }), pin.(Branchout::Input.new(args: [4]), Set[1])]
     source = render.(target_for.("Box", :put, singleton: true), shaped, pin_keys: %w[tax])
-    assert_includes source, "expect(Box.put(1)).to include({tax: 0})\n"
-    assert_includes source, "expect(Box.put(2)).to match([a_kind_of(Struct).and(have_attributes(a: 1))])\n"
-    assert_includes source, "expect(Box.put(3)).to eq({\"s\" => Set[1]})\n"
-    assert_includes source, "expect(Box.put(4)).to eq(Set[1])\n"
+    assert_includes source, "expect(described_class.put(1)).to include({ tax: 0 })\n"
+    assert_includes source, "expect(described_class.put(2)).to match([a_kind_of(Struct).and(have_attributes(a: 1))])\n"
+    assert_includes source, "expect(described_class.put(3)).to eq({ \"s\" => Set[1] })\n"
+    assert_includes source, "expect(described_class.put(4)).to eq(Set[1])\n"
     result = Branchout::Engine::Result.new(pins: shaped.first(1), requires: [], load_paths: [], private_calls: [])
     minitest = Branchout::Emitters.render("minitest", result, target_for.("Box", :put, singleton: true),
                                           File.join(ROOT, "test/x_test.rb"), pin_keys: %w[tax])
-    assert_includes minitest, "    assert_equal({tax: 0}, Box.put(1).slice(:tax))\n"
+    assert_includes minitest, "    assert_equal({ tax: 0 }, Box.put(1).slice(:tax))\n"
   end
 
   def test_an_empty_run_emits_a_skip_and_requires_load_first
@@ -1582,7 +1582,7 @@ class BlockInputTest < Minitest::Test
     end
     result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
     source = Branchout::Emitters.render("rspec", result, target, File.join(EmitterTest::ROOT, "spec/x_spec.rb"))
-    assert_includes source, "    it \"returns 0 when block is { |n| n > 2 }\" do\n      expect(Box.put(1) { |n| n > 2 }).to eq(0)\n"
+    assert_includes source, "    it \"returns 0 when block is { |n| n > 2 }\" do\n      expect(described_class.put(1) { |n| n > 2 }).to eq(0)\n"
     assert_includes source, "    it \"returns 1 when block is { |n| n > 9 }\" do\n"
   end
 end
@@ -1610,7 +1610,7 @@ class RenderTest < Minitest::Test
     pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: []), value: [{ id: 1, box: Object.new }], error: nil, covers: [])
     result = Branchout::Engine::Result.new(pins: [pin], requires: [], load_paths: [], private_calls: [])
     assert_includes Branchout::Emitters.render("rspec", result, box_all, File.join(EmitterTest::ROOT, "spec/x_spec.rb")),
-                    "expect(all).to match([{id: 1, box: a_kind_of(Object)}])\n"
+                    "expect(all).to match([{ id: 1, box: a_kind_of(Object) }])\n"
   end
 
   # A receiver the input's Ruby builds is written as that Ruby, under the
@@ -1713,7 +1713,7 @@ class NameEdgeTest < Minitest::Test
       )
       written = Branchout::Emitters::Support.project_paths(input, at.("spec/x_spec.rb"))
       expand = ->(path) { "File.expand_path(#{path.inspect}, __dir__)" }
-      assert_equal [expand.("../a.csv"), "[#{expand.("../lib/b.rb")}]", "{\"c\" => #{expand.("../c")}}", "#{at.("d")}/".inspect,
+      assert_equal [expand.("../a.csv"), "[#{expand.("../lib/b.rb")}]", "{ \"c\" => #{expand.("../c")} }", "#{at.("d")}/".inspect,
                     root.inspect, "#{root}x/e".inspect, "f".inspect, "~0".inspect, expand.("./~x"), "g: #{expand.("../g")}"].join(", "),
                    Branchout::Emitters::Support.argument_list(written)
       assert_equal expand.("../h"), Branchout::Emitters::Support.argument_list(written.receiver)

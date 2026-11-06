@@ -263,19 +263,19 @@ RSpec.describe Shipping do
     it "raises ArgumentError when weight is -1" do
       # covers:
       #   line 3: unless weight.positive? -> then
-      expect { Shipping.fee(-1) }.to raise_error(ArgumentError, "weight must be positive")
+      expect { described_class.fee(-1) }.to raise_error(ArgumentError, "weight must be positive")
     end
 
     it "raises ArgumentError when weight is -2" do
       # covers:
       #   line 3: unless weight.positive? -> then
-      expect { Shipping.fee(-2) }.to raise_error(ArgumentError, "weight must be positive")
+      expect { described_class.fee(-2) }.to raise_error(ArgumentError, "weight must be positive")
     end
 
     it "raises ArgumentError when weight is 0" do
       # covers:
       #   line 3: unless weight.positive? -> then
-      expect { Shipping.fee(0) }.to raise_error(ArgumentError, "weight must be positive")
+      expect { described_class.fee(0) }.to raise_error(ArgumentError, "weight must be positive")
     end
 
     it "returns 5 when weight is 1" do
@@ -283,7 +283,7 @@ RSpec.describe Shipping do
       #   line 3: unless weight.positive? -> else
       #   line 5: weight <= 2 ? 5 : 5 + (weight - 2) * 2 -> then
       #   line 6: express ? base * 2 : base -> else
-      expect(Shipping.fee(1)).to eq(5)
+      expect(described_class.fee(1)).to eq(5)
     end
 
     it "returns 7 when weight is 3" do
@@ -291,7 +291,7 @@ RSpec.describe Shipping do
       #   line 3: unless weight.positive? -> else
       #   line 5: weight <= 2 ? 5 : 5 + (weight - 2) * 2 -> else
       #   line 6: express ? base * 2 : base -> else
-      expect(Shipping.fee(3)).to eq(7)
+      expect(described_class.fee(3)).to eq(7)
     end
   end
 end
@@ -580,6 +580,10 @@ minitest と RSpec は同じ葉を使う。
 `--require` のファイルがすでに対象を読み込むときは、対象の require を書かない。
 
 RSpec のファイルは定数を describe し、その中で `.method` か `#method` を describe する。
+クラスは `described_class` として呼ぶ。
+`true` と `false` は `be(true)` と `be(false)` で、`nil` は `be_nil` で固定する。
+どちらの形式でも、Hash のリテラルは波括弧の内側に空白を置く（`{ total: 2 }`）。
+RuboCop と rubocop-rspec の既定に合わせるためで、出力し直したファイルに自動修正は要らない。
 レシーバーは `let` に、各 setup 呼び出しは `before` に置く。
 レシーバー、呼び出し、引数の値が先頭から同じ入力どうしは、1 つの `context` を共有する。
 各 example はまず結果を述べ、次にその example だけの引数の値を述べる。

@@ -11,28 +11,28 @@ RSpec.describe HiddenBug do
     it "returns :out_of_range when a is 0 and b is 0" do
       # covers:
       #   line 6: if a > 10 && b > 10 -> else
-      expect(HiddenBug.scale(0, 0)).to eq(:out_of_range)
+      expect(described_class.scale(0, 0)).to eq(:out_of_range)
     end
 
     it "returns :large_gap when a is 100 and b is 11" do
       # covers:
       #   line 6: if a > 10 && b > 10 -> then
       #   line 8: if denom < 50 -> else
-      expect(HiddenBug.scale(100, 11)).to eq(:large_gap)
+      expect(described_class.scale(100, 11)).to eq(:large_gap)
     end
 
     it "returns -91 when a is 11 and b is 11" do
       # covers:
       #   line 6: if a > 10 && b > 10 -> then
       #   line 8: if denom < 50 -> then
-      expect(HiddenBug.scale(11, 11)).to eq(-91)
+      expect(described_class.scale(11, 11)).to eq(-91)
     end
 
     it "raises ZeroDivisionError when a is 24 and b is 12" do
       # covers:
       #   line 6: if a > 10 && b > 10 -> then
       #   line 8: if denom < 50 -> then
-      expect { HiddenBug.scale(24, 12) }.to raise_error(ZeroDivisionError, "divided by 0")
+      expect { described_class.scale(24, 12) }.to raise_error(ZeroDivisionError, "divided by 0")
     end
   end
 end

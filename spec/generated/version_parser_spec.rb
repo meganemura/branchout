@@ -11,7 +11,7 @@ RSpec.describe VersionParser do
     it 'returns :blank when text is ""' do
       # covers:
       #   line 5: if text.empty? -> then
-      expect(VersionParser.parse("")).to eq(:blank)
+      expect(described_class.parse("")).to eq(:blank)
     end
 
     it 'returns :pre when text is "-"' do
@@ -20,7 +20,7 @@ RSpec.describe VersionParser do
       #   line 7: elsif text.include?("-") -> then
       #   line 9: if tag.start_with?("rc") -> else
       #   line 11: elsif tag.start_with?("beta") -> else
-      expect(VersionParser.parse("-")).to eq(:pre)
+      expect(described_class.parse("-")).to eq(:pre)
     end
 
     it 'returns :other when text is "0"' do
@@ -29,7 +29,7 @@ RSpec.describe VersionParser do
       #   line 7: elsif text.include?("-") -> else
       #   line 16: elsif release?(text) -> else
       #   line 25: unless parts.length == 3 -> then
-      expect(VersionParser.parse("0")).to eq(:other)
+      expect(described_class.parse("0")).to eq(:other)
     end
 
     it 'returns :beta when text is "0-beta1"' do
@@ -38,7 +38,7 @@ RSpec.describe VersionParser do
       #   line 7: elsif text.include?("-") -> then
       #   line 9: if tag.start_with?("rc") -> else
       #   line 11: elsif tag.start_with?("beta") -> then
-      expect(VersionParser.parse("0-beta1")).to eq(:beta)
+      expect(described_class.parse("0-beta1")).to eq(:beta)
     end
 
     it 'returns :rc when text is "0-rc1"' do
@@ -46,7 +46,7 @@ RSpec.describe VersionParser do
       #   line 5: if text.empty? -> else
       #   line 7: elsif text.include?("-") -> then
       #   line 9: if tag.start_with?("rc") -> then
-      expect(VersionParser.parse("0-rc1")).to eq(:rc)
+      expect(described_class.parse("0-rc1")).to eq(:rc)
     end
 
     it 'returns :release when text is "0.0.0"' do
@@ -55,7 +55,7 @@ RSpec.describe VersionParser do
       #   line 7: elsif text.include?("-") -> else
       #   line 16: elsif release?(text) -> then
       #   line 25: unless parts.length == 3 -> else
-      expect(VersionParser.parse("0.0.0")).to eq(:release)
+      expect(described_class.parse("0.0.0")).to eq(:release)
     end
   end
 end

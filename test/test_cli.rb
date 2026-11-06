@@ -365,7 +365,7 @@ class CLITest < Minitest::Test
       assert status.success?, err
       # The input that raises keeps its setup inside the expect block, so
       # the raise is pinned wherever it comes from.
-      assert_includes File.read(spec), "    context \"with new\" do\n      let(:fixture_cart) { FixtureCart.new }\n\n" \
+      assert_includes File.read(spec), "    context \"with new\" do\n      let(:fixture_cart) { described_class.new }\n\n" \
                                        "      it 'raises ArgumentError after add(\"apple\", 0)' do\n        expect {\n" \
                                        "          fixture_cart.add(\"apple\", 0)\n          volume_discount_cents\n" \
                                        "        }.to raise_error(ArgumentError, \"quantity must be positive\")\n"
@@ -726,13 +726,13 @@ class CLITest < Minitest::Test
         assert status.success?, err
       end
       minitest = File.read(test)
-      assert_includes minitest, "    assert_equal({total: 2}, Receipt.build(1).slice(:total))\n"
-      assert_includes minitest, "    assert_equal({tax: 1}, Receipt.build(3).slice(:tax))\n"
-      assert_includes minitest, "    assert_equal({total: 10, tax: 1, id: \"r\"}, Receipt.build(5))\n"
+      assert_includes minitest, "    assert_equal({ total: 2 }, Receipt.build(1).slice(:total))\n"
+      assert_includes minitest, "    assert_equal({ tax: 1 }, Receipt.build(3).slice(:tax))\n"
+      assert_includes minitest, "    assert_equal({ total: 10, tax: 1, id: \"r\" }, Receipt.build(5))\n"
       rspec = File.read(spec)
-      assert_includes rspec, "      expect(Receipt.build(1)).to include({total: 2})\n"
-      assert_includes rspec, "      expect(Receipt.build(3)).to include({tax: 1})\n"
-      assert_includes rspec, "      expect(Receipt.build(5)).to eq({total: 10, tax: 1, id: \"r\"})\n"
+      assert_includes rspec, "      expect(described_class.build(1)).to include({ total: 2 })\n"
+      assert_includes rspec, "      expect(described_class.build(3)).to include({ tax: 1 })\n"
+      assert_includes rspec, "      expect(described_class.build(5)).to eq({ total: 10, tax: 1, id: \"r\" })\n"
 
       write_inputs(dir, { "inputs" => [{ "args" => [1], "pin_keys" => "tax" }] })
       _out, err, status = run_cli("explore", target, "Receipt.build", "--strategy", "inputs", "--random", "0", "--inputs", path)
@@ -755,9 +755,9 @@ class CLITest < Minitest::Test
                                     "--inputs", path, "--emit-tests", out, "--pin-keys", "total,tax,missing")
         assert status.success?, err
       end
-      assert_includes File.read(test), "    assert_equal({total: 6, tax: 1}, Receipt.build(3).slice(:total, :tax))\n"
+      assert_includes File.read(test), "    assert_equal({ total: 6, tax: 1 }, Receipt.build(3).slice(:total, :tax))\n"
       assert_includes File.read(test), "  def test_3_returns_total_6\n"
-      assert_includes File.read(spec), "      expect(Receipt.build(3)).to include({total: 6, tax: 1})\n"
+      assert_includes File.read(spec), "      expect(described_class.build(3)).to include({ total: 6, tax: 1 })\n"
       File.write(target, "module Receipt\n  def self.build(n)\n    { total: n * 2, tax: n > 2 ? 1 : 0, id: \"r\", note: nil }\n  end\nend\n")
       _out, err, status = Open3.capture3(RbConfig.ruby, test)
       assert status.success?, err
@@ -781,7 +781,7 @@ class CLITest < Minitest::Test
       assert status.success?, err
       text = File.read(spec)
       assert_includes text, "    it \"returns an Array of 2\" do\n"
-      assert_includes text, "expect(Rules.list(2)).to match([a_kind_of(Rules::Rule).and(have_attributes(action: \"a0\", args: [0], tags: Set[0])), " \
+      assert_includes text, "expect(described_class.list(2)).to match([a_kind_of(Rules::Rule).and(have_attributes(action: \"a0\", args: [0], tags: Set[0])), " \
                             "a_kind_of(Rules::Rule).and(have_attributes(action: \"a1\", args: [1], tags: Set[1]))])\n"
       _out, err, status = Open3.capture3(RbConfig.ruby, "-rrspec/autorun", "-e", "", spec)
       assert status.success?, err
@@ -950,8 +950,9 @@ class CLITest < Minitest::Test
         test = File.join(dir, name)
         _out, err, status = run_cli(*args, "--emit-tests", test)
         assert status.success?, err
-        assert_includes File.read(test), "Lending.approve(Factories.loan(3)) { |amount| amount > 2 }"
-        assert_includes File.read(test), "Lending.approve(KeyError.new(\"sku\"))"
+        lending = name.end_with?("_spec.rb") ? "described_class" : "Lending"
+        assert_includes File.read(test), "#{lending}.approve(Factories.loan(3)) { |amount| amount > 2 }"
+        assert_includes File.read(test), "#{lending}.approve(KeyError.new(\"sku\"))"
       end
       _out, err, status = Open3.capture3(RbConfig.ruby, File.join(dir, "lending_test.rb"))
       assert status.success?, err
@@ -1021,9 +1022,10 @@ class CLITest < Minitest::Test
                                     "--inputs", inputs, "--emit-tests", out)
         assert status.success?, err
         source = File.read(out)
-        assert_includes source, %q[Sheet.rate(File.expand_path("fixtures/rates.csv", __dir__))]
-        assert_includes source, %q[Sheet.rate(File.expand_path("fixtures/none.csv", __dir__))]
-        assert_includes source, "Sheet.rate(#{outside.inspect})"
+        sheet = name.end_with?("_spec.rb") ? "described_class" : "Sheet"
+        assert_includes source, %(#{sheet}.rate(File.expand_path("fixtures/rates.csv", __dir__)))
+        assert_includes source, %(#{sheet}.rate(File.expand_path("fixtures/none.csv", __dir__)))
+        assert_includes source, "#{sheet}.rate(#{outside.inspect})"
         refute_includes source, app
         assert_equal "branchout: the emitted test passes #{outside}, a file of this machine outside the test's project, so the " \
                      "test passes only here. Put the file under the project, and the test names it from its own directory.\n" \

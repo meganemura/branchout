@@ -329,7 +329,7 @@ module Branchout
         when Hash
           # Insertion order, as the value prints: a failure diff then lines
           # up key by key, and Hash equality ignores order anyway.
-          "{#{value.map { |key, item| "#{hash_key_literal(key)} #{ruby_literal(item, thawed: thawed)}" }.join(", ")}}"
+          value.empty? ? "{}" : "{ #{value.map { |key, item| "#{hash_key_literal(key)} #{ruby_literal(item, thawed: thawed)}" }.join(", ")} }"
         else
           raise Error, "cannot emit a literal for #{value.class}"
         end
@@ -626,7 +626,7 @@ module Branchout
         when Array then "[#{value.map { |item| literal?(item) ? ruby_literal(item) : shape_matcher(item) }.join(", ")}]"
         when Hash
           entries = value.map { |key, item| "#{literal?(key) ? hash_key_literal(key) : "#{shape_matcher(key)} =>"} #{literal?(item) ? ruby_literal(item) : shape_matcher(item)}" }
-          "{#{entries.join(", ")}}"
+          entries.empty? ? "{}" : "{ #{entries.join(", ")} }"
         else "a_kind_of(#{class_literal(value)})"
         end
       end

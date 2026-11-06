@@ -65,7 +65,10 @@ module Branchout
       class Spec
         def initialize(target, pins, private_calls, pin_keys, const = target.const_name)
           @target = target
-          @const = const
+          # The describe names the class, so rubocop-rspec's
+          # RSpec/DescribedClass wants it as described_class. A private
+          # constant is described by its name, which leaves described_class nil.
+          @const = const == target.const_name ? "described_class" : const
           @private_calls = private_calls
           @pin_keys = pin_keys
           @receiver = receiver_name
@@ -159,6 +162,10 @@ module Branchout
 
             return "be_a(#{Support.class_literal(value)})"
           end
+
+          # rubocop-rspec's RSpec/BeEq and RSpec/BeNil.
+          return "be_nil" if value.nil?
+          return "be(#{value})" if value == true || value == false
 
           "eq(#{Support.ruby_literal(value)})"
         end

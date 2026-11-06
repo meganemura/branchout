@@ -12,14 +12,14 @@ RSpec.describe Arithmetic do
       # covers:
       #   line 8: if (x * 3 + 7) % 1000 == 421 -> else
       #   line 18: elsif x == 114514 && x == 0 -> else
-      expect(Arithmetic.classify(0, 0, 0)).to eq(:miss)
+      expect(described_class.classify(0, 0, 0)).to eq(:miss)
     end
 
     it "returns :miss when x is 114514, y is 0 and z is 0" do
       # covers:
       #   line 8: if (x * 3 + 7) % 1000 == 421 -> else
       #   line 18: elsif x == 114514 && x == 0 -> else
-      expect(Arithmetic.classify(114514, 0, 0)).to eq(:miss)
+      expect(described_class.classify(114514, 0, 0)).to eq(:miss)
     end
 
     context "when x is 138" do
@@ -27,7 +27,7 @@ RSpec.describe Arithmetic do
         # covers:
         #   line 8: if (x * 3 + 7) % 1000 == 421 -> then
         #   line 9: if y == x + 5 -> else
-        expect(Arithmetic.classify(138, 0, 0)).to eq(:x_only)
+        expect(described_class.classify(138, 0, 0)).to eq(:x_only)
       end
 
       context "when y is 143" do
@@ -36,7 +36,7 @@ RSpec.describe Arithmetic do
           #   line 8: if (x * 3 + 7) % 1000 == 421 -> then
           #   line 9: if y == x + 5 -> then
           #   line 10: if z == 7 -> else
-          expect(Arithmetic.classify(138, 143, 0)).to eq(:need_z)
+          expect(described_class.classify(138, 143, 0)).to eq(:need_z)
         end
 
         it "returns :hit when z is 7" do
@@ -44,7 +44,7 @@ RSpec.describe Arithmetic do
           #   line 8: if (x * 3 + 7) % 1000 == 421 -> then
           #   line 9: if y == x + 5 -> then
           #   line 10: if z == 7 -> then
-          expect(Arithmetic.classify(138, 143, 7)).to eq(:hit)
+          expect(described_class.classify(138, 143, 7)).to eq(:hit)
         end
       end
     end

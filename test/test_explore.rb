@@ -154,7 +154,7 @@ class ExploreTest < Minitest::Test
       assert_includes stderr, "branchout: {\"args\":[\"nut\"],\"kwargs\":{\"line\":{\"ruby\":\"serial\"}}} " \
                               "returned a Hash whose token, line differed between two runs, so its test pins only part.\n"
       emitted = File.read(emit_to)
-      assert_includes emitted, "assert_equal({part: \"bolt\"}, Ticket.attributes_from(\"bolt\").slice(:part))"
+      assert_includes emitted, "assert_equal({ part: \"bolt\" }, Ticket.attributes_from(\"bolt\").slice(:part))"
       stdout, stderr, status = run_suite(emit_to)
       assert status.success?, stdout + stderr
       assert_includes stdout, "2 runs, 2 assertions, 0 failures, 0 errors"

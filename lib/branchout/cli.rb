@@ -191,7 +191,7 @@ module Branchout
                        "Only a bare call, a self. call, and a call on new are followed; target the method that branches. " \
                        "--emit-tests still pins the return value or error of each input."
         end
-        write_optional(opts[:json_out], Report.json(result))
+        write_optional(opts[:json_out], Report.json(result, pin_keys: opts[:pin_keys]))
         write_optional(opts[:md_out], Report.markdown(result))
         if opts[:emit_tests]
           parsed = Target.parse(target, entry, type_overrides: type_overrides)
@@ -201,7 +201,7 @@ module Branchout
           warnings.each { |line| $stderr.puts line }
           warn_unnamed(result, target, opts[:emit_tests]) if opts[:require_by_name]
         end
-        $stdout.write(opts[:json] ? Report.json(result) : Report.text(result, tests: opts[:emit_tests], verbose: opts[:verbose], pin_keys: opts[:pin_keys]))
+        $stdout.write(opts[:json] ? Report.json(result, pin_keys: opts[:pin_keys]) : Report.text(result, tests: opts[:emit_tests], verbose: opts[:verbose], pin_keys: opts[:pin_keys]))
       when "baselines"
         info = {
           target: Target.display_path(File.expand_path(target)),

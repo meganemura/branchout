@@ -746,6 +746,14 @@ class CLITest < Minitest::Test
       assert_includes out, "\nPINNED BY CLASS (the emitted tests check only the class of these returned values, which have no Ruby literal; " \
                            "assert what matters in each by hand)\nvalue[:start_at] is a Time: [\"A\",{\"ruby\":\"Time.at(0)\"}]\n"
       refute_includes out, "Date.new(2026, 4, 1)\"}]\n"
+      # The JSON report holds the same parts, with every input, with or
+      # without --emit-tests.
+      out, err, status = run_cli("explore", "test/fixtures/stamp.rb", "Stamp.attributes_from", "--strategy", "inputs",
+                                 "--inputs", inputs, "--json")
+      assert status.success?, err
+      assert_equal [{ "path" => "value[:start_at]", "class" => "Time",
+                      "inputs" => [{ "args" => ["A", { "ruby" => "Time.at(0)" }], "kwargs" => {} }] }],
+                   JSON.parse(out)["pinned_by_class"]
 
       # A value that differed as a whole between two runs has no test, so
       # it is under NOT PINNED's warning and not PINNED BY CLASS.
@@ -756,6 +764,9 @@ class CLITest < Minitest::Test
       assert status.success?, err
       assert_includes err, "differed between two runs"
       refute_includes out, "PINNED BY CLASS"
+      out, err, status = run_cli("explore", grow, "Grow.items", "--strategy", "inputs", "--inputs", write_inputs(dir, { "inputs" => [[1]] }), "--json")
+      assert status.success?, err
+      assert_equal [], JSON.parse(out)["pinned_by_class"]
       assert_includes File.read(test), "    value = Stamp.attributes_from(\"A\", Time.at(0))\n" \
                                        "    assert_equal({ name: \"n\", end_at: nil }, value.slice(:name, :end_at))\n" \
                                        "    assert_kind_of Time, value[:start_at]\n"

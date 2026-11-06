@@ -191,5 +191,6 @@
   "exceptions": [],
   "not_counted": [],
   "operators_not_counted": [],
-  "boundaries_not_counted": []
+  "boundaries_not_counted": [],
+  "pinned_by_class": []
 }

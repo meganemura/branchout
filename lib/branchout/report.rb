@@ -92,19 +92,25 @@ module Branchout
     end
 
     # Each part of a returned value that an emitted test can check only by
-    # its class, with the inputs that returned it.
-    def pinned_by_class_brief(lines, pins, pin_keys)
+    # its class, as "value[:at]" => [class name, inputs that returned it].
+    def pinned_by_class(pins, pin_keys)
       parts = pins.reject { |pin| pin.error || pin.varying == :whole }.flat_map do |pin|
         Emitters::Support.class_pins(Emitters::Support.pinned_value(pin.value, Emitters::Support.keys_for(pin, pin_keys))).map { |part| [part, pin.input] }
       end
+      parts.group_by(&:first).map do |(path, name), group|
+        ["value#{path}", name, group.map(&:last).uniq(&:canonical)]
+      end
+    end
+
+    def pinned_by_class_brief(lines, pins, pin_keys)
+      parts = pinned_by_class(pins, pin_keys)
       return if parts.empty?
 
       lines << "" << "PINNED BY CLASS (the emitted tests check only the class of these returned values, which have no Ruby literal; " \
                      "assert what matters in each by hand)"
-      parts.group_by(&:first).each do |(path, name), group|
-        inputs = group.map { |_, input| input.text }.uniq
+      parts.each do |path, name, inputs|
         more = inputs.length - SHOWN_INPUTS
-        lines << "value#{path} is #{Emitters::Support.article(name)}: #{inputs.first(SHOWN_INPUTS).join(", ")}#{" and #{more} more" if more.positive?}"
+        lines << "#{path} is #{Emitters::Support.article(name)}: #{inputs.first(SHOWN_INPUTS).map(&:text).join(", ")}#{" and #{more} more" if more.positive?}"
       end
     end
 
@@ -142,7 +148,7 @@ module Branchout
       "#{lines.join("\n")}\n"
     end
 
-    def json(result)
+    def json(result, pin_keys: [])
       body = {
         "version" => 1,
         "command" => result.command,
@@ -165,7 +171,10 @@ module Branchout
         "exceptions" => result.exceptions.map { |finding| finding_hash(finding) },
         "not_counted" => Array(result.not_counted).map { |callee| callee_hash(callee) },
         "operators_not_counted" => Array(result.operators).map { |found| operator_hash(found) },
-        "boundaries_not_counted" => Array(result.boundaries).map { |found| operator_hash(found) }
+        "boundaries_not_counted" => Array(result.boundaries).map { |found| operator_hash(found) },
+        "pinned_by_class" => pinned_by_class(Array(result.pins), pin_keys).map do |path, name, inputs|
+          {"path" => path, "class" => name, "inputs" => inputs.map(&:to_h)}
+        end
       }
       "#{Canon.pretty(body)}\n"
     end

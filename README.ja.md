@@ -711,6 +711,8 @@ ActiveRecord が読み込まれていれば、各入力はセーブポイント�
 そうした入力しか通らなかった分岐は、どの生成テストも確かめないので、レポートの `NOT PINNED` に示す。
 `--emit-tests`（`emit_tests:`）を付けると、`Time` やレコードのように生成テストがクラスしか確かめない戻り値の部分を、それを返した最初の 3 つの入力とともに `PINNED BY CLASS` に示す（`value[:start_at] is a Time: ["A",{"ruby":"Time.at(0)"}]`）。
 その部分で大事なことは手で確かめる。
+JSON のレポート（`json: true`）は、`emit_tests:` の有無にかかわらず、同じ部分を `pinned_by_class` に持つ。
+各部分の `path` と `class`、それを返したすべての入力である。
 戦略は `strategies:` で変えない限り `inputs` だけで、`timeout:` は指定しない限り 1 秒である（`nil` で切る）。
 `target:`、`emit_tests:`、`format:`、`json:`、`verbose:`、`pin_keys:`、`requires:`、`seed:`、`random:`、`mutate_cap:` は、CLI の同名のフラグと同じ意味である。
 minitest では、同じ呼び出しを `ActiveSupport::TestCase` のテストに書き、`BRANCHOUT=1 bin/rails test` で動かす。

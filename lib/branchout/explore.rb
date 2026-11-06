@@ -82,7 +82,7 @@ module Branchout
                                 emit_tests, require_by_name: true, pin_keys: pin_keys)
       warnings.each { |line| $stderr.puts line }
     end
-    json ? Report.json(result) : Report.text(result, tests: emit_tests, verbose: verbose, verbose_flag: "verbose: true", pin_keys: pin_keys)
+    json ? Report.json(result, pin_keys: pin_keys) : Report.text(result, tests: emit_tests, verbose: verbose, verbose_flag: "verbose: true", pin_keys: pin_keys)
   end
 
   def defining_file(entry)

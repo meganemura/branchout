@@ -126,5 +126,6 @@
       "op": "<",
       "text": "denom < 50"
     }
-  ]
+  ],
+  "pinned_by_class": []
 }

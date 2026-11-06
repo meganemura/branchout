@@ -3,14 +3,9 @@
 branchout explore
 target: examples/magic_value.rb
 entry: MagicValue.classify
-seed: 1
 strategies: inputs
-random: 0
-mutate_cap: 256
 timeout: 1
 inputs_ran: 2
-mutate_ran: 0
-random_ran: 0
 executions: 2
 arms_covered: 2
 arms_total: 2

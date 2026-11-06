@@ -191,19 +191,22 @@ module Branchout
       "# branchout baselines\n\n#{baselines_text(info, rows)}"
     end
 
+    # A setting of a strategy that did not run is left out, so it does not
+    # read as active. The JSON report holds every setting.
     def header_lines(result)
+      ran = ->(strategy) { result.strategies.include?(strategy) }
       [
         "branchout #{result.command}",
         "target: #{result.target}",
         "entry: #{result.entry}",
-        "seed: #{result.seed}",
+        *("seed: #{result.seed}" if ran.("random")),
         "strategies: #{result.strategies.join(",")}",
-        "random: #{result.random}",
-        "mutate_cap: #{result.mutate_cap}",
+        *("random: #{result.random}" if ran.("random")),
+        *("mutate_cap: #{result.mutate_cap}" if ran.("mutate")),
         "timeout: #{format_timeout(result.timeout)}",
-        "inputs_ran: #{result.inputs_ran}",
-        "mutate_ran: #{result.mutate_ran}",
-        "random_ran: #{result.random_ran}",
+        *("inputs_ran: #{result.inputs_ran}" if ran.("inputs")),
+        *("mutate_ran: #{result.mutate_ran}" if ran.("mutate")),
+        *("random_ran: #{result.random_ran}" if ran.("random")),
         "executions: #{result.executions}",
         "arms_covered: #{result.covered.length}",
         "arms_total: #{result.covered.length + result.frontier.length}",

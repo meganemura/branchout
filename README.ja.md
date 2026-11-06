@@ -369,7 +369,7 @@ Finished in 0.00228 seconds (files took 0.07051 seconds to load)
 このリポジトリのチェックアウトでは、`ruby bin/branchout` が `branchout` と同じコマンドを実行する。
 種ファイルの入力は `[0]` の 1 件である。
 `--verbose` はレポート全体を出す。
-実行の設定と件数のあとに、`COVERED`（各腕を通った入力）、`FRONTIER`（どの入力も通らなかった各腕と、`nearest` が通った腕の `path`）、`EXCEPTIONS`（例外を出した入力ごとに 1 件）、`NOT COUNTED`、`OPERATORS` が続く。
+動いた戦略の実行の設定と件数のあとに、`COVERED`（各腕を通った入力）、`FRONTIER`（どの入力も通らなかった各腕と、`nearest` が通った腕の `path`）、`EXCEPTIONS`（例外を出した入力ごとに 1 件）、`NOT COUNTED`、`OPERATORS` が続く。
 付けないときのレポートは、件数と、入力が届いた `FRONTIER` の腕を、変えるべき `nearest` の入力の下に 1 行ずつと、どの入力も届かなかった決定ごとに 1 行と、例外ごとに 1 行を残す。
 [アプリなしで試す](#アプリなしで試す) の出力がその形である。
 `--json` は、レポート全体のすべての項目を持つ。
@@ -387,14 +387,9 @@ ruby bin/branchout explore examples/magic_value.rb MagicValue.classify \
 branchout explore
 target: examples/magic_value.rb
 entry: MagicValue.classify
-seed: 1
 strategies: inputs
-random: 0
-mutate_cap: 256
 timeout: 1
 inputs_ran: 1
-mutate_ran: 0
-random_ran: 0
 executions: 1
 arms_covered: 1
 arms_total: 2

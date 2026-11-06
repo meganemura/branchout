@@ -3,14 +3,9 @@
 branchout explore
 target: examples/arithmetic.rb
 entry: Arithmetic.classify
-seed: 1
 strategies: inputs
-random: 0
-mutate_cap: 256
 timeout: 1
 inputs_ran: 5
-mutate_ran: 0
-random_ran: 0
 executions: 5
 arms_covered: 7
 arms_total: 8

@@ -3,14 +3,9 @@
 branchout explore
 target: examples/version_parser.rb
 entry: VersionParser.parse
-seed: 1
 strategies: inputs
-random: 0
-mutate_cap: 256
 timeout: 1
 inputs_ran: 6
-mutate_ran: 0
-random_ran: 0
 executions: 6
 arms_covered: 12
 arms_total: 12

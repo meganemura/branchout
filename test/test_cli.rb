@@ -64,6 +64,15 @@ class CLITest < Minitest::Test
     assert_equal stdout, again
   end
 
+  # The settings of a strategy that did not run are left out.
+  def test_the_verbose_report_names_the_settings_of_the_strategies_that_ran
+    stdout, _stderr, status = run_cli(
+      "explore", "--verbose", "test/fixtures/magic.rb", "FixtureMagic.classify", "--strategy", "inputs,random", "--random", "2"
+    )
+    assert status.success?
+    assert_includes stdout, "entry: FixtureMagic.classify\nseed: 0\nstrategies: inputs,random\nrandom: 2\ntimeout: 1\ninputs_ran: 0\nrandom_ran: 2\n"
+  end
+
   def test_magic_snapshot
     stdout, _stderr, status = run_cli(
       "explore", "--verbose", "test/fixtures/magic.rb", "FixtureMagic.classify",
@@ -74,14 +83,10 @@ class CLITest < Minitest::Test
       branchout explore
       target: test/fixtures/magic.rb
       entry: FixtureMagic.classify
-      seed: 0
       strategies: mutate
-      random: 0
       mutate_cap: 256
       timeout: 1
-      inputs_ran: 0
       mutate_ran: 6
-      random_ran: 0
       executions: 6
       arms_covered: 2
       arms_total: 2

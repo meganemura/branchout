@@ -3,14 +3,9 @@
 branchout explore
 target: examples/hidden_bug.rb
 entry: HiddenBug.scale
-seed: 1
 strategies: inputs
-random: 0
-mutate_cap: 256
 timeout: 1
 inputs_ran: 4
-mutate_ran: 0
-random_ran: 0
 executions: 4
 arms_covered: 4
 arms_total: 4

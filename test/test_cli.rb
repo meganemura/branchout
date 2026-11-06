@@ -1517,6 +1517,19 @@ class CLITest < Minitest::Test
     end
   end
 
+  # An input that timed out does not run a second time.
+  def test_an_input_that_timed_out_runs_once
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "wait.rb")
+      calls = File.join(dir, "calls")
+      File.write(target, "module Wait\n  def self.on(path)\n    File.write(path, \"x\", mode: \"a\")\n    sleep\n  end\nend\n")
+      _stdout, stderr, status = run_cli("explore", target, "Wait.on", "--strategy", "inputs", "--timeout", "0.1",
+                                        "--inputs", write_inputs(dir, { "inputs" => [[calls]] }))
+      assert status.success?, stderr
+      assert_equal "x", File.read(calls)
+    end
+  end
+
   def test_timeout_is_a_finding
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [{ "args" => [1] }] })

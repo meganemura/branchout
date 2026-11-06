@@ -83,7 +83,11 @@ module Branchout
     # sequence, or a SecureRandom token, would fail the emitted test on its
     # first run, so the input runs once more and what differs is not pinned.
     # An error whose message differs is pinned by its class alone.
+    # An input that timed out is not run again: a second wait would double
+    # the run and its error has no message to compare.
     def compare_with_second_run(run)
+      return if run.error&.class_name == "Timeout::Error"
+
       again = attempt(run.input, run.thawed)
       if run.error && again.error&.class_name == run.error.class_name
         unless again.error.message == run.error.message && again.error.exact_message == run.error.exact_message

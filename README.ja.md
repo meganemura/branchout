@@ -494,6 +494,7 @@ ruby bin/branchout baselines examples/magic_value.rb MagicValue.classify \
 キーワードは `kwargs` に、コンストラクタ引数は `new` に、レシーバーの状態を作る呼び出しは `setup` に書く。
 保存済みのレコードのように `new` では作れないレシーバーは、`receiver` に Ruby で書く（`{"receiver": {"ruby": "Factories.loan(3)"}, "args": [{"ruby": "loan.amount"}]}`）。
 レシーバーには、出力するテストと同じ名前（クラス名のスネークケース）が付くので、引数と `setup` からそのレシーバーを読める。
+`new`、`receiver`、`setup`、`kwargs`、`block` のどれかがあるエントリは、位置引数のない呼び出しなら `args` を省ける（`{"receiver": {"ruby": "FactoryBot.build(:user)"}}`）。
 型推論が違うときは、`"types"` に位置引数 1 つにつき `int`、`float`、`string`、`array`、`hash`、`bool` のいずれかを置く。
 既定値が `[]`、`{}`、`true`、`false` の引数はその型になる。
 `bool` の引数には、変異とランダムサンプリングが `false` と `true` の両方を試す。

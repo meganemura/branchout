@@ -32,6 +32,9 @@ module Branchout
       [inputs, types]
     end
 
+    # Keys that say how the entry is called, so args may be left out for none.
+    CALL_KEYS = %w[new receiver setup kwargs block].freeze
+
     METHOD_NAME = /\A(?:[A-Za-z_][A-Za-z0-9_]*[?!=]?|<<|>>|\[\]=?|[-+*\/%&|^<>]|\*\*|<=>|==|!=|<=|>=|=~)\z/
 
     def parse_entry(entry, label, keys = %w[args kwargs new receiver setup note pin_keys block])
@@ -41,7 +44,9 @@ module Branchout
       when Hash
         unknown = entry.keys - keys
         raise Error, "#{label} has unknown keys: #{unknown.join(", ")}" unless unknown.empty?
-        raise Error, "#{label} is missing args" unless entry.key?("args") || label.end_with?(" new")
+        unless entry.key?("args") || label.end_with?(" new") || CALL_KEYS.any? { |key| entry.key?(key) }
+          raise Error, "#{label} is missing args; write \"args\": [] for a call with no arguments"
+        end
 
         receiver = parse_entry(entry["new"], "#{label} new", %w[args kwargs new]) if entry.key?("new")
         raise Error, "#{label} new cannot have its own new" if receiver&.receiver

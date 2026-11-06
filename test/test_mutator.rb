@@ -137,7 +137,7 @@ class MutatorTest < Minitest::Test
     "{\"inputs\": [], \"types\": \"int\"}" => "types must be an array",
     "{\"inputs\": [], \"types\": [\"char\"]}" => "has an unknown type (int, float, string, array, hash, bool)",
     "{\"inputs\": [{\"args\": [], \"arg\": 1}]}" => "inputs[0] has unknown keys: arg",
-    "{\"inputs\": [{\"kwargs\": {}}]}" => "inputs[0] is missing args",
+    "{\"inputs\": [{\"note\": \"none\"}]}" => "inputs[0] is missing args; write \"args\": [] for a call with no arguments",
     "{\"inputs\": [1]}" => "inputs[0] must be an array or an object",
     "{\"inputs\": [{\"args\": 1}]}" => "input args must be an array",
     "{\"inputs\": [{\"args\": [], \"kwargs\": 1}]}" => "input kwargs must be an object",
@@ -152,6 +152,16 @@ class MutatorTest < Minitest::Test
     "{\"inputs\": [{\"args\": [], \"pin_keys\": [\"\"]}]}" => "inputs[0] pin_keys must be an array of key names",
     "{\"inputs\": [{\"args\": [], \"new\": {\"args\": [], \"pin_keys\": []}}]}" => "inputs[0] new has unknown keys: pin_keys"
   }.freeze
+
+  # An entry that says how to call the method, by its receiver, setup,
+  # keywords, or block, calls it with no positional argument when it leaves
+  # args out.
+  def test_an_entry_that_leaves_out_args_passes_none
+    [{"receiver" => {"ruby" => "build(:user)"}}, {"new" => {"args" => [1]}}, {"setup" => [{"method" => "open"}]},
+     {"kwargs" => {"on" => 1}}, {"block" => "{ |x| x }"}].each do |entry|
+      assert_equal [], Branchout::InputFile.parse_entry(entry, "inputs[0]").args, entry.inspect
+    end
+  end
 
   # pin_keys belongs to the test, not to the call: it is kept apart from
   # the canonical input, and nil means "use --pin-keys".

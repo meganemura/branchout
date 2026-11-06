@@ -631,7 +631,8 @@ class CLITest < Minitest::Test
     end
   end
 
-  # An input that raises on one run and returns on the other has no test.
+  # An input that raises on one run and returns on the other has no test,
+  # and a file with no other input says so in the words of NOT PINNED.
   def test_an_input_that_raises_on_only_one_run_has_no_test
     Dir.mktmpdir do |dir|
       target = File.join(dir, "flip.rb")
@@ -650,7 +651,14 @@ class CLITest < Minitest::Test
                                   write_inputs(dir, { "inputs" => [["a"]] }), "--emit-tests", test)
       assert status.success?, err
       assert_includes err, "branchout: [\"a\"] returned a value that differed between two runs, so it has no test.\n"
-      assert_includes File.read(test), "skip \"branchout did not discover an input\""
+      assert_includes File.read(test), "  def test_no_input_pinned\n"
+      assert_includes File.read(test), "skip \"each input returned a value that differed between two runs, so no emitted test checks it\""
+      spec = File.join(dir, "flip_spec.rb")
+      _out, err, status = run_cli("explore", target, "Flip.call", "--strategy", "inputs", "--inputs",
+                                  write_inputs(dir, { "inputs" => [["a"]] }), "--emit-tests", spec)
+      assert status.success?, err
+      assert_includes File.read(spec), "    it \"pins no input\" do\n      skip \"each input returned a value that differed between two runs, " \
+                                       "so no emitted test checks it\"\n    end\n"
     end
   end
 

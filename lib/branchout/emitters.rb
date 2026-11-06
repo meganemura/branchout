@@ -29,8 +29,7 @@ module Branchout
     # error message, for the caller to print.
     def write(format, result, target, destination, require_by_name: false, pin_keys: [])
       pins = project_pins(result.pins, destination)
-      Support.write_file(destination, emitter_for(format).render(result.dup.tap { |copy| copy.pins = pins }, target, destination,
-                                                                 require_by_name: require_by_name, pin_keys: pin_keys))
+      Support.write_file(destination, render(format, result, target, destination, require_by_name: require_by_name, pin_keys: pin_keys))
       varying = result.pins.select(&:varying).map { |pin| varying_warning(pin, pin_keys) }
       passed = pins.flat_map { |pin| Support.machine_paths(pin.input) }.uniq
       pinned = pins.flat_map do |pin|
@@ -58,9 +57,13 @@ module Branchout
 
     # +pin_keys+ names the keys a returned Hash pins; empty pins it whole.
     # +from+ is the directory the test's runner starts in.
+    # A file with no pin says whether no input ran or each one differed
+    # between two runs.
     def render(format, result, target, destination, require_by_name: false, pin_keys: [], from: Dir.pwd)
-      emitter_for(format).render(result.dup.tap { |copy| copy.pins = project_pins(result.pins, destination) }, target, destination,
-                                 require_by_name: require_by_name, pin_keys: pin_keys, from: from)
+      pins = project_pins(result.pins, destination)
+      emitter_for(format).render(result.dup.tap { |copy| copy.pins = pins }, target, destination,
+                                 require_by_name: require_by_name, pin_keys: pin_keys, from: from,
+                                 all_varied: pins.empty? && result.pins.any?)
     end
 
     def varying_warning(pin, pin_keys)

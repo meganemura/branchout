@@ -5,7 +5,7 @@ module Branchout
     module Minitest
       module_function
 
-      def render(result, target, destination, require_by_name: false, pin_keys: [], from: Dir.pwd)
+      def render(result, target, destination, require_by_name: false, pin_keys: [], from: Dir.pwd, all_varied: false)
         lines = Support.header(target, "tests", destination)
         lines << ""
         lines << 'require "minitest/autorun"'
@@ -14,8 +14,8 @@ module Branchout
         lines << ""
         lines << "class #{Support.class_name_for(target)} < #{result.test_class || "Minitest::Test"}"
         if result.pins.empty?
-          lines << "  def test_no_inputs_discovered"
-          lines << '    skip "branchout did not discover an input"'
+          lines << "  def #{all_varied ? "test_no_input_pinned" : "test_no_inputs_discovered"}"
+          lines << "    skip #{Support.no_pin_reason(all_varied).inspect}"
           lines << "  end"
         else
           names = Support.test_names(result.pins, pin_keys)

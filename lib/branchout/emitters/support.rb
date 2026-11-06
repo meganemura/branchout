@@ -1073,6 +1073,13 @@ module Branchout
         word.to_s.downcase.split(/[^a-z0-9]+/).reject(&:empty?)
       end
 
+      # Why a file holds no test, in the words of the report's NOT PINNED.
+      def no_pin_reason(all_varied)
+        return "branchout did not discover an input" unless all_varied
+
+        "each input returned a value that differed between two runs, so no emitted test checks it"
+      end
+
       def cover_comment(pin, indent)
         return [] if pin.covers.empty?
 

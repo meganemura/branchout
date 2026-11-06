@@ -163,7 +163,7 @@ class ExploreTest < Minitest::Test
       stdout, stderr, status = run_suite("#{SUITE}/ticket_explore_test.rb", "INPUTS" => "[[]]", "EMIT_TO" => emit_to, "ENTRY" => "Ticket.code")
       assert status.success?, stdout + stderr
       assert_includes stderr, "branchout: [] returned a value that differed between two runs, so it has no test.\n"
-      assert_includes File.read(emit_to), "skip \"branchout did not discover an input\""
+      assert_includes File.read(emit_to), "skip \"each input returned a value that differed between two runs, so no emitted test checks it\""
     end
   end
 

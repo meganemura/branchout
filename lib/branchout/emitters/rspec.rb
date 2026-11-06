@@ -34,7 +34,7 @@ module Branchout
 
       module_function
 
-      def render(result, target, destination, require_by_name: false, pin_keys: [], from: Dir.pwd)
+      def render(result, target, destination, require_by_name: false, pin_keys: [], from: Dir.pwd, all_varied: false)
         lines = Support.header(target, "specs", destination)
         lines << ""
         lines.concat(Support.require_lines(result.requires, (target.path unless result.target_required), destination,
@@ -48,8 +48,8 @@ module Branchout
         lines << "RSpec.describe #{const == target.const_name ? const : target.const_name.inspect}#{type} do"
         lines << "  describe #{"#{target.singleton ? "." : "#"}#{target.method_name}".inspect} do"
         if result.pins.empty?
-          lines << '    it "discovers no inputs" do'
-          lines << '      skip "branchout did not discover an input"'
+          lines << "    it #{(all_varied ? "pins no input" : "discovers no inputs").inspect} do"
+          lines << "      skip #{Support.no_pin_reason(all_varied).inspect}"
           lines << "    end"
         else
           spec = Spec.new(target, result.pins, result.private_calls, pin_keys, const)

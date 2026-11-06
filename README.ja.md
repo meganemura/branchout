@@ -565,7 +565,10 @@ Ruby 3.4 はラベルを `` `run' `` から `'Box.run'` に変えたためであ
 自前の `initialize` がそのメンバーから別の値を作るものは、この形では固定しない。
 `Object`、`Time`、レコードのように Ruby のリテラルで書けない戻り値は、クラスだけを固定する。
 RSpec では、そうした値を含む `Struct` と `Data` はクラスとメンバーで固定し、それを含む Array や Hash は要素ごとに固定する（`match([a_kind_of(Rule).and(have_attributes(action: "borrow", at: a_kind_of(Time)))])`）。
-minitest はそれをクラスだけで固定する。
+minitest も同じ部分を確かめる。
+リテラルのない部分はクラスで（`assert_kind_of Time, value[0].at`）、`Struct` と `Data` はクラスとメンバーで確かめる。
+Array と Hash は、それらの部分を値から読み戻したリテラルと比べる（`assert_equal([value[0]], value)`）ので、キーや要素が欠けても失敗する。
+リテラルのないキーを持つ Hash は、どちらの形式でもクラスで固定する。
 期待する Hash は値そのもののキー順で書くので、失敗時の差分をキーごとに見比べられる。
 private や protected の入口と private な `new` は、`explore` と同じく `send` で呼ぶ。
 String の引数は素のリテラルで書き、ファイルの `frozen_string_literal` がそれを凍結する。

@@ -764,6 +764,56 @@ class EmitterTest < Minitest::Test
                           %(    FactoryBot.create(:membership, group_id: group.id, enabled: true)\n    assert_equal :member, Group.status\n)
   end
 
+  # Both formats check the same parts of a value with no literal: each
+  # part that has a literal by its value and each part PINNED BY CLASS
+  # names by its class. So for each change of the method, the same tests
+  # fail in both formats, and the report lists every part that no test
+  # checks by value.
+  def test_both_formats_check_the_parts_pinned_by_class_and_no_fewer
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, "shapes.rb"), <<~RUBY)
+        module Shapes
+          Point = Struct.new(:x, :at)
+          def self.value(kind)
+            change = ENV.fetch("SHAPES_CHANGE", "none")
+            n = change == "literal" ? 2 : 1
+            at = Time.at(change == "class" ? 5 : 0)
+            extra = change == "extra" ? { more: 1 } : {}
+            case kind
+            when "hash" then { n: n, at: at, list: [n, at], **extra }
+            when "key" then { at => n }
+            when "array" then change == "extra" ? [n, at, 1] : [n, at]
+            when "point" then Point.new(n, at)
+            when "nested" then [{ "a" => at, "b" => n }, Point.new(n, { at: at, n: n, **extra })]
+            else at
+            end
+          end
+        end
+      RUBY
+      inputs = File.join(dir, "inputs.json")
+      File.write(inputs, JSON.generate({ "inputs" => %w[hash key array point nested time].map { |kind| [kind] } }))
+      reports = %w[shapes_spec.rb shapes_test.rb].map do |name|
+        out, err, status = run_cli("explore", File.join(dir, "shapes.rb"), "Shapes.value", "--strategy", "inputs", "--random", "0",
+                                   "--inputs", inputs, "--emit-tests", File.join(dir, name))
+        assert status.success?, err
+        out[/^PINNED BY CLASS.*?\n\n/m]
+      end
+      assert_equal reports.first, reports.last
+      assert_equal "PINNED BY CLASS (the emitted tests check only the class of these returned values, which have no Ruby literal; " \
+                   "assert what matters in each by hand)\nvalue[1] is a Time: [\"array\"]\nvalue[:at] is a Time: [\"hash\"]\n" \
+                   "value[:list][1] is a Time: [\"hash\"]\nvalue is a Hash: [\"key\"]\nvalue[0][\"a\"] is a Time: [\"nested\"]\n" \
+                   "value[1].at[:at] is a Time: [\"nested\"]\nvalue.at is a Time: [\"point\"]\nvalue is a Time: [\"time\"]\n\n", reports.first
+      failures = { "none" => 0, "class" => 0, "literal" => 4, "extra" => 3 }
+      failures.each do |change, count|
+        env = { "SHAPES_CHANGE" => change }
+        out, err, = Open3.capture3(env, RbConfig.ruby, "-rrspec/autorun", "-e", "", File.join(dir, "shapes_spec.rb"))
+        assert_includes out, "6 examples, #{count} failure#{"s" unless count == 1}", "rspec with #{change}: #{out}#{err}"
+        out, err, = Open3.capture3(env, RbConfig.ruby, File.join(dir, "shapes_test.rb"))
+        assert_match(/6 runs, \d+ assertions, #{count} failures, 0 errors/, out, "minitest with #{change}: #{out}#{err}")
+      end
+    end
+  end
+
   # A heredoc's body and terminator keep their columns, so a plain heredoc
   # still parses and a <<- heredoc's text gains no indentation, and a
   # statement over several lines names its context on one line.
@@ -1881,7 +1931,8 @@ class RenderTest < Minitest::Test
     pin = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: []), value: [Object.new, Object.new], error: nil, covers: [])
     result = Branchout::Engine::Result.new(pins: [pin], requires: [], load_paths: [], private_calls: [])
     assert_includes Branchout::Emitters.render("minitest", result, box_all, File.join(EmitterTest::ROOT, "test/x_test.rb")),
-                    "  def test_returns_array\n    assert_kind_of Array, Box.all\n"
+                    "  def test_returns_array\n    value = Box.all\n    assert_kind_of Object, value[0]\n    assert_kind_of Object, value[1]\n" \
+                    "    assert_equal([value[0], value[1]], value)\n"
     assert_includes Branchout::Emitters.render("rspec", result, box_all, File.join(EmitterTest::ROOT, "spec/x_spec.rb")),
                     "    it \"returns an Array of 2\" do\n"
   end

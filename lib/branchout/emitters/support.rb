@@ -658,10 +658,70 @@ module Branchout
           members = value.to_h.map { |key, item| "#{key}: #{literal?(item) ? ruby_literal(item) : shape_matcher(item)}" }
           "a_kind_of(#{class_literal(value)}).and(have_attributes(#{members.join(", ")}))"
         when Array then "[#{value.map { |item| literal?(item) ? ruby_literal(item) : shape_matcher(item) }.join(", ")}]"
+        # RSpec finds each expected key in the Hash, so a key with no
+        # literal leaves the Hash pinned by its class, as class_pins says.
         when Hash
-          entries = value.map { |key, item| "#{literal?(key) ? hash_key_literal(key) : "#{shape_matcher(key)} =>"} #{literal?(item) ? ruby_literal(item) : shape_matcher(item)}" }
+          return "a_kind_of(Hash)" unless value.each_key.all? { |key| literal?(key) }
+
+          entries = value.map { |key, item| "#{hash_key_literal(key)} #{literal?(item) ? ruby_literal(item) : shape_matcher(item)}" }
           entries.empty? ? "{}" : "{ #{entries.join(", ")} }"
         else "a_kind_of(#{class_literal(value)})"
+        end
+      end
+
+      # Minitest assertions on the returned +value+, held in a local named
+      # value, that check what shape_matcher checks: each part with a
+      # literal by its value, and each part class_pins names by its class.
+      # A Hash or an Array is compared whole, each part with no literal
+      # standing in as itself, so a missing key or item fails too.
+      def shape_assertions(value, path = "")
+        return [literal_assertion(value, "value#{path}")] if literal?(value)
+
+        case value
+        when Hash, Array
+          return ["assert_kind_of Hash, value#{path}"] if value.is_a?(Hash) && !value.each_key.all? { |key| literal?(key) }
+
+          parts = []
+          whole = shape_template(value, path, parts)
+          [*parts, "assert_equal(#{whole}, value#{path})"]
+        when Struct, Data
+          members = value.to_h
+          literal, other = members.partition { |_, item| literal?(item) }.map(&:to_h)
+          lines = ["assert_kind_of #{class_literal(value)}, value#{path}"]
+          unless literal.empty?
+            keys = literal.keys.map { |key| ruby_literal(key) }.join(", ")
+            lines << "assert_equal(#{ruby_literal(literal)}, value#{path}.to_h.slice(#{keys}))"
+          end
+          lines + other.flat_map { |key, item| shape_assertions(item, "#{path}.#{key}") }
+        else ["assert_kind_of #{class_literal(value)}, value#{path}"]
+        end
+      end
+
+      # Minitest 6 fails assert_equal with an expected nil.
+      def literal_assertion(value, actual)
+        return "assert_nil #{actual}" if value.nil?
+
+        "assert_equal(#{ruby_literal(value)}, #{actual})"
+      end
+
+      # The literal of a Hash or an Array whose parts with no literal are
+      # read from the returned value, so comparing it with the value checks
+      # the rest; +parts+ gets the assertions on those parts.
+      def shape_template(value, path, parts)
+        return ruby_literal(value) if literal?(value)
+
+        case value
+        when Array then "[#{value.each_with_index.map { |item, index| shape_template(item, "#{path}[#{index}]", parts) }.join(", ")}]"
+        when Hash
+          if value.each_key.all? { |key| literal?(key) }
+            entries = value.map { |key, item| "#{hash_key_literal(key)} #{shape_template(item, "#{path}[#{ruby_literal(key)}]", parts)}" }
+            return entries.empty? ? "{}" : "{ #{entries.join(", ")} }"
+          end
+          parts.concat(shape_assertions(value, path))
+          "value#{path}"
+        else
+          parts.concat(shape_assertions(value, path))
+          "value#{path}"
         end
       end
 

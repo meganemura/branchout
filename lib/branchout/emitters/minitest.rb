@@ -64,15 +64,18 @@ module Branchout
           lines << "    assert_equal(#{Support.ruby_literal(pin.value)}, #{call})"
         elsif Support.literal?(pin.value)
           lines << "    assert_equal #{Support.ruby_literal(pin.value)}, #{call}"
-        else
+        elsif Support.class_pins(pin.value) == [["", Support.class_literal(pin.value)]]
           lines << "    assert_kind_of #{Support.class_literal(pin.value)}, #{call}"
+        else
+          lines << "    value = #{call}"
+          lines.concat(Support.shape_assertions(pin.value).map { |line| "    #{line}" })
         end
         lines << "  end"
         lines
       end
 
       # The stable keys of a Hash with no literal: its literal entries by
-      # value, and each other one by its class, as RSpec's a_kind_of pins it.
+      # value, and each other one by its shape, as RSpec's include pins it.
       # The call runs once, since a second call could make another record.
       def part_lines(pinned, call)
         literal, other = pinned.partition { |_, item| Support.literal?(item) }.map(&:to_h)
@@ -81,7 +84,7 @@ module Branchout
           keys = literal.keys.map { |key| Support.ruby_literal(key) }.join(", ")
           lines << "    assert_equal(#{Support.ruby_literal(literal)}, value.slice(#{keys}))"
         end
-        other.each { |key, item| lines << "    assert_kind_of #{Support.class_literal(item)}, value[#{Support.ruby_literal(key)}]" }
+        other.each { |key, item| lines.concat(Support.shape_assertions(item, "[#{Support.ruby_literal(key)}]").map { |line| "    #{line}" }) }
         lines
       end
     end

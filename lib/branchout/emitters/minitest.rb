@@ -52,6 +52,8 @@ module Branchout
         if !pinned.equal?(pin.value) && Support.literal?(pinned)
           keys = pinned.keys.map { |key| Support.ruby_literal(key) }.join(", ")
           lines << "    assert_equal(#{Support.ruby_literal(pinned)}, #{call}.slice(#{keys}))"
+        elsif !pinned.equal?(pin.value)
+          lines.concat(part_lines(pinned, call))
         elsif pin.value.nil?
           # Minitest 6 fails assert_equal with an expected nil.
           lines << "    assert_nil #{call}"
@@ -66,6 +68,20 @@ module Branchout
           lines << "    assert_kind_of #{Support.class_literal(pin.value)}, #{call}"
         end
         lines << "  end"
+        lines
+      end
+
+      # The stable keys of a Hash with no literal: its literal entries by
+      # value, and each other one by its class, as RSpec's a_kind_of pins it.
+      # The call runs once, since a second call could make another record.
+      def part_lines(pinned, call)
+        literal, other = pinned.partition { |_, item| Support.literal?(item) }.map(&:to_h)
+        lines = ["    value = #{call}"]
+        unless literal.empty?
+          keys = literal.keys.map { |key| Support.ruby_literal(key) }.join(", ")
+          lines << "    assert_equal(#{Support.ruby_literal(literal)}, value.slice(#{keys}))"
+        end
+        other.each { |key, item| lines << "    assert_kind_of #{Support.class_literal(item)}, value[#{Support.ruby_literal(key)}]" }
         lines
       end
     end

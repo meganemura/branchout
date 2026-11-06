@@ -106,13 +106,15 @@ module Branchout
 
     # nil when +first+ and +second+ would be pinned the same, the String
     # keys of a Hash whose values differ when only some do, else :whole.
+    # A stable value with no literal, such as a Date or a record, is pinned
+    # by its class, as same_pin? compares it.
     def self.differing(first, second)
       return nil if same_pin?(first, second)
-      return :whole unless first.is_a?(Hash) && second.is_a?(Hash) && first.keys == second.keys
+      return :whole unless first.is_a?(Hash) && second.is_a?(Hash) && first.keys == second.keys &&
+                           first.keys.all? { |key| Emitters::Support.literal?(key) }
 
       keys = first.keys.reject { |key| same_pin?(first[key], second[key]) }
-      stable = first.reject { |key, _| keys.include?(key) }
-      stable.empty? || !Emitters::Support.literal?(stable) ? :whole : keys.map(&:to_s)
+      keys.length == first.length ? :whole : keys.map(&:to_s)
     end
 
     # A literal is pinned by its value, anything else by its class and the

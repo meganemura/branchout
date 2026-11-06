@@ -654,6 +654,34 @@ class CLITest < Minitest::Test
     end
   end
 
+  # A generated id beside a Date: the Date has no literal, so it is pinned
+  # by its class, and the test pins every key but the id.
+  def test_a_hash_with_a_varying_id_pins_its_other_keys_and_a_date_by_class
+    Dir.mktmpdir do |dir|
+      inputs = write_inputs(dir, { "inputs" => [["A", { "ruby" => "Date.new(2026, 4, 1)" }], ["B", nil]] })
+      spec = File.join(dir, "stamp_spec.rb")
+      test = File.join(dir, "stamp_test.rb")
+      [spec, test].each do |out|
+        _out, err, status = run_cli("explore", "test/fixtures/stamp.rb", "Stamp.attributes_from", "--strategy", "inputs",
+                                    "--inputs", inputs, "--emit-tests", out)
+        assert status.success?, err
+        assert_includes err, "returned a Hash whose part_id differed between two runs, so its test pins only name, start_at, end_at.\n"
+      end
+      assert_includes File.read(spec),
+                      "expect(described_class.attributes_from(\"A\", Date.new(2026, 4, 1))).to " \
+                      "include({ name: \"n\", start_at: a_kind_of(Date), end_at: nil })\n"
+      assert_includes File.read(test), "    value = Stamp.attributes_from(\"A\", Date.new(2026, 4, 1))\n" \
+                                       "    assert_equal({ name: \"n\", end_at: nil }, value.slice(:name, :end_at))\n" \
+                                       "    assert_kind_of Date, value[:start_at]\n"
+      out, err, status = Open3.capture3(RbConfig.ruby, "-rrspec/autorun", "-e", "", spec)
+      assert status.success?, out + err
+      assert_includes out, "2 examples, 0 failures"
+      out, err, status = Open3.capture3(RbConfig.ruby, test)
+      assert status.success?, out + err
+      assert_includes out, "2 runs, 4 assertions, 0 failures"
+    end
+  end
+
   def test_operators_sit_beside_the_arms_of_safe_navigation_and_in_json
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [[nil, true]] })

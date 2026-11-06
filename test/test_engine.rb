@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "minitest/autorun"
+require "date"
 require "branchout"
 
 # The engine in process: which arms a run reports, which inputs it pins,
@@ -56,8 +57,8 @@ class EngineTest < Minitest::Test
   Box = Struct.new(:n)
 
   # Two runs pin the same when each literal is equal and every other value
-  # has the same class and shape. A Hash keeps its stable keys only when
-  # some stay, and they are literals.
+  # has the same class and shape. A Hash keeps its stable keys when some
+  # stay; a stable value with no literal, such as a Date, is pinned by its class.
   def test_differing_names_what_two_runs_would_pin_apart
     differing = Branchout::Runner.method(:differing)
     assert_nil differing.(1, 1)
@@ -65,7 +66,9 @@ class EngineTest < Minitest::Test
     assert_equal ["b"], differing.({ a: 1, b: 2 }, { a: 1, b: 3 })
     assert_equal :whole, differing.({ a: 1 }, { a: 2 })
     assert_equal :whole, differing.({ a: 1 }, { b: 1 })
-    assert_equal :whole, differing.({ a: Object.new, b: 1 }, { a: Object.new, b: 2 })
+    assert_equal ["b"], differing.({ a: Object.new, b: 1 }, { a: Object.new, b: 2 })
+    assert_equal :whole, differing.({ Object => 1, b: 1 }, { Object => 1, b: 2 })
+    assert_equal ["id"], differing.({ id: "u1", on: Date.new(2026, 4, 1), end_at: nil }, { id: "u2", on: Date.new(2026, 4, 1), end_at: nil })
     assert_equal :whole, differing.(1, { a: 1 })
     assert_nil differing.(Object.new, Object.new)
     assert_equal :whole, differing.(Object.new, Box.new(1))

@@ -12,6 +12,7 @@ arms_total: 8
 exceptions: 0
 callees_not_counted: 0
 operators_not_counted: 1
+boundaries_not_counted: 0
 
 COVERED
 id: if@10:8/else@13:10
@@ -75,3 +76,6 @@ OPERATORS
 loc: examples/arithmetic.rb:18:22
 op: &&
 text: x == 114514 && x == 0
+
+BOUNDARIES
+(none)

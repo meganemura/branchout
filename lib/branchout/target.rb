@@ -34,6 +34,10 @@ module Branchout
     # Each ||, &&, ||=, and &&= of the counted code. Coverage sees no side of
     # them, so a method that branches only through them has no arm at all.
     attr_reader :operators
+    # Each <, <=, >, and >= of the counted code. Coverage sees no side of
+    # them either, so every arm can be taken with no input where the sides
+    # are equal, where > and >= part.
+    attr_reader :boundaries
 
     def self.parse(path, entry, type_overrides: nil)
       new(path, entry, type_overrides: type_overrides).tap(&:parse)
@@ -127,6 +131,7 @@ module Branchout
       end
 
       @operators = bodies.flat_map { |body| operators_in(body) }.sort_by { |found| [found.line, found.column] }
+      @boundaries = bodies.flat_map { |body| boundaries_in(body) }.sort_by { |found| [found.line, found.column] }
       collect_literals(entry_def.node.parameters)
       bodies.each { |body| collect_literals(body) }
       @literals.ints = @literals.ints.uniq.sort
@@ -357,6 +362,20 @@ module Branchout
                             text: cut(squash(node.slice)))
       end
       node.compact_child_nodes.each { |child| operators_in(child, acc) }
+      acc
+    end
+
+    COMPARISONS = %i[< <= > >=].freeze
+
+    def boundaries_in(node, acc = [])
+      return acc if node.type == :def_node
+
+      if node.type == :call_node && COMPARISONS.include?(node.name) && node.receiver && node.arguments&.arguments&.length == 1
+        operator = node.message_loc
+        acc << Operator.new(loc: "#{display_path}:#{operator.start_line}:#{operator.start_column}", line: operator.start_line,
+                            column: operator.start_column, op: operator.slice, text: cut(squash(node.slice)))
+      end
+      node.compact_child_nodes.each { |child| boundaries_in(child, acc) }
       acc
     end
 

@@ -12,6 +12,7 @@ arms_total: 12
 exceptions: 0
 callees_not_counted: 0
 operators_not_counted: 0
+boundaries_not_counted: 0
 
 COVERED
 id: if@11:6/else@14:8
@@ -96,4 +97,7 @@ NOT COUNTED
 (none)
 
 OPERATORS
+(none)
+
+BOUNDARIES
 (none)

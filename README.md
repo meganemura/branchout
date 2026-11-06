@@ -76,6 +76,10 @@ app/models/loan.rb:9:4 makes `amount_cents > 10_000 && !officer.fetch(:senior)` 
 OPERATORS (coverage does not see which side ran; vary each left side)
 app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
 
+BOUNDARIES (coverage does not see where both sides are equal; add an input that makes them equal)
+app/models/loan.rb:8:65 > in `borrower.approved_cents + amount_cents > borrower.limit_cents`
+app/models/loan.rb:9:41 > in `amount_cents > 10_000`
+
 Pass verbose: true for every covered arm and the run settings.
 .
 
@@ -83,7 +87,7 @@ Finished in 0.28375 seconds (files took 2.14 seconds to load)
 1 example, 0 failures
 ```
 
-The one input took 3 of the 6 arms. Each line under `FRONTIER` is an arm that no input took, at its file, line, and column, and says what an input must do to take it. `nearest` is the input that came closest, so copy it and change it as the line says. `OPERATORS` names an `&&` whose sides coverage does not count, so give inputs that make its left side true and false. The run also wrote `spec/models/loan_approve_spec.rb`, which pins what each input returned.
+The one input took 3 of the 6 arms. Each line under `FRONTIER` is an arm that no input took, at its file, line, and column, and says what an input must do to take it. `nearest` is the input that came closest, so copy it and change it as the line says. `OPERATORS` names an `&&` whose sides coverage does not count, so give inputs that make its left side true and false. `BOUNDARIES` names each `<`, `<=`, `>`, and `>=`: every arm can be taken while no input makes the two sides equal, the one value that tells `>` from `>=`, so give an input that does. The run also wrote `spec/models/loan_approve_spec.rb`, which pins what each input returned.
 
 ### Next: close the frontier
 
@@ -123,6 +127,10 @@ FRONTIER
 
 OPERATORS (coverage does not see which side ran; vary each left side)
 app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
+
+BOUNDARIES (coverage does not see where both sides are equal; add an input that makes them equal)
+app/models/loan.rb:8:65 > in `borrower.approved_cents + amount_cents > borrower.limit_cents`
+app/models/loan.rb:9:41 > in `amount_cents > 10_000`
 
 Pass verbose: true for every covered arm and the run settings.
 .
@@ -199,6 +207,9 @@ shipping.rb:6:14 makes `express` true
 EXCEPTIONS
 ArgumentError at shipping.rb:3: weight must be positive
   inputs: [-1], [-2], [0]
+
+BOUNDARIES (coverage does not see where both sides are equal; add an input that makes them equal)
+shipping.rb:5:18 <= in `weight <= 2`
 
 Pass --verbose for every covered arm and the run settings.
 ```
@@ -293,6 +304,9 @@ EXCEPTIONS
 ArgumentError at shipping.rb:3: weight must be positive
   inputs: [-1], [-2], [0]
 
+BOUNDARIES (coverage does not see where both sides are equal; add an input that makes them equal)
+shipping.rb:5:18 <= in `weight <= 2`
+
 Pass --verbose for every covered arm and the run settings.
 ```
 
@@ -321,7 +335,7 @@ A coding agent adding tests can see that a branch was missed and still not know 
 
 The method follows concolic testing ([DART](https://doi.org/10.1145/1065010.1065036), [CUTE](https://doi.org/10.1145/1094811.1094816)) and LLM-guided concolic work such as [ConcoLLMic](https://concollmic.github.io/). branchout is inspired by concolic testing but does no symbolic solving. The agent proposes inputs from the branch frontier.
 
-From a checkout of this repository, `ruby bin/branchout` runs the same command as `branchout`. The seed file holds one input, `[0]`. `--verbose` prints the whole report: the run settings of the strategies that ran and the counts, then `COVERED` (the input that took each arm), `FRONTIER` (each arm no input took, with `path`, the arms `nearest` took), `EXCEPTIONS` (one record for each input that raised), `NOT COUNTED`, and `OPERATORS`. Without it, the report keeps the counts, the `FRONTIER` arms that an input reached, one line each under the `nearest` input to change, one line for each decision that no input reached, and one line for each error, as in [Try it without an app](#try-it-without-an-app). `--json` holds every field of the whole report.
+From a checkout of this repository, `ruby bin/branchout` runs the same command as `branchout`. The seed file holds one input, `[0]`. `--verbose` prints the whole report: the run settings of the strategies that ran and the counts, then `COVERED` (the input that took each arm), `FRONTIER` (each arm no input took, with `path`, the arms `nearest` took), `EXCEPTIONS` (one record for each input that raised), `NOT COUNTED`, `OPERATORS`, and `BOUNDARIES`. Without it, the report keeps the counts, the `FRONTIER` arms that an input reached, one line each under the `nearest` input to change, one line for each decision that no input reached, and one line for each error, as in [Try it without an app](#try-it-without-an-app). `--json` holds every field of the whole report.
 
 ```sh
 ruby bin/branchout explore examples/magic_value.rb MagicValue.classify \
@@ -345,6 +359,7 @@ arms_total: 2
 exceptions: 0
 callees_not_counted: 0
 operators_not_counted: 0
+boundaries_not_counted: 0
 
 COVERED
 id: if@5:4/else@8:6
@@ -369,6 +384,9 @@ NOT COUNTED
 (none)
 
 OPERATORS
+(none)
+
+BOUNDARIES
 (none)
 ```
 
@@ -470,7 +488,7 @@ branchout loads the `--require` files and then the target after `Coverage.setup(
 
 A method in another file is not counted, so its arms are not in the total, the `M` of `covered: N of M arms` (`arms_total` in `--verbose` and `--json`). When a check moves from a subclass's method into a parent class's helper, the total gets smaller while the logic stays the same. `NOT COUNTED` names each such callee: a method that the counted code calls by a bare call or `self.` and that Ruby finds in another file, such as a parent class or a mixin, and a method it calls on an object it builds with `Const.new`, kept in a local (`journal = Ledger.new`) or in an instance variable that a method of the class sets (`@ledger = Ledger.new` in `initialize`). Each entry has `callee` (`Register#required_sku`), `loc` (the file and line of its `def`), and `arms` (the branch arms in that `def`, or `unknown` when its file loaded before coverage started or the method has no `def`, as with `define_method`). Explore the callee as its own entry to cover those arms. Methods of an installed gem or of Ruby's own library are not listed, because an app cannot move a check into one: a Rails model calls dozens of them, such as an association reader or `update!`. Methods written in C, Ruby's own prelude methods, attribute readers and writers, methods with no arms, and calls on an object whose class the code does not show are not listed.
 
-Branch coverage counts no arm for `||`, `&&`, `||=`, or `&&=`, so it cannot say whether their right side ran. A method that branches only through them, as `user&.admin? || params[:force]` does past its `&.`, would report fewer arms than it has, or `covered: 0 of 0 arms`, which reads as fully covered. `OPERATORS` lists each one in the counted code, and `operators_not_counted` counts them: `loc` (the operator's line and column), `op`, and `text` (the whole expression, cut at 160 characters). Give inputs that make each left side truthy and falsy. When the entry has no arm but has such an operator, stderr says so. `&.` has arms of its own (`receiver-present`, `receiver-nil`).
+Branch coverage counts no arm for `||`, `&&`, `||=`, or `&&=`, so it cannot say whether their right side ran. A method that branches only through them, as `user&.admin? || params[:force]` does past its `&.`, would report fewer arms than it has, or `covered: 0 of 0 arms`, which reads as fully covered. `OPERATORS` lists each one in the counted code, and `operators_not_counted` counts them: `loc` (the operator's line and column), `op`, and `text` (the whole expression, cut at 160 characters). Give inputs that make each left side truthy and falsy. When the entry has no arm but has such an operator, stderr says so. Coverage sees no side of a `<`, `<=`, `>`, or `>=` either, so every arm can be taken with no input that makes the two sides equal, and only such an input catches `>` changed to `>=`. `BOUNDARIES` lists each comparison in the counted code, in the shape of `OPERATORS`, and `boundaries_not_counted` counts them; give an input that makes its sides equal. `&.` has arms of its own (`receiver-present`, `receiver-nil`).
 
 An arm id is `kind@line:column/arm@line:column`, from the Coverage branch key. Columns are 0-based. `cond` is the Prism predicate. For a `when` or `in` arm it is that line. If the locations do not match, the source line is used.
 

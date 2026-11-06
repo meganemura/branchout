@@ -12,6 +12,7 @@ arms_total: 4
 exceptions: 1
 callees_not_counted: 0
 operators_not_counted: 1
+boundaries_not_counted: 3
 
 COVERED
 id: if@6:4/else@14:6
@@ -54,3 +55,16 @@ OPERATORS
 loc: examples/hidden_bug.rb:6:14
 op: &&
 text: a > 10 && b > 10
+
+BOUNDARIES
+loc: examples/hidden_bug.rb:6:9
+op: >
+text: a > 10
+
+loc: examples/hidden_bug.rb:6:19
+op: >
+text: b > 10
+
+loc: examples/hidden_bug.rb:8:15
+op: <
+text: denom < 50

@@ -102,5 +102,28 @@
       "op": "&&",
       "text": "a > 10 && b > 10"
     }
+  ],
+  "boundaries_not_counted": [
+    {
+      "loc": "examples/hidden_bug.rb:6:9",
+      "line": 6,
+      "column": 9,
+      "op": ">",
+      "text": "a > 10"
+    },
+    {
+      "loc": "examples/hidden_bug.rb:6:19",
+      "line": 6,
+      "column": 19,
+      "op": ">",
+      "text": "b > 10"
+    },
+    {
+      "loc": "examples/hidden_bug.rb:8:15",
+      "line": 8,
+      "column": 15,
+      "op": "<",
+      "text": "denom < 50"
+    }
   ]
 }

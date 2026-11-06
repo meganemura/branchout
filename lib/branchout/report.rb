@@ -34,6 +34,7 @@ module Branchout
       exceptions_brief(lines, result.exceptions)
       not_counted_brief(lines, Array(result.not_counted))
       operators_brief(lines, Array(result.operators))
+      boundaries_brief(lines, Array(result.boundaries))
       lines << "" << "Pass #{verbose_flag} for every covered arm and the run settings."
       "#{lines.join("\n")}\n"
     end
@@ -94,6 +95,13 @@ module Branchout
       operators.each { |found| lines << "#{found.loc} #{found.op} in `#{found.text}`" }
     end
 
+    def boundaries_brief(lines, boundaries)
+      return if boundaries.empty?
+
+      lines << "" << "BOUNDARIES (coverage does not see where both sides are equal; add an input that makes them equal)"
+      boundaries.each { |found| lines << "#{found.loc} #{found.op} in `#{found.text}`" }
+    end
+
     def full_text(result)
       lines = header_lines(result)
       section(lines, "COVERED", result.covered) { |arm| covered_lines(arm) }
@@ -101,6 +109,7 @@ module Branchout
       section(lines, "EXCEPTIONS", result.exceptions) { |finding| finding_lines(finding) }
       section(lines, "NOT COUNTED", Array(result.not_counted)) { |callee| callee_lines(callee) }
       section(lines, "OPERATORS", Array(result.operators)) { |found| operator_lines(found) }
+      section(lines, "BOUNDARIES", Array(result.boundaries)) { |found| operator_lines(found) }
       "#{lines.join("\n")}\n"
     end
 
@@ -125,7 +134,8 @@ module Branchout
         "frontier" => result.frontier.map { |arm| frontier_hash(arm) },
         "exceptions" => result.exceptions.map { |finding| finding_hash(finding) },
         "not_counted" => Array(result.not_counted).map { |callee| callee_hash(callee) },
-        "operators_not_counted" => Array(result.operators).map { |found| operator_hash(found) }
+        "operators_not_counted" => Array(result.operators).map { |found| operator_hash(found) },
+        "boundaries_not_counted" => Array(result.boundaries).map { |found| operator_hash(found) }
       }
       "#{Canon.pretty(body)}\n"
     end
@@ -212,7 +222,8 @@ module Branchout
         "arms_total: #{result.covered.length + result.frontier.length}",
         "exceptions: #{result.exceptions.length}",
         "callees_not_counted: #{Array(result.not_counted).length}",
-        "operators_not_counted: #{Array(result.operators).length}"
+        "operators_not_counted: #{Array(result.operators).length}",
+        "boundaries_not_counted: #{Array(result.boundaries).length}"
       ]
     end
 

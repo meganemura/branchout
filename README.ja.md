@@ -94,6 +94,10 @@ app/models/loan.rb:9:4 makes `amount_cents > 10_000 && !officer.fetch(:senior)` 
 OPERATORS (coverage does not see which side ran; vary each left side)
 app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
 
+BOUNDARIES (coverage does not see where both sides are equal; add an input that makes them equal)
+app/models/loan.rb:8:65 > in `borrower.approved_cents + amount_cents > borrower.limit_cents`
+app/models/loan.rb:9:41 > in `amount_cents > 10_000`
+
 Pass verbose: true for every covered arm and the run settings.
 .
 
@@ -106,6 +110,8 @@ Finished in 0.28375 seconds (files took 2.14 seconds to load)
 `nearest` は最も近づいた入力なので、それを写して行の言うとおりに変える。
 `OPERATORS` は、カバレッジが両辺を数えない `&&` を示す。
 その左辺を真にする入力と偽にする入力を与える。
+`BOUNDARIES` は `<`、`<=`、`>`、`>=` を 1 つずつ示す。
+両辺を等しくする入力がなくてもすべての腕は通れるが、`>` と `>=` を見分けるのはその値だけなので、そうした入力を与える。
 この実行は `spec/models/loan_approve_spec.rb` も書いた。
 これは各入力が返した値を固定する。
 
@@ -148,6 +154,10 @@ FRONTIER
 
 OPERATORS (coverage does not see which side ran; vary each left side)
 app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
+
+BOUNDARIES (coverage does not see where both sides are equal; add an input that makes them equal)
+app/models/loan.rb:8:65 > in `borrower.approved_cents + amount_cents > borrower.limit_cents`
+app/models/loan.rb:9:41 > in `amount_cents > 10_000`
 
 Pass verbose: true for every covered arm and the run settings.
 .
@@ -231,6 +241,9 @@ shipping.rb:6:14 makes `express` true
 EXCEPTIONS
 ArgumentError at shipping.rb:3: weight must be positive
   inputs: [-1], [-2], [0]
+
+BOUNDARIES (coverage does not see where both sides are equal; add an input that makes them equal)
+shipping.rb:5:18 <= in `weight <= 2`
 
 Pass --verbose for every covered arm and the run settings.
 ```
@@ -332,6 +345,9 @@ EXCEPTIONS
 ArgumentError at shipping.rb:3: weight must be positive
   inputs: [-1], [-2], [0]
 
+BOUNDARIES (coverage does not see where both sides are equal; add an input that makes them equal)
+shipping.rb:5:18 <= in `weight <= 2`
+
 Pass --verbose for every covered arm and the run settings.
 ```
 
@@ -369,7 +385,7 @@ Finished in 0.00228 seconds (files took 0.07051 seconds to load)
 このリポジトリのチェックアウトでは、`ruby bin/branchout` が `branchout` と同じコマンドを実行する。
 種ファイルの入力は `[0]` の 1 件である。
 `--verbose` はレポート全体を出す。
-動いた戦略の実行の設定と件数のあとに、`COVERED`（各腕を通った入力）、`FRONTIER`（どの入力も通らなかった各腕と、`nearest` が通った腕の `path`）、`EXCEPTIONS`（例外を出した入力ごとに 1 件）、`NOT COUNTED`、`OPERATORS` が続く。
+動いた戦略の実行の設定と件数のあとに、`COVERED`（各腕を通った入力）、`FRONTIER`（どの入力も通らなかった各腕と、`nearest` が通った腕の `path`）、`EXCEPTIONS`（例外を出した入力ごとに 1 件）、`NOT COUNTED`、`OPERATORS`、`BOUNDARIES` が続く。
 付けないときのレポートは、件数と、入力が届いた `FRONTIER` の腕を、変えるべき `nearest` の入力の下に 1 行ずつと、どの入力も届かなかった決定ごとに 1 行と、例外ごとに 1 行を残す。
 [アプリなしで試す](#アプリなしで試す) の出力がその形である。
 `--json` は、レポート全体のすべての項目を持つ。
@@ -396,6 +412,7 @@ arms_total: 2
 exceptions: 0
 callees_not_counted: 0
 operators_not_counted: 0
+boundaries_not_counted: 0
 
 COVERED
 id: if@5:4/else@8:6
@@ -420,6 +437,9 @@ NOT COUNTED
 (none)
 
 OPERATORS
+(none)
+
+BOUNDARIES
 (none)
 ```
 
@@ -729,6 +749,11 @@ C で書かれたメソッド、Ruby 自身の prelude のメソッド、属性�
 各項目には `loc`（演算子の行と列）、`op`、`text`（式全体で、160 文字で切る）がある。
 左辺が真になる入力と偽になる入力を与える。
 入口に腕がなく、そうした演算子があるときは、stderr がそう伝える。
+比較の `<`、`<=`、`>`、`>=` も、カバレッジにはどちらの辺も見えない。
+そのため、両辺を等しくする入力がなくてもすべての腕を通れるが、`>` を `>=` に変えた変異はその入力でしか見つからない。
+`BOUNDARIES` は数えたコードの比較を 1 つずつ挙げ、`boundaries_not_counted` がその数を示す。
+項目の形は `OPERATORS` と同じである。
+両辺を等しくする入力を与える。
 `&.` には自分の腕がある（`receiver-present`、`receiver-nil`）。
 
 腕の id は Coverage の分岐キーから作る `kind@行:列/arm@行:列` である。列は 0 始まり。`cond` は Prism の述語で、`when` または `in` の腕ではその行である。位置が一致しないときはソースの行を使う。

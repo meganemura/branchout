@@ -93,6 +93,7 @@ class CLITest < Minitest::Test
       exceptions: 0
       callees_not_counted: 0
       operators_not_counted: 0
+      boundaries_not_counted: 0
 
       COVERED
       id: if@5:4/else@8:6
@@ -117,6 +118,9 @@ class CLITest < Minitest::Test
       (none)
 
       OPERATORS
+      (none)
+
+      BOUNDARIES
       (none)
     OUT
   end
@@ -167,6 +171,9 @@ class CLITest < Minitest::Test
         OPERATORS (coverage does not see which side ran; vary each left side)
         #{target}:11:8 || in `if n.positive? case mode when "a" then :a when "b" then :b end end || (mode.nil? && :empty)`
         #{target}:11:22 && in `mode.nil? && :empty`
+
+        BOUNDARIES (coverage does not see where both sides are equal; add an input that makes them equal)
+        #{target}:3:40 > in `n > 5`
 
         Pass --verbose for every covered arm and the run settings.
       OUT
@@ -557,11 +564,38 @@ class CLITest < Minitest::Test
         loc: test/fixtures/operators.rb:5:39
         op: ||
         text: order[:paid] && !order[:cancelled] || order[:forced]
+
+        BOUNDARIES
+        (none)
       OUT
       assert_equal "branchout: FixtureGate.ready? and the methods it calls in test/fixtures/operators.rb have no arm that " \
                    "branch coverage counts, but it branches at the operators OPERATORS lists, and coverage does not see which side of " \
                    "||, &&, ||=, or &&= ran. Give inputs that make each left side truthy and falsy. " \
                    "--emit-tests still pins the return value or error of each input.\n", stderr
+    end
+  end
+
+  # Coverage takes no arm at a comparison, so every arm can be covered while
+  # no input sits on the boundary, where > and >= part.
+  def test_comparisons_are_listed_as_boundaries
+    Dir.mktmpdir do |dir|
+      on = { "ruby" => "Date.new(2026, 4, 1)" }
+      path = write_inputs(dir, { "inputs" => [{ "args" => [{ "ruby" => "{start: '2026-01-01'}" }], "kwargs" => { "on" => on } },
+                                              { "args" => [{ "ruby" => "{start: '2026-04-02'}" }], "kwargs" => { "on" => on } }] })
+      stdout, stderr, status = run_cli("explore", "test/fixtures/window.rb", "FixtureWindow.open_on?", "--strategy", "inputs", "--inputs", path)
+      assert status.success?, stderr
+      assert_includes stdout, "covered: 2 of 2 arms by 2 inputs\n"
+      assert_includes stdout, "\nBOUNDARIES (coverage does not see where both sides are equal; add an input that makes them equal)\n" \
+                              "test/fixtures/window.rb:8:50 > in `start_date > on`\n" \
+                              "test/fixtures/window.rb:11:24 < in `on < end_date`\n"
+      stdout, stderr, status = run_cli("explore", "test/fixtures/window.rb", "FixtureWindow.open_on?", "--strategy", "inputs", "--inputs", path, "--json")
+      assert status.success?, stderr
+      assert_equal [%w[> start_date\ >\ on], %w[< on\ <\ end_date]],
+                   JSON.parse(stdout)["boundaries_not_counted"].map { |found| [found["op"], found["text"]] }
+      stdout, _stderr, _status = run_cli("explore", "--verbose", "test/fixtures/window.rb", "FixtureWindow.open_on?", "--strategy", "inputs",
+                                         "--inputs", path)
+      assert_includes stdout, "operators_not_counted: 3\nboundaries_not_counted: 2\n"
+      assert_includes stdout, "\nBOUNDARIES\nloc: test/fixtures/window.rb:8:50\nop: >\ntext: start_date > on\n"
     end
   end
 
@@ -1261,6 +1295,11 @@ class CLITest < Minitest::Test
 
         OPERATORS
         (none)
+
+        BOUNDARIES
+        loc: #{child}:9:33
+        op: <
+        text: name.length < 3
       TEXT
 
       stdout, stderr, status = run_cli(*(args - ["--verbose"]), "--json")

@@ -49,5 +49,6 @@
   "frontier": [],
   "exceptions": [],
   "not_counted": [],
-  "operators_not_counted": []
+  "operators_not_counted": [],
+  "boundaries_not_counted": []
 }

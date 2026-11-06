@@ -613,11 +613,58 @@ class EmitterTest < Minitest::Test
       Branchout::Emitters.render("rspec", Branchout::Engine::Result.new(pins: [pin, pins[0]], requires: [], load_paths: [], private_calls: []),
                                  target, File.join(ROOT, "spec/widget_spec.rb")).scan(/^ *it ['"](.*)['"] do$/).flatten.first
     end
-    texts.each { |text| assert text.start_with?("raises Widget::Parts::PartNotFoundForThisLineOfTheOrderError when fact is \""), text }
+    texts.each { |text| assert text.start_with?("raises PartNotFoundForThisLineOfTheOrderError when fact is \""), text }
     assert_operator texts.map(&:length).max, :<=, 80
     assert_equal %w[test_widget_build_a_some_long_shared_value_c_returns_kind_plain test_d_1_returns_kind_y test_d_2_returns_kind_y
                     test_widget_build_a_some_long_shared_value_c_raises_widget_part_not_found],
                  Branchout::Emitters::Support.test_names(pins)
+  end
+
+  # A description that a long error class would push past 80 characters
+  # names the class by its last segment, so the facts that tell it from
+  # its siblings stay whole.
+  def test_a_long_error_class_gives_way_to_the_facts_that_differ
+    error = Branchout::Runner::ExceptionInfo.new(class_name: "Stock::Errors::PartNotFoundError")
+    pins = %w[a_rather_long_kind_name_one a_rather_long_kind_name_two].map do |kind|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: ["A"], kwargs: { kind_name: kind }), value: nil, error: error, covers: [])
+    end
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Stock", :lookup, "Stock.lookup", "lib/stock.rb", File.join(ROOT, "lib/stock.rb"), [], [Struct.new(:name).new(:code)])
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
+    spec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/stock_spec.rb"))
+    assert_equal ['raises PartNotFoundError when kind_name is "a_rather_long_kind_name_one"',
+                  'raises PartNotFoundError when kind_name is "a_rather_long_kind_name_two"'],
+                 spec.scan(/^ *it ['"](.*)['"] do$/).flatten
+    assert_includes spec, "to raise_error(Stock::Errors::PartNotFoundError)"
+  end
+
+  # Contexts made by befores that call one method are named by the
+  # keywords that differ between them, as arguments are.
+  def test_contexts_from_befores_are_named_by_the_keywords_that_differ
+    add = ->(size) { Branchout::Code.parse(%(FactoryBot.create(:part, code: "A", size: #{size}, label: "some long label text that fills it"))) }
+    pins = [add.(1), add.(2), Branchout::Code.parse("make(:other)"), nil].map do |before|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: ["A"], before: before), value: before ? :found : :missing, error: nil, covers: [])
+    end
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Stock", :lookup, "Stock.lookup", "lib/stock.rb", File.join(ROOT, "lib/stock.rb"), [], [Struct.new(:name).new(:code)])
+    result = Branchout::Emitters.render("rspec", Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: []),
+                                        target, File.join(ROOT, "spec/stock_spec.rb"))
+    assert_equal ['context "after FactoryBot.create(:part) with size: 1"', 'context "after FactoryBot.create(:part) with size: 2"',
+                  'context "after make(:other)"'],
+                 result.scan(/^ *(context .*) do$/).flatten
+    assert_includes result, %(        FactoryBot.create(:part, code: "A", size: 1, label: "some long label text that fills it")\n)
+
+    # Befores with no keyword to tell them apart are cut alike and end in
+    # a digest.
+    pins = %w[1 2].map do |tail|
+      before = Branchout::Code.parse(%(make(:part, "#{"x" * 80}#{tail}")))
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: ["A"], before: before), value: :found, error: nil, covers: [])
+    end
+    result = Branchout::Emitters.render("rspec", Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: []),
+                                        target, File.join(ROOT, "spec/stock_spec.rb"))
+    contexts = result.scan(/^ *context (.*) do$/).flatten
+    assert_equal 2, contexts.uniq.length
+    contexts.each { |text| assert_match(/\A'after make\(:part, "x+\.\.\. \(input \h{6}\)'\z/, text) }
   end
 
   # An input's before Ruby is a before of its own context in RSpec.
@@ -660,9 +707,9 @@ class EmitterTest < Minitest::Test
   end
 
   # Examples whose texts are still the same end in a digest, and one that
-  # raises keeps its error's class whole before it.
+  # raises keeps its error's class, by its last segment, whole before it.
   def test_a_digest_never_cuts_the_class_of_an_error
-    error = Branchout::Runner::ExceptionInfo.new(class_name: "Widget::Parts::PartNotFoundForThisLineOfTheOrderErrorX")
+    error = Branchout::Runner::ExceptionInfo.new(class_name: "Widget::Parts::PartNotFoundForThisLineOfTheOrderErrorXXXXXXXXXXXXXXXXXXXXXXX")
     pins = %w[a b].map do |tail|
       Branchout::Engine::Pin.new(input: Branchout::Input.new(args: ["#{"x" * 40}#{tail}"]), value: nil, error: error, covers: [])
     end
@@ -671,7 +718,7 @@ class EmitterTest < Minitest::Test
     texts = Branchout::Emitters.render("rspec", Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: []),
                                        target, File.join(ROOT, "spec/widget_spec.rb")).scan(/^ *it ['"](.*)['"] do$/).flatten
     texts.each do |text|
-      assert_match(/\Araises Widget::Parts::PartNotFoundForThisLineOfTheOrderErrorX ?\.\.\. \(input \h{6}\)\z/, text)
+      assert_match(/\Araises PartNotFoundForThisLineOfTheOrderErrorX{23} ?\.\.\. \(input \h{6}\)\z/, text)
     end
   end
 

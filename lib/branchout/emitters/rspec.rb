@@ -192,7 +192,7 @@ module Branchout
             next [member, text] if repeated[text] == 1
 
             digest = " (input #{Digest::SHA256.hexdigest(pins_of(member).first.input.canonical)[0, 6]})"
-            [member, text.length + digest.length > LIMIT ? "#{cut_after(text, kept_start(member), LIMIT - digest.length)}#{digest}" : "#{text}#{digest}"]
+            [member, text.length + digest.length > LIMIT ? "#{cut_after(text, kept_start(member, text), LIMIT - digest.length)}#{digest}" : "#{text}#{digest}"]
           end
         end
 
@@ -202,9 +202,16 @@ module Branchout
           text.length <= limit ? text : "#{text[0, [limit - 3, kept].max]}..."
         end
 
-        def kept_start(member)
-          member.is_a?(Example) && member.pin.error ? @short_outcomes[member.pin].length : 0
+        # The start of +text+ a cut keeps: an error's class, whole or by its
+        # last segment, as +text+ names it.
+        def kept_start(member, text)
+          return 0 unless member.is_a?(Example) && member.pin.error
+
+          outcome = @short_outcomes[member.pin]
+          text.start_with?(outcome) ? outcome.length : last_segment(outcome).length
         end
+
+        def last_segment(outcome) = outcome.sub(/\Araises (?:\w+::)+/, "raises ")
 
         # +steps+ without the facts that tell no sibling apart: the fewest
         # facts, in their order, that each sibling input in +others+ lacks
@@ -227,12 +234,16 @@ module Branchout
         # A text still over LIMIT. An example cuts its outcome, which leads,
         # and keeps whole the facts that tell it from its siblings, while the
         # outcome keeps a start to read; otherwise the end is cut.
-        # An error's class is never cut, since a reader looks it up; the
-        # facts after it are.
+        # An error's class is never cut, since a reader looks it up, but it
+        # gives way to its last segment before the facts after it are cut.
         def fitted(member, steps, peers)
           text = member_text(member, steps, peers, short: true)
           facts = label(steps, peers, short: true)
-          return cut_after(text, @short_outcomes[member.pin].length) if member.is_a?(Example) && member.pin.error
+          if member.is_a?(Example) && member.pin.error
+            outcome = @short_outcomes[member.pin]
+            last = last_segment(outcome)
+            return cut_after("#{last}#{text[outcome.length..]}", last.length)
+          end
           room = LIMIT - facts.length - " ...".length
           return "#{text[0, LIMIT - 3]}..." unless member.is_a?(Example) && !facts.empty? && room >= 12
 
@@ -270,12 +281,28 @@ module Branchout
         # the calls, then the facts.
         def label(steps, peers = [], short: false)
           receiver = steps.select { |step| step.kind == :let }.map(&:label)
-          calls = steps.select { |step| CALLS.include?(step.kind) }.map(&:label)
+          calls = steps.select { |step| CALLS.include?(step.kind) }.map { |step| call_label(step, peers) }
           facts = steps.select { |step| step.kind == :fact }.map { |step| fact_label(step.leaf, peers, short: short) }
           parts = receiver
           parts += ["after #{series(calls)}"] unless calls.empty?
           parts += ["when #{series(facts)}"] unless facts.empty?
           parts.join(" ")
+        end
+
+        # An input's before that calls the method a sibling's before calls,
+        # with other keywords, is named by the keywords that differ:
+        # create(:part) with size: 1. Any other step is named by its source.
+        def call_label(step, peers)
+          return step.label unless step.leaf
+
+          head, *keywords = Support.call_parts(step.leaf[1])
+          others = peers.filter_map { |pin| pin.input.before }.uniq.reject { |code| code == step.leaf[1] }
+                        .map { |code| Support.call_parts(code) }.select { |parts| parts.first == head }.map { |parts| parts.drop(1).to_h }
+          differing = keywords.select { |key, value| others.any? { |other| !other.key?(key) || !other[key].eql?(value) } }
+          return step.label if differing.empty?
+
+          texts = differing.map { |key, value| "#{key}: #{value.is_a?(Code) ? value.source : value_text(value, [])}" }
+          "#{head[1].source} with #{texts.join(", ")}"
         end
 
         def series(words)
@@ -315,7 +342,7 @@ module Branchout
           @steps[pin] ||= begin
             input = pin.input
             steps = []
-            steps << Step.new(:before, input.before.source, input.before.source) if input.before
+            steps << Step.new(:before, input.before.source, input.before.source, [[:before], input.before]) if input.before
             unless @target.singleton
               steps << Step.new(:let, receiver_label(input), Support.receiver_text(input, @const, @private_calls, thawed: pin.thawed))
             end

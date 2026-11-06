@@ -165,6 +165,26 @@ class MutatorTest < Minitest::Test
     end
   end
 
+  # An input prints as its args array only when it has nothing else, so
+  # the report's line pastes back as the same entry.
+  def test_an_input_prints_as_an_entry_when_it_has_more_than_args
+    code = Branchout::Code.parse("create(:part)")
+    assert_equal "[1]", Branchout::Input.new(args: [1]).text
+    {
+      { kwargs: { "a" => 1 } } => '{"args":[],"kwargs":{"a":1}}',
+      { receiver: code } => '{"args":[],"receiver":{"ruby":"create(:part)"}}',
+      { setup: [Branchout::Input::SetupCall.new("open", Branchout::Input.new(args: []))] } => '{"args":[],"setup":[{"args":[],"method":"open"}]}',
+      { block: Branchout::Code.block("{ |x| x }") } => '{"args":[],"block":"{ |x| x }"}',
+      { before: code } => '{"args":[],"before":{"ruby":"create(:part)"}}'
+    }.each do |parts, text|
+      input = Branchout::Input.new(args: [], **parts)
+      assert_equal text, input.text
+    end
+    with_before = Branchout::Input.new(args: [1], before: code)
+    assert_equal({ "args" => [1], "kwargs" => {}, "before" => code }, with_before.to_h)
+    assert_equal 1 + "create(:part)".length, with_before.weight
+  end
+
   # pin_keys belongs to the test, not to the call: it is kept apart from
   # the canonical input, and nil means "use --pin-keys".
   def test_input_file_reads_pin_keys

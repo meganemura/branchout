@@ -172,7 +172,7 @@ class CLITest < Minitest::Test
         #{target}:11:8 || in `if n.positive? case mode when "a" then :a when "b" then :b end end || (mode.nil? && :empty)`
         #{target}:11:22 && in `mode.nil? && :empty`
 
-        BOUNDARIES (coverage does not see where both sides are equal; add an input that makes them equal)
+        BOUNDARIES (each comparison in the counted code, listed whether or not an input made both sides equal; coverage does not see which did)
         #{target}:3:40 > in `n > 5`
 
         Pass --verbose for every covered arm and the run settings.
@@ -585,7 +585,7 @@ class CLITest < Minitest::Test
       stdout, stderr, status = run_cli("explore", "test/fixtures/window.rb", "FixtureWindow.open_on?", "--strategy", "inputs", "--inputs", path)
       assert status.success?, stderr
       assert_includes stdout, "covered: 2 of 2 arms by 2 inputs\n"
-      assert_includes stdout, "\nBOUNDARIES (coverage does not see where both sides are equal; add an input that makes them equal)\n" \
+      assert_includes stdout, "\nBOUNDARIES (each comparison in the counted code, listed whether or not an input made both sides equal; coverage does not see which did)\n" \
                               "test/fixtures/window.rb:8:50 > in `start_date > on`\n" \
                               "test/fixtures/window.rb:11:24 < in `on < end_date`\n"
       stdout, stderr, status = run_cli("explore", "test/fixtures/window.rb", "FixtureWindow.open_on?", "--strategy", "inputs", "--inputs", path, "--json")

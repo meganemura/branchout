@@ -94,7 +94,7 @@ app/models/loan.rb:9:4 makes `amount_cents > 10_000 && !officer.fetch(:senior)` 
 OPERATORS (coverage does not see which side ran; vary each left side)
 app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
 
-BOUNDARIES (coverage does not see where both sides are equal; add an input that makes them equal)
+BOUNDARIES (each comparison in the counted code, listed whether or not an input made both sides equal; coverage does not see which did)
 app/models/loan.rb:8:65 > in `borrower.approved_cents + amount_cents > borrower.limit_cents`
 app/models/loan.rb:9:41 > in `amount_cents > 10_000`
 
@@ -112,6 +112,7 @@ Finished in 0.28375 seconds (files took 2.14 seconds to load)
 その左辺を真にする入力と偽にする入力を与える。
 `BOUNDARIES` は `<`、`<=`、`>`、`>=` を 1 つずつ示す。
 両辺を等しくする入力がなくてもすべての腕は通れるが、`>` と `>=` を見分けるのはその値だけなので、そうした入力を与える。
+この一覧はソースから作るので、入力が両辺を等しくしたあとも比較は一覧に残る。
 この実行は `spec/models/loan_approve_spec.rb` も書いた。
 これは各入力が返した値を固定する。
 
@@ -155,7 +156,7 @@ FRONTIER
 OPERATORS (coverage does not see which side ran; vary each left side)
 app/models/loan.rb:9:50 && in `amount_cents > 10_000 && !officer.fetch(:senior)`
 
-BOUNDARIES (coverage does not see where both sides are equal; add an input that makes them equal)
+BOUNDARIES (each comparison in the counted code, listed whether or not an input made both sides equal; coverage does not see which did)
 app/models/loan.rb:8:65 > in `borrower.approved_cents + amount_cents > borrower.limit_cents`
 app/models/loan.rb:9:41 > in `amount_cents > 10_000`
 
@@ -242,7 +243,7 @@ EXCEPTIONS
 ArgumentError at shipping.rb:3: weight must be positive
   inputs: [-1], [-2], [0]
 
-BOUNDARIES (coverage does not see where both sides are equal; add an input that makes them equal)
+BOUNDARIES (each comparison in the counted code, listed whether or not an input made both sides equal; coverage does not see which did)
 shipping.rb:5:18 <= in `weight <= 2`
 
 Pass --verbose for every covered arm and the run settings.
@@ -345,7 +346,7 @@ EXCEPTIONS
 ArgumentError at shipping.rb:3: weight must be positive
   inputs: [-1], [-2], [0]
 
-BOUNDARIES (coverage does not see where both sides are equal; add an input that makes them equal)
+BOUNDARIES (each comparison in the counted code, listed whether or not an input made both sides equal; coverage does not see which did)
 shipping.rb:5:18 <= in `weight <= 2`
 
 Pass --verbose for every covered arm and the run settings.
@@ -754,6 +755,7 @@ C で書かれたメソッド、Ruby 自身の prelude のメソッド、属性�
 `BOUNDARIES` は数えたコードの比較を 1 つずつ挙げ、`boundaries_not_counted` がその数を示す。
 項目の形は `OPERATORS` と同じである。
 両辺を等しくする入力を与える。
+この一覧はソースから作るので、入力がそうしても変わらない。
 `&.` には自分の腕がある（`receiver-present`、`receiver-nil`）。
 
 腕の id は Coverage の分岐キーから作る `kind@行:列/arm@行:列` である。列は 0 始まり。`cond` は Prism の述語で、`when` または `in` の腕ではその行である。位置が一致しないときはソースの行を使う。

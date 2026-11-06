@@ -12,7 +12,7 @@ ZeroDivisionError at examples/hidden_bug.rb:9: divided by 0
 OPERATORS (coverage does not see which side ran; vary each left side)
 examples/hidden_bug.rb:6:14 && in `a > 10 && b > 10`
 
-BOUNDARIES (coverage does not see where both sides are equal; add an input that makes them equal)
+BOUNDARIES (each comparison in the counted code, listed whether or not an input made both sides equal; coverage does not see which did)
 examples/hidden_bug.rb:6:9 > in `a > 10`
 examples/hidden_bug.rb:6:19 > in `b > 10`
 examples/hidden_bug.rb:8:15 < in `denom < 50`

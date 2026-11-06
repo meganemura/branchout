@@ -98,7 +98,7 @@ module Branchout
     def boundaries_brief(lines, boundaries)
       return if boundaries.empty?
 
-      lines << "" << "BOUNDARIES (coverage does not see where both sides are equal; add an input that makes them equal)"
+      lines << "" << "BOUNDARIES (each comparison in the counted code, listed whether or not an input made both sides equal; coverage does not see which did)"
       boundaries.each { |found| lines << "#{found.loc} #{found.op} in `#{found.text}`" }
     end
 

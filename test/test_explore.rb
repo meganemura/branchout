@@ -185,6 +185,24 @@ class ExploreTest < Minitest::Test
     assert_includes stdout, "covered: 2 of 4 arms by 1 input\n"
   end
 
+  # An input's before Ruby makes the rows the entry reads, in the input's
+  # own savepoint, and the emitted test makes them before the call.
+  def test_an_inputs_before_runs_in_its_savepoint_before_the_call
+    Dir.mktmpdir do |dir|
+      emit_to = File.join(dir, "stocked_test.rb")
+      inputs = '[{"before":{"ruby":"ActiveRecord::Base.rows << [owner, \"bolt\"]"},"args":["bolt"]},{"args":["bolt"]}]'
+      stdout, stderr, status = run_suite("#{SUITE}/ticket_explore_test.rb", "INPUTS" => inputs, "EMIT_TO" => emit_to, "ENTRY" => "Ticket.stocked")
+      assert status.success?, stdout + stderr
+      assert_includes stdout, "covered: 2 of 2 arms by 2 inputs\n"
+      emitted = File.read(emit_to)
+      assert_includes emitted, "    ActiveRecord::Base.rows << [owner, \"bolt\"]\n    assert_equal :stocked, Ticket.stocked(\"bolt\")\n"
+      assert_includes emitted, "    assert_equal :missing, Ticket.stocked(\"bolt\")\n"
+      stdout, stderr, status = run_suite(emit_to)
+      assert status.success?, stdout + stderr
+      assert_includes stdout, "2 runs, 2 assertions, 0 failures, 0 errors"
+    end
+  end
+
   # The savepoint reason holds only for a let the input made. The spec
   # reads its let before explore, so only the missing let is the reason.
   def test_an_input_that_reads_a_let_is_refused

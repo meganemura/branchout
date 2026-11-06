@@ -620,6 +620,31 @@ class EmitterTest < Minitest::Test
                  Branchout::Emitters::Support.test_names(pins)
   end
 
+  # An input's before Ruby is a before of its own context in RSpec.
+  def test_an_inputs_before_is_a_before_of_its_context
+    stocked = Branchout::Input.new(args: ["bolt"], before: Branchout::Code.parse('create(:part, sku: "bolt")'))
+    pins = [[stocked, :stocked], [Branchout::Input.new(args: ["bolt"]), :missing]].map do |input, value|
+      Branchout::Engine::Pin.new(input: input, value: value, error: nil, covers: [])
+    end
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Ticket", :stocked, "Ticket.stocked", "lib/ticket.rb", File.join(ROOT, "lib/ticket.rb"), [], [Struct.new(:name).new(:sku)])
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
+    spec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/ticket_spec.rb"))
+    assert_includes spec, <<-RUBY
+    context 'after create(:part, sku: "bolt")' do
+      before do
+        create(:part, sku: "bolt")
+      end
+
+      it "returns :stocked" do
+        expect(Ticket.stocked("bolt")).to eq(:stocked)
+      end
+    end
+    RUBY
+    assert_includes spec, %(    it "returns :missing" do\n)
+    assert_equal %w[test_bolt_after_create_part_sku_bolt_returns_stocked test_bolt_returns_missing], Branchout::Emitters::Support.test_names(pins)
+  end
+
   # An Array argument is named by its parameter, as a whole when it holds
   # only scalars, and an empty one keeps a word in a minitest name.
   def test_an_array_argument_is_named_by_its_parameter

@@ -157,7 +157,7 @@ module Branchout
         receiver = input.receiver.is_a?(Input) ? project_paths(input.receiver, destination) : input.receiver
         setup = input.setup.map { |call| Input::SetupCall.new(call.method_name, project_paths(call.arguments, destination)) }
         Input.new(args: rewrite.(input.args), kwargs: rewrite.(input.kwargs), receiver: receiver, setup: setup,
-                  pin_keys: input.pin_keys, block: input.block)
+                  pin_keys: input.pin_keys, block: input.block, before: input.before)
       end
 
       # +value+, a returned value or an error message, with each String
@@ -242,10 +242,11 @@ module Branchout
           receiver_text(input, const, private_calls, thawed: thawed)
         end
         call = ->(on) { with_block(call_text(on, target.method_name, argument_list(input, thawed: thawed), private_calls), input.block) }
-        return [[], call.(receiver)] if input.setup.empty? && !input.receiver.is_a?(Code)
+        before = input.before ? [input.before.source] : []
+        return [before, call.(receiver)] if input.setup.empty? && !input.receiver.is_a?(Code)
 
         name = input.receiver.is_a?(Code) ? built_receiver_name(target) : receiver_name(target)
-        statements = ["#{name} = #{receiver}"]
+        statements = [*before, "#{name} = #{receiver}"]
         input.setup.each do |setup_call|
           statements << call_text(name, setup_call.method_name, argument_list(setup_call.arguments, thawed: thawed), [])
         end
@@ -506,6 +507,7 @@ module Branchout
           input_leaves(call.arguments).each { |path, value| out << [[:setup, index, *path], value] }
         end
         out << [[:block], input.block] if input.block
+        out << [[:before], input.before] if input.before
         out
       end
 
@@ -834,6 +836,7 @@ module Branchout
         end
         input.setup.each { |call| words += [call.method_name, *input_words(call.arguments)] }
         words += %w[with block] if input.block
+        words += ["after", *value_words(input.before)] if input.before
         words
       end
 

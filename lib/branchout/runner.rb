@@ -410,6 +410,7 @@ module Branchout
       scope = new_scope
       run = proc do
         receiver, args, kwargs, block = built_by_input(input) do
+          scope.eval(input.before.source, "(input)") if input.before
           receiver = prepared_receiver(input, scope, thawed) unless @target.singleton
           args, kwargs = fresh_arguments(input, scope, thawed)
           [receiver, args, kwargs, (scope.eval("proc #{input.block.source}", "(input)") if input.block)]

@@ -139,6 +139,8 @@ class MutatorTest < Minitest::Test
     "{\"inputs\": [{\"args\": [], \"arg\": 1}]}" => "inputs[0] has unknown keys: arg",
     "{\"inputs\": [{\"note\": \"none\"}]}" => "inputs[0] is missing args; write \"args\": [] for a call with no arguments",
     "{\"inputs\": [1]}" => "inputs[0] must be an array or an object",
+    "{\"inputs\": [{\"before\": \"create(:part)\"}]}" => "inputs[0] before must be Ruby such as {\"ruby\": \"create(:part)\"}",
+    "{\"inputs\": [{\"args\": [], \"new\": {\"args\": [], \"before\": {\"ruby\": \"1\"}}}]}" => "inputs[0] new has unknown keys: before",
     "{\"inputs\": [{\"args\": 1}]}" => "input args must be an array",
     "{\"inputs\": [{\"args\": [], \"kwargs\": 1}]}" => "input kwargs must be an object",
     "{\"inputs\": [{\"args\": [], \"setup\": {}}]}" => "inputs[0] setup must be an array",
@@ -158,7 +160,7 @@ class MutatorTest < Minitest::Test
   # args out.
   def test_an_entry_that_leaves_out_args_passes_none
     [{"receiver" => {"ruby" => "build(:user)"}}, {"new" => {"args" => [1]}}, {"setup" => [{"method" => "open"}]},
-     {"kwargs" => {"on" => 1}}, {"block" => "{ |x| x }"}].each do |entry|
+     {"kwargs" => {"on" => 1}}, {"block" => "{ |x| x }"}, {"before" => {"ruby" => "create(:part)"}}].each do |entry|
       assert_equal [], Branchout::InputFile.parse_entry(entry, "inputs[0]").args, entry.inspect
     end
   end

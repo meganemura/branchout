@@ -33,11 +33,11 @@ module Branchout
     end
 
     # Keys that say how the entry is called, so args may be left out for none.
-    CALL_KEYS = %w[new receiver setup kwargs block].freeze
+    CALL_KEYS = %w[new receiver setup kwargs block before].freeze
 
     METHOD_NAME = /\A(?:[A-Za-z_][A-Za-z0-9_]*[?!=]?|<<|>>|\[\]=?|[-+*\/%&|^<>]|\*\*|<=>|==|!=|<=|>=|=~)\z/
 
-    def parse_entry(entry, label, keys = %w[args kwargs new receiver setup note pin_keys block])
+    def parse_entry(entry, label, keys = %w[args kwargs new receiver setup note pin_keys block before])
       case entry
       when Array
         Input.new(args: entry)
@@ -66,7 +66,13 @@ module Branchout
         end
 
         block = Code.block(entry["block"]) if entry.key?("block")
-        Input.new(args: entry.fetch("args", []), kwargs: entry["kwargs"] || {}, receiver: receiver, setup: setup, pin_keys: pin_keys, block: block)
+        if entry.key?("before")
+          raise Error, "#{label} before must be Ruby such as {\"ruby\": \"create(:part)\"}" unless entry["before"].is_a?(Hash) && code?(entry["before"])
+
+          before = Code.parse(entry["before"]["ruby"])
+        end
+        Input.new(args: entry.fetch("args", []), kwargs: entry["kwargs"] || {}, receiver: receiver, setup: setup, pin_keys: pin_keys, block: block,
+                  before: before)
       else
         raise Error, "#{label} must be an array or an object"
       end

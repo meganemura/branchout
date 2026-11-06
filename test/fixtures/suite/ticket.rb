@@ -14,4 +14,6 @@ class Ticket
   end
 
   def self.code = "T-#{SecureRandom.hex(2)}"
+
+  def self.stocked(sku) = ActiveRecord::Base.rows.any? { |row| row.last == sku } ? :stocked : :missing
 end

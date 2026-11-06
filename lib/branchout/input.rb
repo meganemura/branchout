@@ -71,9 +71,11 @@ module Branchout
     # the SetupCalls that build the receiver's state. +pin_keys+, when not nil, replaces
     # --pin-keys for this input's test. It is not part of the call, so it is
     # not in to_h. +block+ is the Code of the block the entry gets, or nil.
-    attr_reader :args, :kwargs, :receiver, :setup, :pin_keys, :block
+    # +before+ is the Code that makes what the call reads, such as the rows
+    # a class method looks up, run first in the input's savepoint, or nil.
+    attr_reader :args, :kwargs, :receiver, :setup, :pin_keys, :block, :before
 
-    def initialize(args:, kwargs: {}, receiver: nil, setup: [], pin_keys: nil, block: nil)
+    def initialize(args:, kwargs: {}, receiver: nil, setup: [], pin_keys: nil, block: nil, before: nil)
       @args = deep_freeze(normalize(args))
       unless @args.is_a?(Array)
         raise Error, "input args must be an array"
@@ -91,6 +93,7 @@ module Branchout
       @setup = setup.map { |call| SetupCall.new(-call.method_name.to_s, call.arguments).freeze }.freeze
       @pin_keys = pin_keys&.map { |key| -key }.freeze
       @block = block
+      @before = before
       freeze
     end
 
@@ -103,6 +106,7 @@ module Branchout
       end
       hash["setup"] = setup.map(&:to_h) unless setup.empty?
       hash["block"] = block.source if block
+      hash["before"] = before if before
       hash
     end
 
@@ -114,7 +118,7 @@ module Branchout
     # the args array so an agent can paste it back into inputs.json. The
     # entry form leaves out empty kwargs, which an inputs file may omit.
     def text
-      return Canon.json(args) if kwargs.empty? && receiver.nil? && setup.empty? && block.nil?
+      return Canon.json(args) if kwargs.empty? && receiver.nil? && setup.empty? && block.nil? && before.nil?
 
       Canon.json(short_h)
     end
@@ -134,7 +138,8 @@ module Branchout
         kwargs.values.sum { |value| self.class.weight_of(value) } +
         self.class.weight_of(receiver) +
         setup.sum { |call| 1 + call.arguments.weight } +
-        (block ? block.source.length : 0)
+        (block ? block.source.length : 0) +
+        (before ? before.source.length : 0)
     end
 
     def self.weight_of(value)

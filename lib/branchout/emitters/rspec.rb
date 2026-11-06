@@ -306,6 +306,7 @@ module Branchout
           @steps[pin] ||= begin
             input = pin.input
             steps = []
+            steps << Step.new(:before, input.before.source, input.before.source) if input.before
             unless @target.singleton
               steps << Step.new(:let, receiver_label(input), Support.receiver_text(input, @const, @private_calls, thawed: pin.thawed))
             end

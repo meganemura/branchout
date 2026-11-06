@@ -12,9 +12,9 @@ module Stamp
     {name: "n", part_id: SecureRandom.uuid, start_at: start_at, end_at: nil}
   end
 
-  def self.token(code)
+  def self.token(code, token = SecureRandom.hex(4))
     raise KeyError, "no part" unless code == "A"
 
-    SecureRandom.hex(4)
+    token
   end
 end

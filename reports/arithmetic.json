@@ -130,6 +130,7 @@
       }
     }
   ],
+  "arms_not_pinned": [],
   "frontier": [
     {
       "id": "if@18:4/then@19:6",

@@ -13,9 +13,11 @@ module Branchout
       keyword_init: true
     )
 
+    # +pinned+ is false for a covered arm whose every input differed as a
+    # whole between two runs, so no emitted test checks it.
     Arm = Struct.new(
       :id, :loc, :line, :column, :cond, :sense, :input, :parent, :nearest, :path,
-      :covered,
+      :covered, :pinned,
       keyword_init: true
     )
 
@@ -170,7 +172,8 @@ module Branchout
           covered: false
         )
       else
-        witness = best_execution(takers)
+        pinnable = takers.reject { |execution| execution.varying == :whole }
+        witness = best_execution(pinnable.empty? ? takers : pinnable)
         Arm.new(
           id: id,
           loc: "#{target.display_path}:#{line}:#{column}",
@@ -181,7 +184,8 @@ module Branchout
           input: witness.input,
           parent: "reached",
           path: path_ids(witness),
-          covered: true
+          covered: true,
+          pinned: !pinnable.empty?
         )
       end
     end

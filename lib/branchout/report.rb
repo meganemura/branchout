@@ -32,6 +32,7 @@ module Branchout
       lines << "tests: #{Target.display_path(tests)}" if tests
       frontier_brief(lines, result.frontier)
       exceptions_brief(lines, result.exceptions)
+      not_pinned_brief(lines, result.covered.reject(&:pinned))
       not_counted_brief(lines, Array(result.not_counted))
       operators_brief(lines, Array(result.operators))
       boundaries_brief(lines, Array(result.boundaries))
@@ -79,7 +80,17 @@ module Branchout
       end
     end
 
-    def not_counted_brief(lines, callees)
+def not_pinned_brief(lines, arms)
+  return if arms.empty?
+
+  lines << "" << "NOT PINNED (each input that took these arms returned a value that differed between two runs, so no emitted test checks them)"
+  arms.group_by { |arm| arm.input.text }.each do |input, group|
+    lines << "input: #{input}"
+    group.each { |arm| lines << "#{arm.loc} #{WANTS.fetch(arm.sense, "takes the arm at `%s`") % arm.cond}" }
+  end
+end
+
+def not_counted_brief(lines, callees)
       return if callees.empty?
 
       lines << "" << "NOT COUNTED (arms in other files; explore each as its own entry)"
@@ -131,6 +142,7 @@ module Branchout
         "arms_covered" => result.covered.length,
         "arms_total" => result.covered.length + result.frontier.length,
         "covered" => result.covered.map { |arm| covered_hash(arm) },
+        "arms_not_pinned" => result.covered.reject(&:pinned).map { |arm| covered_hash(arm) },
         "frontier" => result.frontier.map { |arm| frontier_hash(arm) },
         "exceptions" => result.exceptions.map { |finding| finding_hash(finding) },
         "not_counted" => Array(result.not_counted).map { |callee| callee_hash(callee) },
@@ -246,7 +258,8 @@ module Branchout
         "loc: #{arm.loc}",
         "cond: #{arm.cond}",
         "sense: #{arm.sense}",
-        "input: #{arm.input.text}"
+        "input: #{arm.input.text}",
+        *("pinned: no, the input differed between two runs" unless arm.pinned)
       ]
     end
 

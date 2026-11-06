@@ -682,6 +682,42 @@ class CLITest < Minitest::Test
     end
   end
 
+  # An arm whose only input differed as a whole between two runs has no
+  # test, so the report names it beside the arms it counts as covered.
+  def test_an_arm_whose_only_input_has_no_test_is_reported_as_not_pinned
+    Dir.mktmpdir do |dir|
+      inputs = write_inputs(dir, { "inputs" => [["A"], ["B"]] })
+      args = ["explore", "test/fixtures/stamp.rb", "Stamp.token", "--strategy", "inputs", "--inputs", inputs]
+      stdout, err, status = run_cli(*args)
+      assert status.success?, err
+      assert_includes stdout, "covered: 2 of 2 arms by 2 inputs\n"
+      assert_includes stdout, "\nNOT PINNED (each input that took these arms returned a value that differed between two runs, " \
+                              "so no emitted test checks them)\n" \
+                              "input: [\"A\"]\n" \
+                              "test/fixtures/stamp.rb:16:4 makes `code == \"A\"` true\n"
+      stdout, err, status = run_cli(*args, "--json")
+      assert status.success?, err
+      report = JSON.parse(stdout)
+      stdout, err, status = run_cli(*args, "--verbose")
+      assert status.success?, err
+      assert_includes stdout, "input: [\"A\"]\npinned: no, the input differed between two runs\n"
+      assert_equal [{ "id" => "unless@16:4/else@16:4", "loc" => "test/fixtures/stamp.rb:16:4", "line" => 16, "column" => 4,
+                      "cond" => "code == \"A\"", "sense" => "cond-true", "input" => { "args" => ["A"], "kwargs" => {} } }],
+                   report["arms_not_pinned"]
+
+      stdout, err, status = run_cli("explore", "test/fixtures/stamp.rb", "Stamp.attributes_from", "--strategy", "inputs",
+                                    "--inputs", write_inputs(dir, { "inputs" => [["A", nil], ["B", nil]] }), "--json")
+      assert status.success?, err
+      assert_equal [], JSON.parse(stdout)["arms_not_pinned"]
+
+      # An input that returned the same value both times witnesses the arm.
+      stdout, err, status = run_cli(*args.first(6), write_inputs(dir, { "inputs" => [["A"], ["A", "t"]] }), "--verbose")
+      assert status.success?, err
+      assert_includes stdout, "sense: cond-true\ninput: [\"A\",\"t\"]\n"
+      refute_includes stdout, "pinned: no"
+    end
+  end
+
   def test_operators_sit_beside_the_arms_of_safe_navigation_and_in_json
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [[nil, true]] })

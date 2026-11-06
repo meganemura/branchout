@@ -611,6 +611,8 @@ RSpec のファイルは定数を describe し、その中で `.method` か `#me
 RuboCop と rubocop-rspec の既定に合わせるためで、出力し直したファイルに自動修正は要らない。
 レシーバーは `let` に、各 setup 呼び出しは `before` に置く。
 レシーバー、呼び出し、引数の値が先頭から同じ入力どうしは、1 つの `context` を共有する。
+キーワードの一部だけが兄弟の入力と違う `new` のレシーバーは、そのキーワードで名前を付ける（`context "with start_at: Date.new(2026, 5, 1)"`）。
+`new` にはキーワードを入力の順に渡す。
 各 example はまず結果を述べ、次にその example だけの引数の値を述べる。
 そのため `rspec --format documentation` は仕様のように読める。
 引数の中の値は、そこへのパスで名付ける。

@@ -280,7 +280,7 @@ module Branchout
         # "with new(10) after add("apple", 3) when price is 5": the receiver,
         # the calls, then the facts.
         def label(steps, peers = [], short: false)
-          receiver = steps.select { |step| step.kind == :let }.map(&:label)
+          receiver = steps.select { |step| step.kind == :let }.map { |step| receiver_step_label(step, peers) }
           calls = steps.select { |step| CALLS.include?(step.kind) }.map { |step| call_label(step, peers) }
           facts = steps.select { |step| step.kind == :fact }.map { |step| fact_label(step.leaf, peers, short: short) }
           parts = receiver
@@ -357,7 +357,8 @@ module Branchout
             steps = []
             steps << Step.new(:before, Support.statements(input.before).map(&:source).join("; "), input.before.source, [[:before], input.before]) if input.before
             unless @target.singleton
-              steps << Step.new(:let, receiver_label(input), Support.receiver_text(input, @const, @private_calls, thawed: pin.thawed))
+              steps << Step.new(:let, receiver_label(input), Support.receiver_text(input, @const, @private_calls, thawed: pin.thawed),
+                                ([[:new], input.receiver.to_h] if input.receiver.is_a?(Input)))
             end
             # A setup call that may be the one that raised stays inside the
             # expect block, so the example still pins the error.
@@ -451,6 +452,21 @@ module Branchout
 
           plain = input.receiver ? Support.argument_list(input.receiver) : ""
           plain.empty? ? "with new" : "with new(#{plain})"
+        end
+
+        # A receiver whose new takes the arguments a sibling's new takes,
+        # with other values at some keywords, is named by those keywords:
+        # with start_at: Date.new(2026, 5, 1). Any other is named by new.
+        def receiver_step_label(step, peers)
+          return step.label unless step.leaf
+
+          mine = step.leaf[1]
+          others = peers.map { |pin| pin.input.receiver }.grep(Input).map(&:to_h).uniq
+                        .select { |other| other["args"] == mine["args"] && other["kwargs"].keys.sort == mine["kwargs"].keys.sort && other != mine }
+          differing = mine["kwargs"].select { |key, value| others.any? { |other| !other["kwargs"][key].eql?(value) } }
+          return step.label if others.empty? || differing.empty?
+
+          "with #{differing.map { |key, value| "#{Support.keyword_literal(key)}: #{value.is_a?(Code) ? value.source : value_text(value, [])}" }.join(", ")}"
         end
 
         def receiver_expression

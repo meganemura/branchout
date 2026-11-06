@@ -301,7 +301,7 @@ module Branchout
 
       def argument_list(input, thawed: false)
         args = input.args.map { |value| ruby_literal(value, thawed: thawed) }
-        kwargs = input.kwargs.keys.sort.map { |key|
+        kwargs = input.kwargs.keys.map { |key|
           "#{keyword_literal(key)}: #{ruby_literal(input.kwargs[key], thawed: thawed)}"
         }
         (args + kwargs).join(", ")

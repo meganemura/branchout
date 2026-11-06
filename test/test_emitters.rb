@@ -390,8 +390,8 @@ class EmitterTest < Minitest::Test
                  support.ruby_literal({ "b" => true, c: "x", "a" => [nil, false], d?: 1, "e f": 2, "+": 3 }, thawed: true)
     target = Struct.new(:singleton, :const_name, :method_name, :entry).new(true, "Foo::Bar", :baz?, "Foo::Bar.baz?")
     input = Branchout::Input.new(args: [1], kwargs: { "z" => 1, "a b" => "s" })
-    assert_equal [[], 'Foo::Bar.baz?(1, "a b": "s", z: 1)'], support.arrange(target, input)
-    assert_equal [[], 'Foo::Bar.baz?(1, "a b": +"s", z: 1)'], support.arrange(target, input, thawed: true)
+    assert_equal [[], 'Foo::Bar.baz?(1, z: 1, "a b": "s")'], support.arrange(target, input)
+    assert_equal [[], 'Foo::Bar.baz?(1, z: 1, "a b": +"s")'], support.arrange(target, input, thawed: true)
     target.singleton = false
     setup = [Branchout::Input::SetupCall.new("<<", Branchout::Input.new(args: ["x"])), Branchout::Input::SetupCall.new("clear", Branchout::Input.new(args: []))]
     assert_equal [["bar = Foo::Bar.new(2)", 'bar.send(:<<, "x")', "bar.clear"], "bar.baz?"],
@@ -500,6 +500,29 @@ class EmitterTest < Minitest::Test
                  support.test_names([1, 2].map { |n| pin.(input.(setup: [call.("add", { "a" => { "b" => n } })])) })
     names = support.test_names(%w[add! add?].map { |name| pin.(input.(setup: [call.(name, {})])) })
     names.each { |name| assert_match(/\Atest_add_returns_ok_\h{6}\z/, name) }
+  end
+
+  # Receivers whose new differs only in some keywords are named by those
+  # keywords, and new takes its keywords in the input's order.
+  def test_receivers_are_named_by_the_new_keywords_that_differ
+    part = Branchout::Code.parse('"0190a6b2-7c1e-7d4b-9a2f-3c5d8e1f2a3b"')
+    date = ->(month) { Branchout::Code.parse("Date.new(2026, #{month}, 1)") }
+    pins = [[date.(1), nil], [date.(1), date.(3)], [date.(5), date.(3)]].map do |start_at, end_at|
+      receiver = Branchout::Input.new(args: [], kwargs: { "start_at" => start_at, "end_at" => end_at, "part_id" => part, "quantity" => 1 })
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [], kwargs: { "on" => date.(2) }, receiver: receiver),
+                                 value: :ok, error: nil, covers: [])
+    end
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(false, "Booking", :status, "Booking#status", "lib/booking.rb", File.join(ROOT, "lib/booking.rb"), [], [])
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
+    spec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/booking_spec.rb"))
+    assert_equal ['context "with start_at: Date.new(2026, 1, 1), end_at: nil"', 'context "with start_at: Date.new(2026, 1, 1), end_at: Date.new(2026, 3, 1)"',
+                  'context "with start_at: Date.new(2026, 5, 1), end_at: Date.new(2026, 3, 1)"'],
+                 spec.scan(/^ *(context .*) do$/).flatten
+    assert_includes spec, "let(:booking) { described_class.new(start_at: Date.new(2026, 5, 1), end_at: Date.new(2026, 3, 1), " \
+                          "part_id: \"0190a6b2-7c1e-7d4b-9a2f-3c5d8e1f2a3b\", quantity: 1) }"
+    test = Branchout::Emitters.render("minitest", result, target, File.join(ROOT, "test/booking_test.rb"))
+    assert_includes test, "Booking.new(start_at: Date.new(2026, 1, 1), end_at: nil, part_id: "
   end
 
   # Hash outcomes with the same keys are named by the scalar entries that

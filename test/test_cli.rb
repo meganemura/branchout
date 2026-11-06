@@ -599,6 +599,35 @@ class CLITest < Minitest::Test
     end
   end
 
+  # An error whose message differs between two runs, as one that quotes a
+  # generated id does, is pinned by its class alone.
+  def test_an_error_whose_message_differs_between_runs_is_pinned_by_its_class
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "lookup.rb")
+      File.write(target, <<~RUBY)
+        require "securerandom"
+
+        module Lookup
+          def self.find(key)
+            raise KeyError, "no row \#{SecureRandom.uuid}" if key.empty?
+            raise ArgumentError, "bad key" if key == "?"
+
+            key
+          end
+        end
+      RUBY
+      test = File.join(dir, "lookup_test.rb")
+      _out, err, status = run_cli("explore", target, "Lookup.find", "--strategy", "inputs", "--inputs",
+                                  write_inputs(dir, { "inputs" => [[""], ["?"]] }), "--emit-tests", test)
+      assert status.success?, err
+      emitted = File.read(test)
+      assert_includes emitted, "    error = assert_raises(KeyError) do\n      Lookup.find(\"\")\n    end\n  end\n"
+      assert_includes emitted, "    assert_equal \"bad key\", error.message\n"
+      _out, err, status = Open3.capture3(RbConfig.ruby, test)
+      assert status.success?, err
+    end
+  end
+
   def test_operators_sit_beside_the_arms_of_safe_navigation_and_in_json
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [[nil, true]] })

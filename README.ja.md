@@ -514,6 +514,7 @@ ruby bin/branchout baselines examples/magic_value.rb MagicValue.classify \
 RSpec はそれを入力の context の `before` として書き、minitest は呼び出しの前の行として書く。どちらも各行を字下げする。
 ただし `<<` と `<<-` のヒアドキュメントの本文と終端は元の桁のまま書くので、ヒアドキュメントは終わり、その文字列も変わらない。
 複数行の `before` は、兄弟の入力と違う行で名前を付け、呼び出しは違うキーワードで名前を付ける（`after FactoryBot.create(:membership) with enabled: false`）。
+`tap` や `then` でブロックを動かす Ruby の引数は、兄弟の入力とブロックが違うとき、そのブロックで名前を付ける（`when fact.tap { Parts.rows.replace(["A"]) }`）。
 `new`、`receiver`、`setup`、`kwargs`、`block`、`before` のどれかがあるエントリは、位置引数のない呼び出しなら `args` を省ける（`{"receiver": {"ruby": "FactoryBot.build(:user)"}}`）。
 型推論が違うときは、`"types"` に位置引数 1 つにつき `int`、`float`、`string`、`array`、`hash`、`bool` のいずれかを置く。
 既定値が `[]`、`{}`、`true`、`false` の引数はその型になる。

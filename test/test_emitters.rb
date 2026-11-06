@@ -661,6 +661,27 @@ class EmitterTest < Minitest::Test
   # Ruby calls that share a long start, as factory calls do, are named by
   # the keyword arguments that differ between them, and an error's class
   # is never cut.
+  # A Ruby argument that runs a block through tap or then is named by its
+  # block when siblings differ there, not by a cut source and a digest.
+  def test_a_ruby_argument_with_a_tap_block_is_named_by_its_block
+    fact = %(Parts.build_fact(kind: "widget", code: "A", name: "Long widget name"))
+    taps = ['.tap { Parts.rows.replace(["A"]) }', '.tap { Parts.rows.replace(["B"]) }', ".tap { |f| Parts.rows.replace([f.code]) }",
+            ".then do |f|\n  Parts.rows.replace([])\n  f\nend"]
+    pins = taps.zip([true, false, true, false]).map do |tap, found|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [Branchout::Code.parse("#{fact}#{tap}")]), value: { kind: "widget", found: found },
+                                 error: nil, covers: [])
+    end
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Parts", :attributes_from, "Parts.attributes_from", "lib/parts.rb", File.join(ROOT, "lib/parts.rb"), [],
+                        [Struct.new(:name).new(:fact)])
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
+    spec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/parts_spec.rb"))
+    assert_equal ['returns found: true when fact.tap { Parts.rows.replace(["A"]) }', 'returns found: false when fact.tap { Parts.rows.replace(["B"]) }',
+                  "returns found: true when fact.tap { |f| Parts.rows.replace([f.code]) }",
+                  "returns found: false when fact.then do |f| Parts.rows.replace([]); f end"],
+                 spec.scan(/^ *it ['"](.*)['"] do$/).flatten
+  end
+
   def test_ruby_calls_are_named_by_the_keywords_that_differ
     call = ->(b, d) { Branchout::Code.parse(%(Widget.build(a: "some long shared value", c: "another shared value", b: #{b}, d: #{d}))) }
     error = Branchout::Runner::ExceptionInfo.new(class_name: "Widget::PartNotFoundForThisLine")

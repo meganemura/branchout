@@ -396,6 +396,8 @@ module Branchout
         # doc["status"] would name another leaf.
         def fact_label(leaf, peers = [], short: false)
           (root, *path), value = leaf
+          return "#{Support.path_text(path, root)} #{value.source}" if path.last.is_a?(Support::TapBlock)
+
           value = value_text(value, peer_values(leaf, peers))
           telling = Support.telling_path(path, peer_paths(root, peers)) if short && path.any? { |step| Support.key_step?(step) }
           if telling && telling.length < path.length

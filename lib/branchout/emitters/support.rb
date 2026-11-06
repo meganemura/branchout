@@ -546,6 +546,8 @@ module Branchout
       # +whole_arrays+ keeps an Array of scalars as one leaf, so a reader
       # sees items is [1, 2] and not each item by its position.
       def collect_leaves(value, path, out, whole_arrays: false)
+        return out << [path, value] if path.last.is_a?(TapBlock)
+
         value = written_value(value)
         children = case value
           when Code then call_parts(value)
@@ -822,6 +824,7 @@ module Branchout
       def path_text(path, root = nil)
         path.each_with_object(+"#{root}") do |step, text|
           text << if step.is_a?(CallHead) then ""
+                  elsif step.is_a?(TapBlock) then ".#{step.name}"
                   elsif step.is_a?(Integer) then "[#{step}]"
                   elsif !step.is_a?(SymbolKey) then "[#{step.inspect}]"
                   elsif !step.name.match?(/\A[A-Za-z_][A-Za-z0-9_]*[?!]?\z/) then "[#{step.name.to_sym.inspect}]"
@@ -932,6 +935,7 @@ module Branchout
       def call_parts(code)
         body = Prism.parse(code.source).value.statements&.body || []
         call = body.first if body.one?
+        return tap_parts(call) if tapped?(call)
         return [] unless call.is_a?(Prism::CallNode) && call.block.nil? && call.arguments
 
         *positional, keywords = call.arguments.arguments
@@ -944,6 +948,33 @@ module Branchout
           plain = catch(:not_plain) { [plain_literal(pair.value)] }
           [SymbolKey.new(pair.key.unescaped), plain ? plain.first : Code.new(pair.value.slice)]
         end
+      end
+
+      # The block of a tap or then, as a step of a path. A Ruby argument
+      # that runs one, such as FactoryBot.build(:fact).tap { create(:part) },
+      # reads apart from its siblings by the block, which the call's source
+      # cut at its start would not show.
+      TapBlock = Data.define(:name)
+
+      def tapped?(call)
+        call.is_a?(Prism::CallNode) && %i[tap then].include?(call.name) && call.receiver && call.arguments.nil? &&
+          call.block.is_a?(Prism::BlockNode)
+      end
+
+      # The parts of the receiver, as call_parts gives them or as one head,
+      # then the block on one line.
+      def tap_parts(call)
+        receiver = Code.new(call.receiver.slice)
+        parts = call_parts(receiver)
+        parts = [[CallHead.new, receiver]] if parts.empty?
+        parts + [[TapBlock.new(call.name.to_s), Code.new(block_text(call.block))]]
+      end
+
+      def block_text(block)
+        body = block.body
+        statements = body.is_a?(Prism::StatementsNode) ? body.body.map(&:slice) : [body&.slice].compact
+        words = [block.opening_loc.slice, block.parameters&.slice, statements.join("; "), block.closing_loc.slice]
+        words.compact.reject(&:empty?).join(" ").gsub(/\s*\n\s*/, " ")
       end
 
       def plain_literal(node)

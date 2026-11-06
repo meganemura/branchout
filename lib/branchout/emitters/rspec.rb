@@ -102,7 +102,7 @@ module Branchout
           unless befores.empty?
             out << "" unless out.empty?
             out << "#{indent}before do"
-            befores.each { |step| step.code.each_line(chomp: true) { |line| out << "#{indent}  #{line}" } }
+            out.concat(Support.indent(befores.flat_map { |step| step.code.lines(chomp: true) }, "#{indent}  "))
             out << "#{indent}end"
           end
           texts = member_texts(node.members)
@@ -304,7 +304,7 @@ module Branchout
           telling = mine.each_index.select { |index| others.any? { |other| other[index] != mine[index] } }
           return step.label if telling.empty? || telling.length == mine.length && mine.length > 1
 
-          series(telling.map { |index| keyword_label(mine[index], others.map { |other| other[index] }) })
+          series(telling.map { |index| keyword_label(mine[index], others.map { |other| other[index] }) }).gsub(/\s*\n\s*/, " ")
         end
 
         def keyword_label(code, others)
@@ -355,7 +355,7 @@ module Branchout
           @steps[pin] ||= begin
             input = pin.input
             steps = []
-            steps << Step.new(:before, Support.statements(input.before).map(&:source).join("; "), input.before.source, [[:before], input.before]) if input.before
+            steps << Step.new(:before, Support.statements(input.before).map { |code| code.source.gsub(/\s*\n\s*/, " ") }.join("; "), input.before.source, [[:before], input.before]) if input.before
             unless @target.singleton
               steps << Step.new(:let, receiver_label(input), Support.receiver_text(input, @const, @private_calls, thawed: pin.thawed),
                                 ([[:new], input.receiver.to_h] if input.receiver.is_a?(Input)))

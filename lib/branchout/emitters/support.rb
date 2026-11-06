@@ -832,6 +832,28 @@ module Branchout
         value
       end
 
+      # +lines+ of Ruby, each indented by +indent+, except an empty line and
+      # a line of the body or the terminator of a << or <<- heredoc: an
+      # indented terminator of << does not end it, and <<- keeps the
+      # indentation of its body in its text. A <<~ heredoc removes the
+      # indentation its lines share, so its body is indented with the rest.
+      def indent(lines, indent)
+        kept = heredoc_lines(lines.join("\n"))
+        lines.each_with_index.map { |line, index| line.empty? || kept.include?(index + 1) ? line : "#{indent}#{line}" }
+      end
+
+      # Node types, not classes: naming a class would load prism when branchout loads, before the suite chose its version.
+      HEREDOCS = %i[string_node interpolated_string_node x_string_node interpolated_x_string_node].freeze
+
+      def heredoc_lines(source, node = Prism.parse(source).value, out = Set.new)
+        if HEREDOCS.include?(node.type) && node.opening_loc&.slice&.match?(/\A<<[-A-Za-z_"'`]/)
+          first = node.respond_to?(:content_loc) ? node.content_loc : node.parts.first&.location
+          out.merge((first || node.closing_loc).start_line..node.closing_loc.start_line)
+        end
+        node.compact_child_nodes.each { |child| heredoc_lines(source, child, out) }
+        out
+      end
+
       # The statements of Ruby source, each as its own Code, so sources
       # that share some lines read apart by the lines that differ.
       def statements(code)

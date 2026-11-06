@@ -764,6 +764,40 @@ class EmitterTest < Minitest::Test
                           %(    FactoryBot.create(:membership, group_id: group.id, enabled: true)\n    assert_equal :member, Group.status\n)
   end
 
+  # A heredoc's body and terminator keep their columns, so a plain heredoc
+  # still parses and a <<- heredoc's text gains no indentation, and a
+  # statement over several lines names its context on one line.
+  def test_a_before_with_heredocs_runs_as_written_in_both_formats
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, "notes.rb"), <<~RUBY)
+        module Notes
+          @store = []
+          def self.store = @store
+          def self.count(tag) = store == ["alpha tag\\n  beta\\n", "  gamma tag\\n", "delta tag\\n"] ? tag : store.length
+        end
+      RUBY
+      before = "Notes.store.clear\nNotes.store << <<~TEXT\n  alpha tag\n    beta\nTEXT\nNotes.store << <<-TEXT\n  gamma tag\n  TEXT\n" \
+               "Notes.store << <<TEXT\ndelta tag\nTEXT"
+      inputs = File.join(dir, "inputs.json")
+      File.write(inputs, JSON.generate({ "inputs" => [{ "before" => { "ruby" => before }, "args" => ["tag"] },
+                                                      { "before" => { "ruby" => "Notes.store.replace(\n  [1]\n)" }, "args" => ["tag"] }] }))
+      %w[notes_spec.rb notes_test.rb].each do |name|
+        _out, err, status = run_cli("explore", File.join(dir, "notes.rb"), "Notes.count", "--strategy", "inputs", "--random", "0",
+                                    "--inputs", inputs, "--emit-tests", File.join(dir, name))
+        assert status.success?, err
+      end
+      spec = File.read(File.join(dir, "notes_spec.rb"))
+      assert_includes spec, "        Notes.store << <<TEXT\ndelta tag\nTEXT\n      end\n"
+      assert_includes spec, %(context "after Notes.store.replace( [1] )" do\n)
+      out, err, status = Open3.capture3(RbConfig.ruby, "-rrspec/autorun", "-e", "", File.join(dir, "notes_spec.rb"))
+      assert status.success?, out + err
+      assert_includes out, "2 examples, 0 failures"
+      out, err, status = Open3.capture3(RbConfig.ruby, File.join(dir, "notes_test.rb"))
+      assert status.success?, out + err
+      assert_includes out, "2 runs, 2 assertions, 0 failures"
+    end
+  end
+
   # An input's before Ruby is a before of its own context in RSpec.
   def test_an_inputs_before_is_a_before_of_its_context
     stocked = Branchout::Input.new(args: ["bolt"], before: Branchout::Code.parse('create(:part, sku: "bolt")'))

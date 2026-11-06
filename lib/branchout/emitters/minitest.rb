@@ -35,7 +35,7 @@ module Branchout
         arrange, call = Support.arrange(target, pin.input, private_calls: private_calls, const: const, thawed: pin.thawed)
         if pin.error
           lines << "    error = assert_raises(#{pin.error.class_name}) do"
-          (arrange + [call]).each { |line| lines << "      #{line}" }
+          lines.concat(Support.indent(arrange + [call], "      "))
           lines << "    end"
           if pin.error.name
             lines << "    assert_equal #{pin.error.name.inspect}, error.name"
@@ -47,7 +47,7 @@ module Branchout
           return lines << "  end"
         end
 
-        arrange.each { |line| lines << "    #{line}" }
+        lines.concat(Support.indent(arrange, "    "))
         pinned = Support.pinned_value(pin.value, Support.keys_for(pin, pin_keys))
         if !pinned.equal?(pin.value) && Support.literal?(pinned)
           keys = pinned.keys.map { |key| Support.ruby_literal(key) }.join(", ")

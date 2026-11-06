@@ -140,6 +140,7 @@ class MutatorTest < Minitest::Test
     "{\"inputs\": [{\"note\": \"none\"}]}" => "inputs[0] is missing args; write \"args\": [] for a call with no arguments",
     "{\"inputs\": [1]}" => "inputs[0] is 1, not a call; write each call as an array of its arguments, such as [1]",
     "[\"0306406150\", \"abc\"]" => "inputs[0] is \"0306406150\", not a call; write each call as an array of its arguments, such as [\"0306406150\"]",
+    "{\"inputs\": [{\"args\": [], \"new\": 1}]}" => "inputs[0] new is 1, not a call; write each call as an array of its arguments, such as [1]",
     "{\"inputs\": [null]}" => "inputs[0] is null, not a call; write each call as an array of its arguments, such as [null]",
     "{\"inputs\": [{\"before\": \"create(:part)\"}]}" => "inputs[0] before must be Ruby such as {\"ruby\": \"create(:part)\"}",
     "{\"inputs\": [{\"args\": [], \"new\": {\"args\": [], \"before\": {\"ruby\": \"1\"}}}]}" => "inputs[0] new has unknown keys: before",

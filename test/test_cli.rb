@@ -191,6 +191,7 @@ class CLITest < Minitest::Test
       stdout, stderr, status = run_cli("explore", target, "Gate.pick", "--inputs", raising, "--strategy", "inputs", "--random", "0")
       assert status.success?, stderr
       assert_includes stdout, "\nFRONTIER\nno input reached these decisions:\n#{target}:3 n > 5 (2 arms)\n#{target}:4 n.zero? (2 arms)\n"
+      refute_includes stdout, "RETURNED"
     end
   end
 
@@ -261,12 +262,15 @@ class CLITest < Minitest::Test
   def test_a_string_argument_that_holds_its_own_quotes_is_named
     Dir.mktmpdir do |dir|
       target = File.join(dir, "code.rb")
-      File.write(target, "module Code\n  def self.parse(raw) = raw.empty? ? nil : raw.size\nend\n")
-      inputs = write_inputs(dir, {"inputs" => [["\"0306406150\""], ["abc"], [{"code" => "'x'"}]]})
+      File.write(target, "module Code\n  def self.parse(raw, **) = raw.empty? ? nil : raw.size\nend\n")
+      inputs = write_inputs(dir, {"inputs" => [["\"0306406150\""], ["abc"], [{"code" => "'x'"}], {"args" => ["a"], "kwargs" => {"to" => "''", "by" => "'"}}]})
       _stdout, stderr, status = run_cli("explore", target, "Code.parse", "--inputs", inputs, "--strategy", "inputs")
       assert status.success?, stderr
       assert_equal 'branchout: inputs[0] args[0] is the String "\"0306406150\"", quotes included. ' \
                    'An inputs file is JSON, so write "0306406150" for the String 0306406150, ' \
+                   "or {\"ruby\": \"...\"} for Ruby source. Keep the quotes only if the method should get them.\n" \
+                   "branchout: inputs[3] kwargs.to is the String \"''\", quotes included. " \
+                   'An inputs file is JSON, so write "" for the String , ' \
                    "or {\"ruby\": \"...\"} for Ruby source. Keep the quotes only if the method should get them.\n", stderr
     end
   end
@@ -887,6 +891,7 @@ class CLITest < Minitest::Test
                               "so no emitted test checks them)\n" \
                               "input: [\"A\"]\n" \
                               "test/fixtures/stamp.rb:16:4 makes `code == \"A\"` true\n"
+      assert_includes stdout, "\nreturns a value that differed between two runs for [\"A\"]\n"
       stdout, err, status = run_cli(*args, "--json")
       assert status.success?, err
       report = JSON.parse(stdout)

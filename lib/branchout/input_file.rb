@@ -74,8 +74,6 @@ module Branchout
         Input.new(args: entry.fetch("args", []), kwargs: entry["kwargs"] || {}, receiver: receiver, setup: setup, pin_keys: pin_keys, block: block,
                   before: before)
       else
-        raise Error, "#{label} must be an array or an object" if label.end_with?(" new")
-
         raise Error, "#{label} is #{JSON.generate(entry)}, not a call; write each call as an array of its arguments, such as #{JSON.generate([entry])}"
       end
     rescue Error => e

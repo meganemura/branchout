@@ -517,6 +517,7 @@ RSpec はそれを入力の context の `before` として書き、minitest は�
 `tap` や `then` でブロックを動かす Ruby の引数は、兄弟の入力とブロックが違うとき、そのブロックで名前を付ける（`when fact.tap { Parts.rows.replace(["A"]) }`）。
 そうする `before` も同じように名前を付ける（`after FactoryBot.create(:part).tap { |p| p.update!(size: 1) }`）。
 呼び出しで名前を付ける `before` の名前が 80 文字を超えるときは、兄弟のそれぞれと見分けられる最少のキーワードとブロックだけを残す（`after FactoryBot.create(:part) with code: "B"`）。
+それでも 80 文字を超える文の中の 30 文字を超えるブロックは、兄弟のブロックと分かれる所で切る（`when fact.tap { ...long piece', 2]) }`）。
 `new`、`receiver`、`setup`、`kwargs`、`block`、`before` のどれかがあるエントリは、位置引数のない呼び出しなら `args` を省ける（`{"receiver": {"ruby": "FactoryBot.build(:user)"}}`）。
 型推論が違うときは、`"types"` に位置引数 1 つにつき `int`、`float`、`string`、`array`、`hash`、`bool` のいずれかを置く。
 既定値が `[]`、`{}`、`true`、`false` の引数はその型になる。

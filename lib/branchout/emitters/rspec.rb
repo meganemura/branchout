@@ -329,7 +329,7 @@ module Branchout
 
           block, keywords = differing.partition { |key, _| key.is_a?(Support::TapBlock) }
           texts = keywords.map { |key, value| "#{key}: #{value.is_a?(Code) ? value.source : value_text(value, [])}" }
-          tapped = block.map { |key, value| ".#{key.name} #{value.source}" }.join
+          tapped = block.map { |key, value| ".#{key.name} #{block_part(value.source, others.filter_map { |other| other[key]&.source }, short: short)}" }.join
           return "#{head[1].source}#{tapped}" if texts.empty?
 
           "#{head[1].source} with #{texts.join(", ")}#{" and #{tapped}" unless tapped.empty?}"
@@ -413,7 +413,7 @@ module Branchout
         # doc["status"] would name another leaf.
         def fact_label(leaf, peers = [], short: false)
           (root, *path), value = leaf
-          return "#{Support.path_text(path, root)} #{value.source}" if path.last.is_a?(Support::TapBlock)
+          return "#{Support.path_text(path, root)} #{block_part(value.source, peer_values(leaf, peers).map(&:source), short: short)}" if path.last.is_a?(Support::TapBlock)
 
           value = value_text(value, peer_values(leaf, peers))
           telling = Support.telling_path(path, peer_paths(root, peers)) if short && path.any? { |step| Support.key_step?(step) }
@@ -427,6 +427,16 @@ module Branchout
           "#{name} is #{value}"
         end
 
+        # A block's source, or with +short+, a block over 30 characters cut
+        # where it parts from its siblings' blocks, after its opening:
+        # { ...long piece', 2]) }.
+        def block_part(source, peer_sources, short: false)
+          return source unless short && source.length > 30
+
+          text = parted(source, peer_sources)
+          text.start_with?("...") ? "#{source[/\A(?:\{|do)/]} #{text}" : text
+        end
+
         # A value longer than 30 characters is cut. A String is cut where it
         # parts from the other Strings at its leaf, so two values that share
         # a long start do not read alike.
@@ -437,7 +447,13 @@ module Branchout
           return text if text.length <= 30
           return "#{text[0, 27]}..." unless value.is_a?(String)
 
-          parts = peer_values.grep(String).reject { |other| other == value }.map do |other|
+          Support.ruby_literal(parted(value, peer_values.grep(String)))
+        end
+
+        # +value+ cut to about 25 characters around where it parts from the
+        # most alike of +peer_values+, with "..." for each cut end.
+        def parted(value, peer_values)
+          parts = peer_values.reject { |other| other == value }.map do |other|
             value.each_char.zip(other.each_char).take_while { |mine, theirs| mine == theirs }.length
           end
           start = (parts.max || 0) < 20 ? 0 : parts.max - 10
@@ -448,7 +464,7 @@ module Branchout
           # characters keeps the end instead.
           length = value.length - start <= 25 ? 25 : 22
           finish = Support.word_end(value, start, start + length)
-          Support.ruby_literal("#{"..." if start.positive?}#{value[start...finish]}#{"..." if finish < value.length}")
+          "#{"..." if start.positive?}#{value[start...finish]}#{"..." if finish < value.length}"
         end
 
         def peer_paths(root, peers)

@@ -705,6 +705,34 @@ class EmitterTest < Minitest::Test
     assert_equal [%w[test_0_returns_hash], ["returns a Hash"]], names.([{ Object.new => 1 }])
   end
 
+  # Long tap blocks that differ only at their end are named by that end,
+  # not cut at 80 characters with a digest.
+  def test_long_tap_blocks_are_named_by_the_part_that_differs
+    fact = %(Parts.build_fact(kind: "widget", code: "A"))
+    block = ".tap { |f| Parts.rows.replace([f.code, f.kind, f.name, f.code * 2, 'one more long piece', %s]) }"
+    pins = [1, 2, 3].zip([true, false, false]).map do |item, found|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [Branchout::Code.parse("#{fact}#{format(block, item)}")]),
+                                 value: { kind: "widget", found: found }, error: nil, covers: [])
+    end
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Parts", :attributes_from, "Parts.attributes_from", "lib/parts.rb", File.join(ROOT, "lib/parts.rb"), [],
+                        [Struct.new(:name).new(:fact)])
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
+    spec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/parts_spec.rb"))
+    assert_equal ["returns found: true when fact.tap { ...long piece', 1]) }", "returns found: false when fact.tap { ...long piece', 2]) }",
+                  "returns found: false when fact.tap { ...long piece', 3]) }"],
+                 spec.scan(/^ *it ['"](.*)['"] do$/).flatten
+
+    befores = (1..3).map { |weight| %(FactoryBot.create(:part).tap { |p| p.update!(size: 1, name: "a long shared name here", weight: #{weight}) }) }
+    pins = befores.each_with_index.map do |before, index|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1], before: Branchout::Code.parse(before)), value: index, error: nil, covers: [])
+    end
+    result = Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: [])
+    spec = Branchout::Emitters.render("rspec", result, target, File.join(ROOT, "spec/parts_spec.rb"))
+    assert_equal((1..3).map { |weight| "after FactoryBot.create(:part).tap { ...here\", weight: #{weight}) }" },
+                 spec.scan(/^ *context ['"](.*)['"] do$/).flatten)
+  end
+
   # A before that runs a block through tap is named by the block when its
   # siblings differ there, beside the keywords that differ. A label over
   # 80 characters keeps the fewest of them that tell it from each sibling.

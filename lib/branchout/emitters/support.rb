@@ -803,7 +803,8 @@ module Branchout
         head = code.source[0...keywords.location.start_offset - call.location.start_offset].sub(/[(,\s]+\z/, "")
         head = "#{head})" if call.opening_loc && !positional.empty?
         [[CallHead.new, Code.new(head)]] + keywords.elements.map do |pair|
-          [SymbolKey.new(pair.key.unescaped), catch(:not_plain) { next plain_literal(pair.value) } || Code.new(pair.value.slice)]
+          plain = catch(:not_plain) { [plain_literal(pair.value)] }
+          [SymbolKey.new(pair.key.unescaped), plain ? plain.first : Code.new(pair.value.slice)]
         end
       end
 

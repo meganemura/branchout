@@ -645,6 +645,71 @@ class EmitterTest < Minitest::Test
     assert_equal %w[test_bolt_after_create_part_sku_bolt_returns_stocked test_bolt_returns_missing], Branchout::Emitters::Support.test_names(pins)
   end
 
+  # true, false, and nil are pinned as rubocop-rspec's BeEq and BeNil want.
+  def test_rspec_pins_true_false_and_nil_with_be
+    pins = [[1, true], [2, false], [3, nil]].map do |arg, value|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [arg]), value: value, error: nil, covers: [])
+    end
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Flag", :of, "Flag.of", "lib/flag.rb", File.join(ROOT, "lib/flag.rb"), [], [Struct.new(:name).new(:n)])
+    spec = Branchout::Emitters.render("rspec", Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: []),
+                                      target, File.join(ROOT, "spec/flag_spec.rb"))
+    assert_includes spec, "expect(described_class.of(1)).to be(true)\n"
+    assert_includes spec, "expect(described_class.of(2)).to be(false)\n"
+    assert_includes spec, "expect(described_class.of(3)).to be_nil\n"
+  end
+
+  # Examples whose texts are still the same end in a digest, and one that
+  # raises keeps its error's class whole before it.
+  def test_a_digest_never_cuts_the_class_of_an_error
+    error = Branchout::Runner::ExceptionInfo.new(class_name: "Widget::Parts::PartNotFoundForThisLineOfTheOrderErrorX")
+    pins = %w[a b].map do |tail|
+      Branchout::Engine::Pin.new(input: Branchout::Input.new(args: ["#{"x" * 40}#{tail}"]), value: nil, error: error, covers: [])
+    end
+    target = Struct.new(:singleton, :const_name, :method_name, :entry, :display_path, :path, :parameters, :positional)
+                   .new(true, "Widget", :find, "Widget.find", "lib/widget.rb", File.join(ROOT, "lib/widget.rb"), [], [Struct.new(:name).new(:key)])
+    texts = Branchout::Emitters.render("rspec", Branchout::Engine::Result.new(pins: pins, requires: [], load_paths: [], private_calls: []),
+                                       target, File.join(ROOT, "spec/widget_spec.rb")).scan(/^ *it ['"](.*)['"] do$/).flatten
+    texts.each do |text|
+      assert_match(/\Araises Widget::Parts::PartNotFoundForThisLineOfTheOrderErrorX ?\.\.\. \(input \h{6}\)\z/, text)
+    end
+  end
+
+  # The parts of a Ruby call that name it: the call before its Symbol
+  # keywords, and each keyword. A call with a block, with no keyword, or
+  # with a key that is not a Symbol stays one leaf.
+  def test_the_parts_of_a_ruby_call
+    support = Branchout::Emitters::Support
+    parts = ->(source) { support.call_parts(Branchout::Code.parse(source)).map { |step, value| [step.class.name.split("::").last, value] } }
+    assert_equal [["CallHead", Branchout::Code.new("FactoryBot.build(:fact)")], ["SymbolKey", "Y"], ["SymbolKey", Branchout::Code.new("create(:part)")]],
+                 parts.("FactoryBot.build(:fact, b: \"Y\", part: create(:part))")
+    assert_equal [["CallHead", Branchout::Code.new("build :fact")], ["SymbolKey", 1]], parts.("build :fact, b: 1")
+    assert_equal [["CallHead", Branchout::Code.new("Widget.build")], ["SymbolKey", nil]], parts.("Widget.build(b: nil)")
+    ["build(:fact) { |f| f }", "build(:fact, b: 1) { |f| f }", "build(:fact)", "build", "build(:fact, \"b\" => 1)", "a; build(b: 1)", "x"].each do |source|
+      assert_equal [], parts.(source), source
+    end
+    pin = ->(source) { Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [Branchout::Code.parse(source)]), value: 0, error: nil, covers: []) }
+    assert_equal %w[test_build_part_b_1_returns_0 test_build_line_b_1_returns_0],
+                 support.test_names([pin.("build(:part, b: 1)"), pin.("build(:line, b: 1)")])
+  end
+
+  # An input's before names it apart from one without, and the keys a
+  # varying Hash pins are the stable ones that --pin-keys names.
+  def test_before_and_varying_keys_name_and_pin_an_input
+    support = Branchout::Emitters::Support
+    code = Branchout::Code.parse("make(:row)")
+    pins = [Branchout::Input.new(args: [1], before: code), Branchout::Input.new(args: [1], before: Branchout::Code.parse("make(:other)"))].map do |input|
+      Branchout::Engine::Pin.new(input: input, value: 0, error: nil, covers: [])
+    end
+    assert_equal %w[test_1_after_make_row_returns_0 test_1_after_make_other_returns_0], support.test_names(pins)
+    varying = Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1]), value: { id: "u1", a: 1, b: 2 }, error: nil, covers: [],
+                                         varying: %w[id])
+    assert_equal %w[a b], support.keys_for(varying, [])
+    assert_equal %w[b], support.keys_for(varying, %w[b id])
+    assert_equal %w[a b], support.keys_for(varying, %w[id])
+    assert_equal %w[x], support.keys_for(Branchout::Engine::Pin.new(input: Branchout::Input.new(args: [1]), value: {}, varying: nil), %w[x])
+  end
+
   # An Array argument is named by its parameter, as a whole when it holds
   # only scalars, and an empty one keeps a word in a minitest name.
   def test_an_array_argument_is_named_by_its_parameter

@@ -89,7 +89,7 @@ class ReadmeQuickStartTest < Minitest::Test
       next unless block.info == "sh"
 
       script = yield block.body
-      out, err, status = Open3.capture3(env, "bash", "-e", "-o", "pipefail", "-c", script, chdir: work, unsetenv_others: true)
+      out, err, status = Open3.capture3(env, "bash", "-e", "-o", "pipefail", "-c", script, chdir: work)
       assert status.success?, "README block failed:\n#{script}\n#{err}"
       shown = blocks[index + 1]
       next if shown.nil? || %w[sh write].include?(shown.info)

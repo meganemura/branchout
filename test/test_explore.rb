@@ -245,10 +245,10 @@ class ExploreTest < Minitest::Test
       GEMFILE
       env = Unbundled.env("BUNDLE_GEMFILE" => gemfile,
                           "PATH" => "#{RbConfig::CONFIG.fetch("bindir")}#{File::PATH_SEPARATOR}#{ENV.fetch("PATH")}")
-      _out, err, status = Open3.capture3(env, "bundle", "install", "--local", "--quiet", chdir: dir, unsetenv_others: true)
+      _out, err, status = Open3.capture3(env, "bundle", "install", "--local", "--quiet", chdir: dir)
       assert status.success?, err
       stdout, stderr, status = Open3.capture3(env.merge("RUBYOPT" => rubyopt), "bundle", "exec", "rspec", "-I", ".",
-                                              "pantry_explore_spec.rb", chdir: dir, unsetenv_others: true)
+                                              "pantry_explore_spec.rb", chdir: dir)
       assert status.success?, stdout + stderr
       assert_includes stderr, "branchout/coverage from #{ROOT}/lib/branchout/coverage.rb\n"
       assert_includes stdout, "covered: 2 of 4 arms by 1 input\n"

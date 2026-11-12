@@ -8,13 +8,14 @@ module Unbundled
   module_function
 
   # The child's Gemfile lives elsewhere and reads no .bundle/config of this
-  # checkout, so the install path CI set there is passed on explicitly.
+  # checkout, so the install path CI set there is passed on explicitly. A
+  # variable the bundle set maps to nil, which unsets it in the child.
   def env(extra)
-    return ENV.to_h.merge(extra) unless defined?(Bundler)
+    return extra unless defined?(Bundler)
 
     path = Bundler.settings[:path]
     base = Bundler.unbundled_env
     base = base.merge("BUNDLE_PATH" => File.expand_path(path, Bundler.root)) if path
-    base.merge(extra)
+    ENV.keys.to_h { |key| [key, nil] }.merge(base, extra)
   end
 end

@@ -5,6 +5,7 @@ require "fileutils"
 require "open3"
 require "rbconfig"
 require "tmpdir"
+require_relative "support/unbundled"
 
 # Reruns the README's commands, so that they and the output pasted after them
 # cannot drift from what branchout prints. Each sh block runs in one folder,
@@ -45,10 +46,10 @@ class ReadmeQuickStartTest < Minitest::Test
       gemfile = blocks.find { |block| block.info == "ruby" && block.body.include?('gem "branchout"') }
       File.write(File.join(work, "Gemfile"), gemfile.body.sub('gem "branchout"', "gem \"branchout\", path: #{ROOT.inspect}"),
                  mode: "a")
-      env = {"BUNDLE_GEMFILE" => File.join(work, "Gemfile"),
-             "PATH" => "#{RbConfig::CONFIG.fetch("bindir")}#{File::PATH_SEPARATOR}#{ENV.fetch("PATH")}"}
-      compared = without_bundle do
-        run_blocks(rails_steps(blocks), work, env) { |script| script.sub(/\Abundle install$/, "bundle install --local --quiet") }
+      env = Unbundled.env("BUNDLE_GEMFILE" => File.join(work, "Gemfile"),
+                          "PATH" => "#{RbConfig::CONFIG.fetch("bindir")}#{File::PATH_SEPARATOR}#{ENV.fetch("PATH")}")
+      compared = run_blocks(rails_steps(blocks), work, env) do |script|
+        script.sub(/\Abundle install$/, "bundle install --local --quiet")
       end
       assert_operator compared, :>=, 3, "the Rails Quick start shows fewer outputs than expected"
     end
@@ -88,7 +89,7 @@ class ReadmeQuickStartTest < Minitest::Test
       next unless block.info == "sh"
 
       script = yield block.body
-      out, err, status = Open3.capture3(env, "bash", "-e", "-o", "pipefail", "-c", script, chdir: work)
+      out, err, status = Open3.capture3(env, "bash", "-e", "-o", "pipefail", "-c", script, chdir: work, unsetenv_others: true)
       assert status.success?, "README block failed:\n#{script}\n#{err}"
       shown = blocks[index + 1]
       next if shown.nil? || %w[sh write].include?(shown.info)
@@ -97,10 +98,6 @@ class ReadmeQuickStartTest < Minitest::Test
       compared += 1
     end
     compared
-  end
-
-  def without_bundle(&block)
-    defined?(Bundler) ? Bundler.with_unbundled_env(&block) : yield
   end
 
   def shims(dir)

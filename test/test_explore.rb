@@ -4,6 +4,7 @@ require "minitest/autorun"
 require "open3"
 require "rbconfig"
 require "tmpdir"
+require_relative "support/unbundled"
 
 # Branchout.explore runs inside a test of the suite it explores, so each
 # test here runs a fixture suite in a Ruby of its own: Coverage is
@@ -242,21 +243,16 @@ class ExploreTest < Minitest::Test
         gem "rspec-core", #{Gem.loaded_specs.fetch("rspec-core") { Gem::Specification.find_by_name("rspec-core") }.version.to_s.inspect}
         gem "branchout", path: #{ROOT.inspect}
       GEMFILE
-      env = {"BUNDLE_GEMFILE" => gemfile, "PATH" => "#{RbConfig::CONFIG.fetch("bindir")}#{File::PATH_SEPARATOR}#{ENV.fetch("PATH")}"}
-      without_bundle do
-        _out, err, status = Open3.capture3(env, "bundle", "install", "--local", "--quiet", chdir: dir)
-        assert status.success?, err
-        stdout, stderr, status = Open3.capture3(env.merge("RUBYOPT" => rubyopt), "bundle", "exec", "rspec", "-I", ".",
-                                                "pantry_explore_spec.rb", chdir: dir)
-        assert status.success?, stdout + stderr
-        assert_includes stderr, "branchout/coverage from #{ROOT}/lib/branchout/coverage.rb\n"
-        assert_includes stdout, "covered: 2 of 4 arms by 1 input\n"
-      end
+      env = Unbundled.env("BUNDLE_GEMFILE" => gemfile,
+                          "PATH" => "#{RbConfig::CONFIG.fetch("bindir")}#{File::PATH_SEPARATOR}#{ENV.fetch("PATH")}")
+      _out, err, status = Open3.capture3(env, "bundle", "install", "--local", "--quiet", chdir: dir, unsetenv_others: true)
+      assert status.success?, err
+      stdout, stderr, status = Open3.capture3(env.merge("RUBYOPT" => rubyopt), "bundle", "exec", "rspec", "-I", ".",
+                                              "pantry_explore_spec.rb", chdir: dir, unsetenv_others: true)
+      assert status.success?, stdout + stderr
+      assert_includes stderr, "branchout/coverage from #{ROOT}/lib/branchout/coverage.rb\n"
+      assert_includes stdout, "covered: 2 of 4 arms by 1 input\n"
     end
-  end
-
-  def without_bundle(&block)
-    defined?(Bundler) ? Bundler.with_unbundled_env(&block) : yield
   end
 
   # An input's before Ruby makes the rows the entry reads, in the input's

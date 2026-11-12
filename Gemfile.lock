@@ -9,9 +9,9 @@ GEM
     diff-lcs (1.6.2)
     ffi (1.17.4)
     ffi (1.17.4-x86_64-linux-gnu)
-    hegeltest (0.4.1)
+    hegeltest (0.5.1)
       ffi (~> 1.17, >= 1.17.4)
-    hegeltest (0.4.1-x86_64-linux)
+    hegeltest (0.5.1-x86_64-linux)
       ffi (~> 1.17, >= 1.17.4)
     minitest (5.27.0)
     rspec (3.13.2)
@@ -34,7 +34,7 @@ PLATFORMS
 
 DEPENDENCIES
   branchout!
-  hegeltest (= 0.4.1)
+  hegeltest (= 0.5.1)
   minitest (~> 5.25)
   rspec (~> 3.13)
 

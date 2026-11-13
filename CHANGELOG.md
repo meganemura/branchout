@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.0] - 2026-11-13
 
 First release. branchout runs a Ruby method on many inputs, shows the branch arms that no input took, and writes tests that pin what the method does now. It never calls a model: an agent reads the frontier and proposes the next inputs.
 

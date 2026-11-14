@@ -10,6 +10,10 @@ module Branchout
 
     type varying = :whole | Array[String] | nil
 
+    # The part of Coverage's result for one file that CoverageSession
+    # measures, which Coverage's own signature does not say.
+    type file_coverage = { lines: Array[Integer?], branches: branches }
+
     # +thawed+ is true when the input ran with unfrozen Strings, because
     # with frozen ones, as literals in an emitted test are, it raised
     # FrozenError.
@@ -101,7 +105,7 @@ module Branchout
     # +not_counted+ lists the methods in other files that the counted code
     # calls on self, such as a parent class's helper. Their arms are not in
     # the report, so a check moved into one makes arms_total smaller.
-    attr_reader template: { lines: Array[Integer?], branches: branches }
+    attr_reader template: file_coverage
 
     attr_reader private_calls: Array[Symbol]
 
@@ -115,7 +119,7 @@ module Branchout
 
     @required_new: [ String, Integer ]?
 
-    @method: untyped
+    @method: Method | UnboundMethod
 
     @const: Class
 
@@ -189,8 +193,9 @@ module Branchout
     # : (Input, bool) -> [untyped, ExceptionInfo?]
     def outcome: (Input, bool) -> [ untyped, ExceptionInfo? ]
 
-    # : [T] (Input) { () -> T } -> T
-    def refusing_lets: [T] (Input) { () -> T } -> T
+    # Only a run inside a suite, which has a host, refuses lets.
+    # : [T] (Host, Input) { () -> T } -> T
+    def refusing_lets: [T] (Host, Input) { () -> T } -> T
 
     # : () -> void
     def boot: () -> void
@@ -241,8 +246,8 @@ module Branchout
     # each file loaded after coverage started. A method defined in C, in
     # Ruby's own prelude, or by a file loaded before that has no arms to
     # count here.
-    # : (Hash[String, untyped]) -> Array[Callee]
-    def callees_in_other_files: (Hash[String, untyped]) -> Array[Callee]
+    # : (Hash[String, file_coverage]) -> Array[Callee]
+    def callees_in_other_files: (Hash[String, file_coverage]) -> Array[Callee]
 
     # Where installed gems and Ruby's own library live. An app cannot move
     # a check into one, so its methods hide none of the app's arms.
@@ -251,8 +256,8 @@ module Branchout
 
     # The class +const+ names where it is written, inside +namespace+, as
     # Ruby's lexical lookup finds it.
-    # : (String, String) -> untyped
-    def built_class: (String, String) -> untyped
+    # : (String, String) -> Module
+    def built_class: (String, String) -> Module
 
     # +holder+ is the class the call is made on. A module with no name has
     # only an inspect that carries its address, so it is named by +holder+.
@@ -273,6 +278,7 @@ module Branchout
     # : [T] () { () -> T } -> T
     def quietly: [T] () { () -> T } -> T
 
+    # The value the entry returned, which can be any object.
     # : (Input, bool) -> untyped
     def invoke: (Input, bool) -> untyped
 
@@ -283,8 +289,8 @@ module Branchout
     # : (Input, bool) -> untyped
     def run_entry: (Input, bool) -> untyped
 
-    # : () { (?) -> untyped } -> untyped
-    def timed: () { (?) -> untyped } -> untyped
+    # : [T] () { () -> T } -> T
+    def timed: [T] () { () -> T } -> T
 
     # When new or a setup call raised, no call left a state to read, and
     # the error is pinned as it is without an after; the report says the
@@ -313,6 +319,7 @@ module Branchout
     # A receiver the input's Ruby builds gets the name the emitted test
     # gives it, so the arguments can be read from it, as in
     # "room.participants.first".
+    # The receiver, which can be any object the class or the input's Ruby builds.
     # : (Input, Binding, bool) -> untyped
     def prepared_receiver: (Input, Binding, bool) -> untyped
 
@@ -323,8 +330,10 @@ module Branchout
     # : (Input, Binding, bool) -> [Array[untyped], Hash[Symbol, untyped]]
     def fresh_arguments: (Input, Binding, bool) -> [ Array[untyped], Hash[Symbol, untyped] ]
 
-    # : (untyped, Binding, bool) -> untyped
-    def built: (untyped, Binding, bool) -> untyped
+    # +value+ is a copy of an input's value, and what its Code builds can be
+    # any object.
+    # : (Input::value, Binding, bool) -> untyped
+    def built: (Input::value, Binding, bool) -> untyped
 
     # Where one input's Ruby runs: the top level, as in an emitted test, or
     # in a suite the test itself, so it reaches the test's factories,
@@ -337,8 +346,8 @@ module Branchout
 
     # The target loaded under CoverageSession, which measures lines and
     # branches, so the result holds both for its file.
-    # : (Hash[String, untyped]) -> { lines: Array[Integer?], branches: branches }
-    def extract: (Hash[String, untyped]) -> { lines: Array[Integer?], branches: branches }
+    # : (Hash[String, file_coverage]) -> file_coverage
+    def extract: (Hash[String, file_coverage]) -> file_coverage
   end
 
   class Runner::ExceptionInfo

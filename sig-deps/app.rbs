@@ -1,0 +1,28 @@
+# The parts of the app's own libraries that branchout calls from inside a
+# suite, where the app loaded them. branchout does not depend on them, so
+# their signatures are not in this check.
+
+module ActiveRecord
+  class Base
+    def self.transaction: [T] (?requires_new: bool) { () -> T } -> T
+  end
+
+  class Rollback < StandardError
+  end
+end
+
+module Minitest
+  class Spec
+  end
+end
+
+module RSpec
+  def self.configuration: () -> RSpec::Core::Configuration
+
+  module Core
+    class Configuration
+      # The files rspec requires before the spec files, as .rspec or -r names them.
+      def requires: () -> Array[String]
+    end
+  end
+end

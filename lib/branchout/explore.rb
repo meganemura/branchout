@@ -6,45 +6,50 @@ module Branchout
   # test instance whose helpers, factories, and fixtures the inputs' Ruby
   # reaches. +around+ runs one input and undoes what it wrote. +test_class+
   # is the class an emitted minitest file inherits from, and +spec_type+ the
-  # type metadata an emitted RSpec file gives its describe.
-  #
-  # Neither rbs-inline nor steep reads the methods of a Data.define block, so
-  # sig/branchout/host.rbs declares them, and steep does not check them.
+  # type metadata an emitted RSpec file gives its describe, which it writes
+  # only when it is a Symbol.
   Host = Data.define(
-    :test, #: untyped
+    :test, #: Object
     :around, #: Proc
     :test_class, #: String?
-    :spec_type #: untyped
-  ) do
-    # steep:ignore:start
+    :spec_type #: Object?
+  )
 
+  # Its methods are in a class body, not in the block of Data.define, so
+  # that rbs-inline reads their types and steep checks them.
+  class Host
     # Runs the block with the test's lets forgotten, then puts them back.
     # Returns the names of the lets the block read, the names among them
     # that the test had not made before, and the block's result.
     # RSpec keeps a let's value in @__memoized, minitest/spec in @_memoized.
+    # Each holds a Hash of let name => value.
+    #: [T] () { () -> T } -> [Array[Symbol], Array[Symbol], T]
     def lets_read_by
       holder, name = let_values
-      return [[], [], yield] unless holder
+      return [[], [], yield] unless holder && name
 
-      kept = holder.instance_variable_get(name)
-      holder.instance_variable_set(name, {})
+      kept = holder.instance_variable_get(name) #: Hash[Symbol, top]?
+      forgotten = {} #: Hash[Symbol, top]
+      holder.instance_variable_set(name, forgotten)
       result = yield
-      read = holder.instance_variable_get(name).keys
-      [read, read.reject { |let| kept&.key?(let) }, result]
+      lets = holder.instance_variable_get(name) #: Hash[Symbol, top]
+      read = lets.keys
+      # A return, which steep checks against the tuple the signature gives.
+      return [read, read.reject { |let| kept&.key?(let) }, result]
     ensure
-      holder&.instance_variable_set(name, kept)
+      holder&.instance_variable_set(name, kept) if name
     end
 
     private
 
+    # The object that holds the test's lets and the name of its variable.
+    #: () -> [Object, Symbol]?
     def let_values
       rspec = test.instance_variable_get(:@__memoized) if test.instance_variable_defined?(:@__memoized)
       return [rspec, :@memoized] if rspec&.instance_variable_defined?(:@memoized)
 
       [test, :@_memoized] if defined?(Minitest::Spec) && test.is_a?(Minitest::Spec)
     end
-
-    # steep:ignore:end
   end
 
   # The helper files a suite loads before its tests, most specific first.
@@ -55,12 +60,12 @@ module Branchout
   # rows another wrote, and the example's own rows are left as they were.
   # It marks the input as rolled back, also when an around calls it, so the
   # Runner knows that a second run of the input starts from the same rows.
-  # ActiveRecord is the app's, so its signatures are not in this check.
+  # ActiveRecord is the app's; sig-deps/app.rbs declares what this calls.
   ROLL_BACK = lambda do |&input|
-    ActiveRecord::Base.transaction(requires_new: true) do # steep:ignore UnknownConstant
+    ActiveRecord::Base.transaction(requires_new: true) do
       Thread.current[:branchout_rolled_back] = true
       input.call
-      raise ActiveRecord::Rollback # steep:ignore UnknownConstant
+      raise ActiveRecord::Rollback
     end
   end #: Proc
 
@@ -73,8 +78,8 @@ module Branchout
   # self. +inputs+ is the inputs file's list, or its path. The target is the
   # file that defines the entry, unless +target+ names it.
   # @rbs entry: String
-  # @rbs within: untyped
-  # @rbs inputs: String | Array[untyped]
+  # @rbs within: Object
+  # @rbs inputs: String | Array[plain]
   # @rbs target: String?
   # @rbs emit_tests: String?
   # @rbs format: String | Symbol | nil
@@ -97,19 +102,20 @@ module Branchout
     target ||= defining_file(entry)
     user_inputs, type_overrides, after = inputs.is_a?(String) ? InputFile.load(inputs) : [parse_inputs(inputs), nil, nil]
     requires = requires.nil? ? [loaded_helper].compact : Array(requires) #: Array[String]
-    format = Emitters.resolve(format&.to_s, emit_tests) if emit_tests
+    emit_format = Emitters.resolve(format&.to_s, emit_tests) if emit_tests
     if emit_tests && requires.empty?
       raise Error, "the suite loaded no #{HELPERS.join(", ")} from #{Dir.pwd}, so an emitted test would not load the app; " \
                    "pass the helper file as requires:"
     end
     host = Host.new(test: within, around: around || (defined?(ActiveRecord::Base) ? ROLL_BACK : RUN_ONLY),
-                    test_class: within.class.superclass.name, spec_type: spec_type_of(within))
+                    test_class: within.class.superclass&.name, spec_type: spec_type_of(within))
     result = Engine.explore(
       target: target, entry: entry, user_inputs: user_inputs, type_overrides: type_overrides, seed: seed,
       strategies: strategies, random: random, mutate_cap: mutate_cap, timeout: timeout, requires: requires, host: host, after: after
     )
-    if emit_tests
-      warnings = Emitters.write(format, result, Target.parse(target, entry, type_overrides: type_overrides), # steep:ignore ArgumentTypeMismatch
+    # emit_format is set exactly when emit_tests is.
+    if emit_tests && emit_format
+      warnings = Emitters.write(emit_format, result, Target.parse(target, entry, type_overrides: type_overrides),
                                 emit_tests, require_by_name: true, pin_keys: pin_keys)
       warnings.each { |line| $stderr.puts line }
     end
@@ -132,7 +138,7 @@ module Branchout
   end
 
   # Symbol keys and JSON values come back as an inputs file would give them.
-  #: (untyped) -> Array[Input]
+  #: (Object) -> Array[Input]
   def parse_inputs(inputs)
     raise Error, "inputs must be a list or an inputs file path" unless inputs.is_a?(Array)
 
@@ -150,9 +156,12 @@ module Branchout
     nil
   end
 
-  #: (untyped) -> untyped
+  # An RSpec example group's class answers metadata, which this check has
+  # no signature for, so steep does not check that call.
+  #: (Object) -> Object?
   def spec_type_of(test)
-    test.class.metadata[:type] if test.class.respond_to?(:metadata)
+    group = test.class #: untyped
+    group.metadata[:type] if group.respond_to?(:metadata)
   end
 
   private_class_method :spec_type_of, :defining_file, :parse_inputs, :loaded_helper

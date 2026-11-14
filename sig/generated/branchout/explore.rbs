@@ -5,25 +5,41 @@ module Branchout
   # test instance whose helpers, factories, and fixtures the inputs' Ruby
   # reaches. +around+ runs one input and undoes what it wrote. +test_class+
   # is the class an emitted minitest file inherits from, and +spec_type+ the
-  # type metadata an emitted RSpec file gives its describe.
-  #
-  # Neither rbs-inline nor steep reads the methods of a Data.define block, so
-  # sig/branchout/host.rbs declares them, and steep does not check them.
+  # type metadata an emitted RSpec file gives its describe, which it writes
+  # only when it is a Symbol.
   class Host < Data
-    attr_reader test(): untyped
+    attr_reader test(): Object
 
     attr_reader around(): Proc
 
     attr_reader test_class(): String?
 
-    attr_reader spec_type(): untyped
+    attr_reader spec_type(): Object?
 
-    def self.new: (untyped test, Proc around, String? test_class, untyped spec_type) -> instance
-                | (test: untyped, around: Proc, test_class: String?, spec_type: untyped) -> instance
+    def self.new: (Object test, Proc around, String? test_class, Object? spec_type) -> instance
+                | (test: Object, around: Proc, test_class: String?, spec_type: Object?) -> instance
 
     def self.members: () -> [ :test, :around, :test_class, :spec_type ]
 
     def members: () -> [ :test, :around, :test_class, :spec_type ]
+  end
+
+  # Its methods are in a class body, not in the block of Data.define, so
+  # that rbs-inline reads their types and steep checks them.
+  class Host
+    # Runs the block with the test's lets forgotten, then puts them back.
+    # Returns the names of the lets the block read, the names among them
+    # that the test had not made before, and the block's result.
+    # RSpec keeps a let's value in @__memoized, minitest/spec in @_memoized.
+    # Each holds a Hash of let name => value.
+    # : [T] () { () -> T } -> [Array[Symbol], Array[Symbol], T]
+    def lets_read_by: [T] () { () -> T } -> [ Array[Symbol], Array[Symbol], T ]
+
+    private
+
+    # The object that holds the test's lets and the name of its variable.
+    # : () -> [Object, Symbol]?
+    def let_values: () -> [ Object, Symbol ]?
   end
 
   # The helper files a suite loads before its tests, most specific first.
@@ -34,7 +50,7 @@ module Branchout
   # rows another wrote, and the example's own rows are left as they were.
   # It marks the input as rolled back, also when an around calls it, so the
   # Runner knows that a second run of the input starts from the same rows.
-  # ActiveRecord is the app's, so its signatures are not in this check.
+  # ActiveRecord is the app's; sig-deps/app.rbs declares what this calls.
   ROLL_BACK: Proc
 
   RUN_ONLY: Proc
@@ -44,8 +60,8 @@ module Branchout
   # self. +inputs+ is the inputs file's list, or its path. The target is the
   # file that defines the entry, unless +target+ names it.
   # @rbs entry: String
-  # @rbs within: untyped
-  # @rbs inputs: String | Array[untyped]
+  # @rbs within: Object
+  # @rbs inputs: String | Array[plain]
   # @rbs target: String?
   # @rbs emit_tests: String?
   # @rbs format: String | Symbol | nil
@@ -60,18 +76,20 @@ module Branchout
   # @rbs mutate_cap: Integer
   # @rbs timeout: Integer | Float
   # @rbs return: String
-  def self?.explore: (String entry, within: untyped, inputs: String | Array[untyped], ?target: String?, ?emit_tests: String?, ?format: String | Symbol | nil, ?json: bool, ?verbose: bool, ?pin_keys: Array[String], ?requires: String | Array[String] | nil, ?around: Proc?, ?strategies: Array[String], ?seed: Integer, ?random: Integer, ?mutate_cap: Integer, ?timeout: Integer | Float) -> String
+  def self?.explore: (String entry, within: Object, inputs: String | Array[plain], ?target: String?, ?emit_tests: String?, ?format: String | Symbol | nil, ?json: bool, ?verbose: bool, ?pin_keys: Array[String], ?requires: String | Array[String] | nil, ?around: Proc?, ?strategies: Array[String], ?seed: Integer, ?random: Integer, ?mutate_cap: Integer, ?timeout: Integer | Float) -> String
 
   # : (String) -> String
   def self?.defining_file: (String) -> String
 
   # Symbol keys and JSON values come back as an inputs file would give them.
-  # : (untyped) -> Array[Input]
-  def self?.parse_inputs: (untyped) -> Array[Input]
+  # : (Object) -> Array[Input]
+  def self?.parse_inputs: (Object) -> Array[Input]
 
   # : () -> String?
   def self?.loaded_helper: () -> String?
 
-  # : (untyped) -> untyped
-  def self?.spec_type_of: (untyped) -> untyped
+  # An RSpec example group's class answers metadata, which this check has
+  # no signature for, so steep does not check that call.
+  # : (Object) -> Object?
+  def self?.spec_type_of: (Object) -> Object?
 end

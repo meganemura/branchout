@@ -8,21 +8,21 @@ module Branchout
   # was set up. Setup leaves measurement suspended: explore resumes it
   # around each call.
   module CoverageSession
-    # steep:ignore:start
-
-    # __dir__ is nil only in code that eval runs.
-    LIB = File.join(File.expand_path("..", __dir__), "") #: String
-    # steep:ignore:end
+    # __dir__ is nil only in code that eval runs, and this file is required.
+    HERE = __dir__ #: String
+    LIB = File.join(File.expand_path("..", HERE), "") #: String
+    private_constant :HERE
 
     # Many suites start SimpleCov unconditionally at the top of a helper.
     # From a helper that loads after the session, its Coverage.start would
     # raise "coverage measurement is already setup", so the session keeps
     # measuring, and the tool reads the session's result when it reports.
+    # Coverage takes :all, or a keyword per kind of coverage, and returns nil.
     module LaterStart
-      #: (*untyped, **untyped) -> untyped
+      #: (*Symbol, **bool) -> nil
       def setup(...) = (super unless CoverageSession.installed?)
 
-      #: (*untyped, **untyped) -> untyped
+      #: (*Symbol, **bool) -> nil
       def start(...) = (super unless CoverageSession.installed?)
     end
 

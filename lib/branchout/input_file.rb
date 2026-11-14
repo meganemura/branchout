@@ -116,14 +116,19 @@ module Branchout
         step_label = "#{label}[#{index}]"
         raise Error, "#{step_label} must be an object" unless step.is_a?(Hash)
 
-        unknown = step.keys - %w[method args kwargs]
+        unknown = step.keys - %w[method args kwargs block]
         raise Error, "#{step_label} has unknown keys: #{unknown.join(", ")}" unless unknown.empty?
         raise Error, "#{step_label} is missing method" unless step.key?("method")
 
         name = step["method"]
         raise Error, "#{step_label} method #{name.inspect} is not a method name" unless name.is_a?(String) && METHOD_NAME.match?(name)
 
-        Input::SetupCall.new(name, Input.new(args: step.fetch("args", []), kwargs: step["kwargs"] || {}))
+        begin
+          block = Code.block(step["block"]) if step.key?("block")
+        rescue Error => e
+          raise Error, "#{step_label} #{e.message}"
+        end
+        Input::SetupCall.new(name, Input.new(args: step.fetch("args", []), kwargs: step["kwargs"] || {}, block: block))
       end
     end
   end

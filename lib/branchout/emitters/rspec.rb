@@ -398,8 +398,9 @@ module Branchout
             kind = pin.error ? :inline : :before
             input.setup.each do |call|
               plain = Support.argument_list(call.arguments)
-              code = Support.call_text(receiver_expression, call.method_name, Support.argument_list(call.arguments, thawed: pin.thawed), [])
-              steps << Step.new(kind, "#{call.method_name}#{"(#{plain})" unless plain.empty?}", code)
+              code = Support.with_block(Support.call_text(receiver_expression, call.method_name, Support.argument_list(call.arguments, thawed: pin.thawed), []),
+                                        call.arguments.block)
+              steps << Step.new(kind, Support.with_block("#{call.method_name}#{"(#{plain})" unless plain.empty?}", call.arguments.block), code)
             end
             steps + fact_steps(input)
           end

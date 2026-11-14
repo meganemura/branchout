@@ -15,6 +15,8 @@ module Branchout
     # A block as a call takes it, written with braces so it binds to the
     # call in an emitted assertion as it did in explore.
     def self.block(source)
+      raise Error, "block #{source.inspect} is not a block such as \"{ |item| item.price > 2 }\"" unless source.is_a?(String)
+
       body = Prism.parse("m #{source}").value.statements.body
       unless source.start_with?("{") && body.length == 1 && body.first.respond_to?(:block) && body.first.block
         raise Error, "block #{source.inspect} is not a block such as \"{ |item| item.price > 2 }\""

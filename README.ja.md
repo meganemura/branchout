@@ -485,7 +485,8 @@ BOUNDARIES
 `{"args": [5], "new": {"kwargs": {"main": 1}}}` は `Const.new(main: 1).method(5)` を呼ぶ。
 メソッドが読む状態が `new` のあとの呼び出しで決まるときは、その呼び出しを順に `setup` へ書く。
 `{"args": [], "setup": [{"method": "add", "args": ["apple", 3]}]}` は、新しいレシーバーで `add("apple", 3)` を呼んでからメソッドを呼ぶ。
-各ステップは `method`、`args`、`kwargs` を取る。
+各ステップは `method`、`args`、`kwargs`、`block` を取る（`{"method": "start", "args": ["r1"], "block": "{ hold.pause(:read); :end }"}`）。
+`setup` があるときは、`new` で作ったレシーバーにも出力するテストと同じ名前が付くので、ステップの引数とブロックからそのレシーバーを読める。
 カバレッジが数えるのはメソッドの呼び出しだけで、`new` と `setup` は数えない。
 対象ファイルが `initialize` を定義していれば、`mutate` と `random` はその引数から `new` も埋める。
 `--entry ENTRY` は位置引数の代わりになる。
@@ -539,7 +540,7 @@ ruby bin/branchout baselines examples/magic_value.rb MagicValue.classify \
 エントリは配列だけでもよい。
 キーワードは `kwargs` に、コンストラクタ引数は `new` に、レシーバーの状態を作る呼び出しは `setup` に書く。
 保存済みのレコードのように `new` では作れないレシーバーは、`receiver` に Ruby で書く（`{"receiver": {"ruby": "Factories.loan(3)"}, "args": [{"ruby": "loan.amount"}]}`）。
-レシーバーには、出力するテストと同じ名前（クラス名のスネークケース）が付くので、引数と `setup` からそのレシーバーを読める。
+レシーバーには、出力するテストと同じ名前（クラス名のスネークケース）が付くので、引数、`setup`、`block` からそのレシーバーを読める。
 `before` の Ruby は、レシーバーと引数より前に、その入力のセーブポイントの中で動き、クラスメソッドが探す行のようにメソッドが読むものを作る（`{"before": {"ruby": "FactoryBot.create(:part, sku: \"A\")"}, "args": ["A"]}`）。
 RSpec はそれを入力の context の `before` として書き、minitest は呼び出しの前の行として書く。どちらも各行を字下げする。
 ただし `<<` と `<<-` のヒアドキュメントの本文と終端は元の桁のまま書くので、ヒアドキュメントは終わり、その文字列も変わらない。

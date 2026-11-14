@@ -246,10 +246,13 @@ module Branchout
         before = input.before ? input.before.source.lines(chomp: true) : []
         return [before, call.(receiver)] if input.setup.empty? && !input.receiver.is_a?(Code)
 
-        name = input.receiver.is_a?(Code) ? built_receiver_name(target) : receiver_name(target)
+        # The name explore gave the receiver, so a setup block or an
+        # argument that reads it reads the same object here.
+        name = built_receiver_name(target)
         statements = [*before, "#{name} = #{receiver}"]
         input.setup.each do |setup_call|
-          statements << call_text(name, setup_call.method_name, argument_list(setup_call.arguments, thawed: thawed), [])
+          statements << with_block(call_text(name, setup_call.method_name, argument_list(setup_call.arguments, thawed: thawed), []),
+                                   setup_call.arguments.block)
         end
         [statements, call.(name)]
       end

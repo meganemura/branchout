@@ -493,10 +493,14 @@ module Branchout
       else
         new_args, new_kwargs = input.receiver ? fresh_arguments(input.receiver, scope, thawed) : [[], {}]
         receiver = @const.send(:new, *new_args, **new_kwargs)
+        # With setup calls the emitted test names the receiver too, so a
+        # setup block, or an argument, can read it.
+        scope.local_variable_set(Emitters::Support.built_receiver_name(@target), receiver) unless input.setup.empty?
       end
       input.setup.each do |call|
         call_args, call_kwargs = fresh_arguments(call.arguments, scope, thawed)
-        receiver.public_send(call.method_name, *call_args, **call_kwargs)
+        block = scope.eval("proc #{call.arguments.block.source}", "(input)") if call.arguments.block
+        receiver.public_send(call.method_name, *call_args, **call_kwargs, &block)
       end
       receiver
     end

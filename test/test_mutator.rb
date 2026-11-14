@@ -151,6 +151,9 @@ class MutatorTest < Minitest::Test
     "{\"inputs\": [{\"args\": [], \"setup\": [{\"args\": []}]}]}" => "inputs[0] setup[0] is missing method",
     "{\"inputs\": [{\"args\": [], \"setup\": [{\"method\": \"a b\"}]}]}" => "inputs[0] setup[0] method \"a b\" is not a method name",
     "{\"inputs\": [{\"args\": [], \"setup\": [{\"method\": \"a\", \"new\": []}]}]}" => "inputs[0] setup[0] has unknown keys: new",
+    "{\"inputs\": [{\"setup\": [{\"method\": \"a\", \"block\": \"x\"}]}]}" =>
+      "inputs[0] setup[0] block \"x\" is not a block such as \"{ |item| item.price > 2 }\"",
+    "{\"inputs\": [{\"block\": 1}]}" => "inputs[0] block 1 is not a block such as \"{ |item| item.price > 2 }\"",
     "{\"inputs\": [{\"args\": [], \"new\": {\"args\": [], \"setup\": []}}]}" => "inputs[0] new has unknown keys: setup",
     "{\"inputs\": [{\"args\": [], \"pin_keys\": \"a\"}]}" => "inputs[0] pin_keys must be an array of key names",
     "{\"inputs\": [{\"args\": [], \"pin_keys\": [1]}]}" => "inputs[0] pin_keys must be an array of key names",

@@ -598,6 +598,38 @@ class CLITest < Minitest::Test
     end
   end
 
+  # A setup call takes a block, which can read the receiver by the name
+  # the emitted test gives it, so "start, then finish" is written as calls.
+  def test_a_setup_call_takes_a_block_that_reads_the_receiver
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "gate.rb")
+      File.write(target, <<~RUBY)
+        class Gate
+          def initialize = @held = {}
+          def hold(name, &block) = @held[name] = block
+          def open = @held.empty? ? :none : @held.map { |name, block| [name, block.call] }.to_h
+          def note = :noted
+        end
+      RUBY
+      inputs = write_inputs(dir, {"inputs" => [{"setup" => [{"method" => "hold", "args" => ["a"], "block" => "{ gate.note }"}]}, []]})
+      test = File.join(dir, "gate_test.rb")
+      spec = File.join(dir, "gate_spec.rb")
+      [test, spec].each do |out|
+        stdout, stderr, status = run_cli("explore", target, "Gate#open", "--strategy", "inputs", "--inputs", inputs, "--emit-tests", out)
+        assert status.success?, stderr
+        assert_includes stdout, %(returns { "a" => :noted } for inputs[0]\n)
+      end
+      json = JSON.parse(run_cli("explore", target, "Gate#open", "--strategy", "inputs", "--inputs", inputs, "--json").first)
+      assert_equal [{"args" => ["a"], "kwargs" => {}, "block" => "{ gate.note }", "method" => "hold"}], json["returned"].first["inputs"].first["setup"]
+      assert_includes File.read(test), "    gate = Gate.new\n    gate.hold(\"a\") { gate.note }\n    assert_equal({ \"a\" => :noted }, gate.open)\n"
+      assert_includes File.read(spec), "      before do\n        gate.hold(\"a\") { gate.note }\n      end\n"
+      _out, err, status = Open3.capture3(RbConfig.ruby, test)
+      assert status.success?, err
+      _out, err, status = Open3.capture3(RbConfig.ruby, "-rrspec/autorun", "-e", "", spec)
+      assert status.success?, err
+    end
+  end
+
   def test_setup_is_refused_for_a_class_method
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [{ "args" => [1], "setup" => [{ "method" => "add", "args" => [] }] }] })

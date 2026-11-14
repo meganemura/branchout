@@ -8,6 +8,9 @@
 - An inputs file is read as UTF-8 whatever the locale. Before, a note in another script under `LANG=C` stopped explore with an encoding backtrace.
 - An error message that names a file descriptor, such as `Is a directory @ io_fillbuf - fd:5 ...`, is matched by a Regexp that accepts any descriptor (`fd:\d+`). Before, the test pinned `fd:5`, which depends on what the process opened before. stderr also names a machine path in such a pattern.
 - stderr names each memo on `defined?(@ivar)` in the counted code (`return @value if defined?(@value)`) and says how to test it by hand: its cached arm returns what the first call stored, so a covered memo pins the same value as no memo. Before, only an `@ivar ||=` memo that was the method's only branch got a note.
+- A `setup` step takes a `block` (`{"method": "start", "args": ["r1"], "block": "{ hold.pause(:read); :end }"}`), which the emitted test writes after the call. With setup steps, a receiver built by `new` takes the name the emitted test gives it, so a step's arguments and block can read it. Before, `block` in a step was refused as an unknown key.
+- A minitest test names a receiver built by `new` as the RSpec `let` does, `object` in place of a name RSpec takes for its own methods.
+- A `block` that is not a String is refused with the block message. Before, explore stopped with a `NoMethodError` backtrace.
 - A warning about a machine path in a returned value or a message no longer takes the period of the sentence into the path.
 
 ## [0.1.0] - 2026-11-13

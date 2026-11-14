@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - `RETURNED` and the `--json` `returns` and `value` mark a path under the temporary or the home directory as `<tmp>/.../` or `<home>/.../`, and two values that differ only there say so. Before, the directories were dropped, so the report showed a value the method never returned (`"No hit under app."`).
+- A returned Array, Struct, or Data too long for a line shows its size or class, then the leaves that tell it from the other values of that size or class (`returns an Array of 2 with [1].kind: "skips-callbacks", [0].line: 2, ...`), in `RETURNED` and in the `--json` `returns`. Before, it was cut after 69 characters, so Arrays of one Data class all read alike.
 - A warning about a machine path in a returned value or a message no longer takes the period of the sentence into the path.
 
 ## [0.1.0] - 2026-11-13

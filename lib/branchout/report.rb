@@ -95,7 +95,11 @@ module Branchout
         whole = Emitters::Support.ruby_literal(Emitters::Support.marked(value))
         next [whole, whole, group] if whole.length <= SHOWN_WIDTH
 
-        shown = shown_hash(value, differences.fetch(value)) if Emitters::Support.keyed?(value)
+        shown = if Emitters::Support.keyed?(value)
+          shown_hash(value, differences.fetch(value))
+        elsif value.is_a?(Array) || value.is_a?(Struct) || value.is_a?(Data)
+          shown_composite(value, values)
+        end
         [shown || "#{whole[0, SHOWN_WIDTH - 3]}...", whole, group]
       end
       # Two values that differ only in the directories a mark stands for
@@ -124,6 +128,71 @@ module Branchout
 
       line = text.(entries)
       line.length <= SHOWN_WIDTH ? line : "#{line[0, SHOWN_WIDTH - 3]}..."
+    end
+
+    # An Array, a Struct, or a Data too long for a line says its size or
+    # its class, then the leaves that tell it from the other values of that
+    # size or class, since those start the same way and a cut start would
+    # read alike, then the rest of its leaves that fit, or nil when none
+    # fits. Values of another size or class are told apart by the start.
+    def shown_composite(value, values)
+      leaves = composite_leaves(value)
+      return if leaves.empty?
+
+      head = value.is_a?(Array) ? "an Array of #{value.length}" : Emitters::Support.article(Emitters::Support.class_literal(value))
+      differs = ->(peer, path) { !peer.key?(path) || !peer[path].eql?(leaves[path]) }
+      peers = values.reject { |other| other.eql?(value) }.select { |other| same_shape?(other, value) }.map { |other| composite_leaves(other) }
+      paths = leaves.keys
+      # The telling leaves come first, in their order in the value.
+      text = lambda do |told, rest = []|
+        entries = (paths.select { |path| told.include?(path) } + rest).map { |path| "#{Emitters::Support.path_text(path)}: #{leaf_text(leaves[path])}" }
+        "#{head} with #{entries.join(", ")}#{", ..." if told.length + rest.length < paths.length}"
+      end
+      told = []
+      until peers.empty?
+        best = paths.each_with_index.max_by { |path, index| [peers.count { |peer| differs.(peer, path) }, -index] }.first
+        break if peers.none? { |peer| differs.(peer, best) } || (told.any? && text.(told + [best]).length > SHOWN_WIDTH)
+
+        told << best
+        peers.reject! { |peer| differs.(peer, best) }
+      end
+      rest = []
+      paths.each { |path| rest << path if !told.include?(path) && text.(told, rest + [path]).length <= SHOWN_WIDTH }
+      return if told.empty? && rest.empty?
+
+      line = text.(told, rest)
+      line.length <= SHOWN_WIDTH ? line : "#{line[0, SHOWN_WIDTH - 3]}..."
+    end
+
+    def same_shape?(other, value)
+      return other.is_a?(Array) && other.length == value.length if value.is_a?(Array)
+
+      other.instance_of?(value.class)
+    end
+
+    # path => leaf under an Array, a Hash, a Struct, or a Data, with a
+    # member as a Symbol key, so a path reads as a reader writes it:
+    # [0].kind.
+    def composite_leaves(value, path = [], out = {})
+      children = case value
+        when Array then value.each_with_index.map { |item, index| [index, item] }
+        when Hash then value.map { |key, item| [key.is_a?(Symbol) ? Emitters::Support::SymbolKey.new(key.to_s) : key, item] }
+        when Struct, Data then value.to_h.map { |key, item| [Emitters::Support::SymbolKey.new(key.to_s), item] }
+        else []
+      end
+      if children.empty?
+        out[path] = value unless path.empty?
+        return out
+      end
+
+      children.each { |step, item| composite_leaves(item, path + [step], out) }
+      out
+    end
+
+    def leaf_text(item)
+      return Emitters::Support.ruby_literal(Emitters::Support.marked(item)) if Emitters::Support.literal?(item)
+
+      Emitters::Support.article(Emitters::Support.class_literal(item))
     end
 
     # An input from the inputs file too long for a line is named by its

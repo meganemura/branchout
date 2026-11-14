@@ -274,6 +274,33 @@ class CLITest < Minitest::Test
     end
   end
 
+  # Arrays of one Data class start the same way, so a long one shows its
+  # size, then the members that tell it from the others of that size.
+  def test_returned_arrays_of_data_show_the_members_that_tell_them_apart
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "hits.rb")
+      File.write(target, <<~RUBY)
+        module Hits
+          Hit = Data.define(:kind, :file, :line, :code)
+          def self.scan(codes) = codes.each_with_index.map { |code, index| Hit.new(kind: "unchecked-save", file: "app/a.rb", line: index + 1, code: code) }
+        end
+      RUBY
+      inputs = write_inputs(dir, {"inputs" => [[["user.save"]], [["order.save"]], [["user.save", "order.save"]]]})
+      stdout, stderr, status = run_cli("explore", target, "Hits.scan", "--inputs", inputs, "--strategy", "inputs")
+      assert status.success?, stderr
+      assert_equal <<~OUT, stdout[/^RETURNED.*?\n\n/m]
+        RETURNED (coverage does not check a value; compare each with what the method should return)
+        returns an Array of 1 with [0].code: "order.save", [0].file: "app/a.rb", ... for [["order.save"]]
+        returns an Array of 2 with [0].kind: "unchecked-save", [0].file: "app/a.rb", ... for [["user.save","order.save"]]
+        returns an Array of 1 with [0].code: "user.save", [0].file: "app/a.rb", ... for [["user.save"]]
+
+      OUT
+      json = JSON.parse(run_cli("explore", target, "Hits.scan", "--inputs", inputs, "--strategy", "inputs", "--json").first)
+      assert_equal 'an Array of 1 with [0].code: "order.save", [0].file: "app/a.rb", ...', json["returned"][0]["returns"]
+      assert_equal '[Hits::Hit.new(kind: "unchecked-save", file: "app/a.rb", line: 1, code: "order.save")]', json["returned"][0]["value"]
+    end
+  end
+
   # A returned path of this machine shows where its directories were, so
   # RETURNED and --json never show a value the method did not return, and
   # two values apart only in those directories say so. A warning names the

@@ -33,7 +33,8 @@ module Branchout
       varying = result.pins.select(&:varying).map { |pin| varying_warning(pin, pin_keys) }
       passed = pins.flat_map { |pin| Support.machine_paths(pin.input) }.uniq
       pinned = pins.flat_map do |pin|
-        message = pin.error.exact_message || pin.error.message if pin.error&.stable_message
+        # A pattern pins the rest of its message as written, paths too.
+        message = pin.error.exact_message || pin.error.message if pin.error&.stable_message || pin.error&.message_pattern
         Support.machine_paths_in([Support.pinned_value(pin.value, Support.keys_for(pin, pin_keys)), message])
       end
       existing, missing = passed.partition { |path| File.exist?(path) }

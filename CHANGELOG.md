@@ -6,6 +6,7 @@
 - A returned Array, Struct, or Data too long for a line shows its size or class, then the leaves that tell it from the other values of that size or class (`returns an Array of 2 with [1].kind: "skips-callbacks", [0].line: 2, ...`), in `RETURNED` and in the `--json` `returns`. Before, it was cut after 69 characters, so Arrays of one Data class all read alike.
 - An entry's `note` names its input: `RETURNED` shows a long input as `inputs[9] (one save)`, the JSON report keeps the note on each input, a minitest name is made from the note's words (`test_one_save_returns_array_of_1`), and an RSpec example says it after the outcome (`returns 1 (one save)`). Before, the note was dropped, and a test was named from escapes and Ruby source (`test_n_top_none_...`).
 - An inputs file is read as UTF-8 whatever the locale. Before, a note in another script under `LANG=C` stopped explore with an encoding backtrace.
+- An error message that names a file descriptor, such as `Is a directory @ io_fillbuf - fd:5 ...`, is matched by a Regexp that accepts any descriptor (`fd:\d+`). Before, the test pinned `fd:5`, which depends on what the process opened before. stderr also names a machine path in such a pattern.
 - A warning about a machine path in a returned value or a message no longer takes the period of the sentence into the path.
 
 ## [0.1.0] - 2026-11-13

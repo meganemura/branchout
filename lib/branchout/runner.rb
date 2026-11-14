@@ -20,7 +20,8 @@ module Branchout
     # +exact_message+, the message as raised, when that is stable.
     # +message_pattern+ is the source of a Regexp for a message that quotes
     # a backtrace frame: Ruby 3.4 labels a frame 'Box.run' where 3.3 wrote
-    # `run', so the pattern keeps the rest and accepts either label.
+    # `run', so the pattern keeps the rest and accepts either label. It
+    # accepts any file descriptor (fd:\d+) where the message names one.
     ExceptionInfo = Struct.new(:class_name, :message, :loc, :stable_message, :name, :exact_message, :message_pattern,
                                keyword_init: true)
     # +arms+ is nil when the callee's file holds no coverage to count from.
@@ -567,13 +568,24 @@ module Branchout
     end
 
     FRAME_LABEL = /(:\d+:in )[`'][^`'\n]*'/
+    # An Errno message from an IO names its file descriptor (fd:5), whose
+    # number depends on what the process opened before, so a test that ran
+    # after other files were opened would see another one.
+    FILE_DESCRIPTOR = /\bfd:\d+/
 
     def self.frame_pattern(raw)
-      return nil unless FRAME_LABEL.match?(raw)
+      varying = Regexp.union(FRAME_LABEL, FILE_DESCRIPTOR)
+      return nil unless varying.match?(raw)
 
-      parts = raw.split(FRAME_LABEL, -1)
-      source = parts.each_with_index.map { |part, index| index.odd? ? "#{Regexp.escape(part)}[`'][^`'\\n]*'" : Regexp.escape(part) }
-      "\\A#{source.join.gsub("\\ ", " ")}\\z"
+      source = +""
+      at = 0
+      raw.to_enum(:scan, varying).map { Regexp.last_match }.each do |match|
+        source << Regexp.escape(raw[at...match.begin(0)])
+        source << (match[1] ? "#{Regexp.escape(match[1])}[`'][^`'\\n]*'" : "fd:\\d+")
+        at = match.end(0)
+      end
+      source << Regexp.escape(raw[at..])
+      "\\A#{source.gsub("\\ ", " ")}\\z"
     end
 
     def self.locate(exception, display_path, real_path)

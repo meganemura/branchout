@@ -1270,6 +1270,25 @@ class EmitterTest < Minitest::Test
     assert_equal "first second third", report.call("\nfirst \n\n  second\r\nthird\n")
   end
 
+  # Reading a directory raises Errno::EISDIR with the file descriptor the
+  # process happened to get, so the test accepts any descriptor and pins
+  # the rest of the message.
+  def test_an_errno_message_is_pinned_without_its_file_descriptor
+    Dir.mktmpdir do |dir|
+      error = begin
+        File.open(dir, &:gets)
+      rescue Errno::EISDIR => e
+        Branchout::Runner::ExceptionInfo.from(e, "lib/x.rb", File.join(ROOT, "lib/x.rb"))
+      end
+      assert_match(/fd:\d+/, error.message)
+      refute error.stable_message
+      pattern = Regexp.new(error.message_pattern)
+      assert_match pattern, error.message.sub(/fd:\d+/, "fd:123")
+      refute_match pattern, error.message.sub(/fd:\d+/, "fd:x")
+      refute_match pattern, error.message.sub(dir, "#{dir}x")
+    end
+  end
+
   # A message that quotes a backtrace frame names the method as Ruby labels
   # it, and Ruby 3.4 changed labels from `run' to 'Box.run'. The test pins
   # the rest of the message and lets the label be either form, so a test

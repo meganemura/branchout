@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+- `RETURNED` and the `--json` `returns` and `value` mark a path under the temporary or the home directory as `<tmp>/.../` or `<home>/.../`, and two values that differ only there say so. Before, the directories were dropped, so the report showed a value the method never returned (`"No hit under app."`).
+- A warning about a machine path in a returned value or a message no longer takes the period of the sentence into the path.
+
 ## [0.1.0] - 2026-11-13
 
 First release. branchout runs a Ruby method on many inputs, shows the branch arms that no input took, and writes tests that pin what the method does now. It never calls a model: an agent reads the frontier and proposes the next inputs.

@@ -75,6 +75,8 @@ module Branchout
     # input of the inputs file and each arm's input, grouped by what it
     # returned, as [shown, value, pins]: +value+ is the Ruby literal of the
     # whole value, or nil for one with no literal, and +shown+ fits a line.
+    # Both mark a path of this machine (Support.marked) and do not drop
+    # it, so neither reads as a value the method did not return.
     def returned(pins, pin_keys)
       groups = pins.reject(&:error).group_by do |pin|
         next [:shown, "a value that differed between two runs"] if pin.varying == :whole
@@ -87,15 +89,19 @@ module Branchout
       end
       values = groups.keys.select { |kind, _| kind == :value }.map(&:last)
       differences = values.zip(Emitters::Support.hash_differences(values)).to_h
-      groups.map do |(kind, value), group|
+      rows = groups.map do |(kind, value), group|
         next [value, nil, group] if kind == :shown
 
-        whole = Emitters::Support.ruby_literal(Emitters::Support.described(value))
+        whole = Emitters::Support.ruby_literal(Emitters::Support.marked(value))
         next [whole, whole, group] if whole.length <= SHOWN_WIDTH
 
         shown = shown_hash(value, differences.fetch(value)) if Emitters::Support.keyed?(value)
         [shown || "#{whole[0, SHOWN_WIDTH - 3]}...", whole, group]
       end
+      # Two values that differ only in the directories a mark stands for
+      # would read as one value returned twice.
+      alike = rows.filter_map { |_, whole, _| whole }.tally
+      rows.map { |shown, whole, group| whole && alike[whole] > 1 ? ["#{shown} (another value differs from it in a path of this machine)", whole, group] : [shown, whole, group] }
     end
 
     SHOWN_WIDTH = 72
@@ -106,7 +112,7 @@ module Branchout
     # way, then the rest of its top-level scalars that fit, or nil when
     # none fits. A part with no literal shows its class.
     def shown_hash(value, differing)
-      leaf_text = ->(item) { Emitters::Support.literal?(item) ? Emitters::Support.ruby_literal(Emitters::Support.described(item)) : Emitters::Support.article(Emitters::Support.class_literal(item)) }
+      leaf_text = ->(item) { Emitters::Support.literal?(item) ? Emitters::Support.ruby_literal(Emitters::Support.marked(item)) : Emitters::Support.article(Emitters::Support.class_literal(item)) }
       text = lambda do |entries|
         omitted = entries.count { |path, _| path.one? } < value.size
         "a Hash with #{Emitters::Support.entries_text(entries.map { |path, item| [path, leaf_text.(item)] })}#{", ..." if omitted}"

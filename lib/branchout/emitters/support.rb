@@ -203,7 +203,8 @@ module Branchout
       # directory, that the Strings of +value+ hold anywhere in their text.
       def machine_paths_in(value)
         homes = machine_homes.map { |home| Regexp.escape(home) }.join("|")
-        strings(value).flat_map { |text| text.scan(%r{(?:#{homes})[^\s"'`(),;]+}) }
+        # A sentence's period or colon after a path ends the sentence, not the path.
+        strings(value).flat_map { |text| text.scan(%r{(?:#{homes})[^\s"'`(),;]+}) }.map { |path| path.sub(/[.:]+\z/, "") }
       end
 
       def machine_homes
@@ -1148,6 +1149,31 @@ module Branchout
 
         homes = machine_homes.map { |home| Regexp.escape(home) }.join("|")
         text.gsub(%r{(?:#{homes})(?:[^\s"\x27`(),;/]+/)*}, "")
+      end
+
+      # +value+ as a report shows it: each path under the temporary or the
+      # home directory starts with <tmp>/ or <home>/, and .../ stands for
+      # its directories below that. The report stays the same on every
+      # machine, and a reader still sees where the value held a path, which
+      # the file alone of a test name would hide.
+      def marked(value)
+        case value
+        when String then with_machine_marks(value)
+        when Array then value.map { |item| marked(item) }
+        when Hash then value.transform_values { |item| marked(item) }
+        else value
+        end
+      end
+
+      def with_machine_marks(text)
+        labels = [[Dir.tmpdir, "<tmp>"], [Dir.home, "<home>"]].flat_map { |dir, label| [["#{dir}/", label], ["#{File.realpath(dir)}/", label]] }.uniq
+        # The longest first, so a home under the temporary directory is a home.
+        labels = labels.sort_by { |dir, _| -dir.length }
+        found = Regexp.union(labels.map(&:first))
+        text.gsub(%r{(#{found})((?:[^\s"\x27`(),;/]+/)*)}) do
+          label = labels.find { |dir, _| dir == Regexp.last_match(1) }.last
+          "#{label}/#{".../" unless Regexp.last_match(2).empty?}"
+        end
       end
 
       # A number longer than LONG_NUMBER digits fills a name, so it keeps

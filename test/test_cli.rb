@@ -274,6 +274,34 @@ class CLITest < Minitest::Test
     end
   end
 
+  # A returned path of this machine shows where its directories were, so
+  # RETURNED and --json never show a value the method did not return, and
+  # two values apart only in those directories say so. A warning names the
+  # path without the period of the sentence that holds it.
+  def test_a_returned_path_of_this_machine_is_marked_not_dropped
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "scan.rb")
+      File.write(target, <<~RUBY)
+        module Scan
+          def self.report(root) = "No hit under \#{root}/app."
+        end
+      RUBY
+      inputs = write_inputs(dir, {"inputs" => [[File.join(dir, "a")], [File.join(dir, "b", "nope")]]})
+      project = File.join(dir, "project")
+      FileUtils.mkdir_p(project)
+      File.write(File.join(project, "Gemfile"), "")
+      stdout, stderr, status = run_cli("explore", target, "Scan.report", "--inputs", inputs, "--strategy", "inputs",
+                                       "--emit-tests", File.join(project, "scan_test.rb"))
+      assert status.success?, stderr
+      assert_includes stdout, %(returns "No hit under <tmp>/.../app." (another value differs from it in a path of this machine) for)
+      refute_includes stdout, %("No hit under app.")
+      assert_includes stderr, "pins #{File.join(dir, "a", "app")}, a path of this machine"
+
+      json = JSON.parse(run_cli("explore", target, "Scan.report", "--inputs", inputs, "--strategy", "inputs", "--json").first)
+      assert_equal [%("No hit under <tmp>/.../app.")], json["returned"].map { |entry| entry["value"] }.uniq
+    end
+  end
+
   # Inputs that raise one error at one place are one line, whatever each
   # message says about its own input.
   def test_one_raise_with_many_messages_is_one_line

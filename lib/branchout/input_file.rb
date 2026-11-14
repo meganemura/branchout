@@ -16,11 +16,14 @@ module Branchout
       end
 
       types = nil
+      after = nil
       entries = data
       if data.is_a?(Hash)
         types = data["types"]
         entries = data["inputs"]
         raise Error, "#{path} is missing \"inputs\"" if entries.nil?
+
+        after = parse_after(data["after"], path) if data.key?("after")
       end
       raise Error, "#{path} inputs must be an array" unless entries.is_a?(Array)
       if types && !types.is_a?(Array)
@@ -31,15 +34,32 @@ module Branchout
       end
 
       inputs = entries.each_with_index.map { |entry, index| parse_entry(entry, "#{path} inputs[#{index}]") }
-      [inputs, types]
+      # The file's after reads what every call left, unless an input reads
+      # something of its own.
+      inputs = inputs.map { |input| input.after ? input : input.with(after: after) } if after
+      [inputs, types, after]
+    end
+
+    AFTER_EXAMPLE = "{\"ruby\": \"cart.items\"}"
+
+    # The Code of an after: one expression, which an emitted test pins as
+    # it pins a returned value.
+    def parse_after(value, label)
+      raise Error, "#{label} after must be Ruby such as #{AFTER_EXAMPLE}" unless value.is_a?(Hash) && code?(value)
+
+      Code.expression(value["ruby"], "cart.items")
+    rescue Error => e
+      raise if e.message.start_with?(label)
+
+      raise Error, "#{label} after #{e.message.sub(/\ARuby /, "")}"
     end
 
     # Keys that say how the entry is called, so args may be left out for none.
-    CALL_KEYS = %w[new receiver setup kwargs block before].freeze
+    CALL_KEYS = %w[new receiver setup kwargs block before after].freeze
 
     METHOD_NAME = /\A(?:[A-Za-z_][A-Za-z0-9_]*[?!=]?|<<|>>|\[\]=?|[-+*\/%&|^<>]|\*\*|<=>|==|!=|<=|>=|=~)\z/
 
-    def parse_entry(entry, label, keys = %w[args kwargs new receiver setup note pin_keys block before])
+    def parse_entry(entry, label, keys = %w[args kwargs new receiver setup note pin_keys block before after])
       case entry
       when Array
         Input.new(args: entry)
@@ -76,8 +96,9 @@ module Branchout
         # A note that is not a String, which an earlier branchout ignored, is
         # still ignored.
         note = entry["note"] if entry["note"].is_a?(String)
+        after = parse_after(entry["after"], label) if entry.key?("after")
         Input.new(args: entry.fetch("args", []), kwargs: entry["kwargs"] || {}, receiver: receiver, setup: setup, pin_keys: pin_keys, block: block,
-                  before: before, note: (note unless note&.strip&.empty?))
+                  before: before, note: (note unless note&.strip&.empty?), after: after)
       else
         raise Error, "#{label} is #{JSON.generate(entry)}, not a call; write each call as an array of its arguments, such as #{JSON.generate([entry])}"
       end

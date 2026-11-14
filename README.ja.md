@@ -412,7 +412,7 @@ Finished in 0.00228 seconds (files took 0.07051 seconds to load)
 このリポジトリのチェックアウトでは、`ruby bin/branchout` が `branchout` と同じコマンドを実行する。
 種ファイルの入力は `[0]` の 1 件である。
 `--verbose` はレポート全体を出す。
-動いた戦略の実行の設定と件数のあとに、`COVERED`（各腕を通った入力）、`FRONTIER`（どの入力も通らなかった各腕と、`nearest` が通った腕の `path`）、`RETURNED`（各値と、それを返した入力）、`EXCEPTIONS`（例外を出した入力ごとに 1 件）、`NOT COUNTED`、`OPERATORS`、`BOUNDARIES` が続く。
+動いた戦略の実行の設定と件数のあとに、`COVERED`（各腕を通った入力）、`FRONTIER`（どの入力も通らなかった各腕と、`nearest` が通った腕の `path`）、`RETURNED`（各値と、それを返した入力）、`EXCEPTIONS`（例外を出した入力ごとに 1 件）、`after` を持つ入力があるときの `AFTER`（読んだ値ごとに、それを読んだ入力）、`NOT COUNTED`、`OPERATORS`、`BOUNDARIES` が続く。
 付けないときのレポートは、件数と、入力が届いた `FRONTIER` の腕を、変えるべき `nearest` の入力の下に 1 行ずつと、どの入力も届かなかった決定ごとに 1 行と、返した値ごとに 1 行と、例外とそれを出した場所ごとに 1 行を残す。
 [アプリなしで試す](#アプリなしで試す) の出力がその形である。
 `--json` は、レポート全体のすべての項目を持つ。
@@ -549,7 +549,7 @@ RSpec はそれを入力の context の `before` として書き、minitest は�
 そうする `before` も同じように名前を付ける（`after FactoryBot.create(:part).tap { |p| p.update!(size: 1) }`）。
 呼び出しで名前を付ける `before` の名前が 80 文字を超えるときは、兄弟のそれぞれと見分けられる最少のキーワードとブロックだけを残す（`after FactoryBot.create(:part) with code: "B"`）。
 それでも 80 文字を超える文の中の 30 文字を超えるブロックは、兄弟のブロックと分かれる所で切る（`when fact.tap { ...long piece', 2]) }`）。
-`new`、`receiver`、`setup`、`kwargs`、`block`、`before` のどれかがあるエントリは、位置引数のない呼び出しなら `args` を省ける（`{"receiver": {"ruby": "FactoryBot.build(:user)"}}`）。
+`new`、`receiver`、`setup`、`kwargs`、`block`、`before`、`after` のどれかがあるエントリは、位置引数のない呼び出しなら `args` を省ける（`{"receiver": {"ruby": "FactoryBot.build(:user)"}}`）。
 型推論が違うときは、`"types"` に位置引数 1 つにつき `int`、`float`、`string`、`array`、`hash`、`bool` のいずれかを置く。
 既定値が `[]`、`{}`、`true`、`false` の引数はその型になる。
 `bool` の引数には、変異とランダムサンプリングが `false` と `true` の両方を試す。
@@ -577,6 +577,90 @@ RSpec はそれを入力の context の `before` として書き、minitest は�
 テストの名前と説明は、一時ディレクトリかホームディレクトリの下のパスをファイル名だけで書くので、どのマシンでも同じになる。
 エントリは末尾へ足す。
 消したり並べ替えたりしない。
+
+状態を変えるメソッドでは、戻り値はそのメソッドがすることの半分でしかない。
+残りの半分は `after` で読む。
+`after` は Ruby の式 1 つで、呼び出しが値を返したあとにも例外を出したあとにも、その入力のスコープで動く。
+そのため、出力するテストがレシーバーに付ける名前でレシーバーを読める。
+エントリに書くか、ファイルの先頭に書いてすべての入力に使う。
+エントリ自身の `after` はファイルのものに代わり、`mutate` と `random` が作る入力もファイルのものを使う。
+スイートの中では、その入力のセーブポイントを巻き戻す前に動く。
+quint_driver のチェックアウトで、次のファイルは `QuintDriver::Hold#start` を探索する。
+このメソッドはブロックを一時停止まで動かし、それまでその名前を保持する。
+
+```json
+{
+  "after": {"ruby": "hold.held"},
+  "inputs": [
+    {"note": "pauses", "args": ["r1"], "block": "{ hold.pause(:read); :written }"},
+    {"note": "ends without a pause", "args": ["r1"], "block": "{ :written }"},
+    {"note": "raises before a pause", "args": ["r1"], "block": "{ raise \"boom\" }"},
+    {"note": "name already held", "args": ["r1"], "block": "{ :again }",
+     "setup": [{"method": "start", "args": ["r1"], "block": "{ hold.pause(:read) }"}]}
+  ]
+}
+```
+
+```sh
+branchout explore lib/quint_driver/hold.rb 'QuintDriver::Hold#start' --inputs hold.json \
+  --strategy inputs --random 0 --seed 1 --emit-tests test/hold_start_test.rb
+```
+
+```
+branchout explore lib/quint_driver/hold.rb QuintDriver::Hold#start
+covered: 5 of 6 arms by 4 inputs
+raised: 2 inputs
+tests: test/hold_start_test.rb
+
+FRONTIER (add an input like the nearest above each arm, changed as the arm says)
+nearest: {"after":{"ruby":"hold.held"},"args":["r1"],"block":"{ :written }"}
+lib/quint_driver/hold.rb:71:10 makes `%i[paused done].include?(kind) && answer.is_a?(Array)` false
+
+RETURNED (coverage does not check a value; compare each with what the method should return)
+returns :written for inputs[1] (ends without a pause)
+returns :read for inputs[0] (pauses)
+
+EXCEPTIONS
+ArgumentError at lib/quint_driver/hold.rb:32 raised by {"after":{"ruby":"hold.held"},"args":["r1"],"block":"{ :again }","setup":[{"args":["r1"],"block":"{ hold.pause(:read) }","method":"start"}]}: quint: "r1" is already held; finish it first
+RuntimeError at lib/quint_driver/hold.rb:34 raised by {"after":{"ruby":"hold.held"},"args":["r1"],"block":"{ raise \"boom\" }"}: boom
+
+AFTER (what each after read once its call returned or raised; compare each with the state the call should leave)
+hold.held is ["r1"] for inputs[3] (name already held), inputs[0] (pauses)
+hold.held is [] for inputs[1] (ends without a pause), inputs[2] (raises before a pause)
+
+OPERATORS (coverage does not see which side ran; vary each left side)
+lib/quint_driver/hold.rb:70:46 && in `%i[paused done].include?(kind) && answer.is_a?(Array)`
+
+Pass --verbose for every covered arm and the run settings.
+```
+
+出力するテストは、`after` が読んだものを値と同じように、値か例外のあとで固定する。
+例外を出した呼び出しでは、レシーバーを `assert_raises` の前に作るので、`after` がそれを読める。
+
+```ruby
+  def test_raises_before_a_pause_raises_runtime_error
+    # covers:
+    #   line 32: if held?(name) -> else
+    hold = QuintDriver::Hold.new
+    error = assert_raises(RuntimeError) do
+      hold.start("r1") { raise "boom" }
+    end
+    assert_equal "boom", error.message
+    assert_equal [], hold.held
+  end
+```
+
+RSpec は、`expect { hold.start("r1") { raise "boom" } }.to raise_error(RuntimeError, "boom")` のあとに、呼び出しが動いた `let` について `expect(hold.held).to eq([])` を書く。
+`Hold#run` の中で名前を解放する `rescue` を消しても、`start` は同じ `boom` の `RuntimeError` を出し、`after` だけが失敗する（`Expected: []`、`Actual: ["r1"]`）。
+`after` が実行ごとに新しく読む値は固定しない。
+Hash は 2 回の実行で同じだったキーだけを残し、標準エラーがそれぞれを示す。
+これは戻り値と同じである。
+その中のパスは、戻り値のパスと同じように書く。
+複数の値は 1 つの Array か Hash として読む（`[cart.items, cart.total]`）。
+後置の `if` や 2 つの文は受け付けない。
+例外を出す `after` は探索を止め、その入力を示す。
+`new` か setup の呼び出しが例外を出したときは、状態を残した呼び出しがないので、`AFTER` はその入力について `read nothing` と示し、テストはこれまでどおりその例外を固定する。
+`--json` は読んだ値ごとに `after` の下に `after`、`is`、`value`、`inputs` を持つ。
 
 ```sh
 ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \

@@ -2235,7 +2235,7 @@ class ProjectValueTest < Minitest::Test
       error = Branchout::Runner::ExceptionInfo.new(class_name: "IOError", message: "lost #{dir}/a.csv", stable_message: true)
       warnings = Branchout::Emitters.write("minitest", result(pin(2, error)), target(project), File.join(project, "test/x_test.rb"))
       assert_equal ["branchout: the emitted test pins #{dir}/a.csv, a path of this machine outside the test's project, in a returned " \
-                    "value or an error message, so the test passes only here. Give Box.put a path under the project."], warnings
+                    "value, an error message, or what an after read, so the test passes only here. Give Box.put a path under the project."], warnings
     end
   end
 
@@ -2245,6 +2245,29 @@ class ProjectValueTest < Minitest::Test
     Dir.mktmpdir do |dir|
       source = Branchout::Emitters.render("minitest", result(pin("/srv/out/b.csv")), target(dir), File.join(dir, "test/x_test.rb"))
       assert_includes source, %(assert_equal "/srv/out/b.csv", Box.put(1))
+    end
+  end
+
+  def after_pin(read)
+    input = Branchout::Input.new(args: [1], after: Branchout::Code.parse("Box.last"))
+    Branchout::Engine::Pin.new(input: input, value: 2, covers: [], observed: Branchout::Runner::Observation.new(value: read))
+  end
+
+  # What an after read is pinned as a returned value is: a path under the
+  # project is written from the test, and one of this machine outside it is
+  # named on stderr.
+  def test_what_an_after_read_is_written_from_the_test_or_named
+    Dir.mktmpdir do |dir|
+      project = File.join(dir, "app")
+      FileUtils.mkdir_p(project)
+      File.write(File.join(project, "Gemfile"), "")
+      source = Branchout::Emitters.render("minitest", result(after_pin("#{project}/out/b.csv")), target(project), File.join(project, "test/x_test.rb"))
+      assert_includes source, %(    assert_equal 2, Box.put(1)\n    assert_equal File.expand_path("../out/b.csv", __dir__), Box.last\n)
+      refute_includes source, dir
+
+      warnings = Branchout::Emitters.write("minitest", result(after_pin("lost #{dir}/a.csv")), target(project), File.join(project, "test/x_test.rb"))
+      assert_equal ["branchout: the emitted test pins #{dir}/a.csv, a path of this machine outside the test's project, in a returned " \
+                    "value, an error message, or what an after read, so the test passes only here. Give Box.put a path under the project."], warnings
     end
   end
 end

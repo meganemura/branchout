@@ -33,9 +33,15 @@ module Branchout
         lines.concat(Support.cover_comment(pin, "    "))
         lines.concat(Support.thawed_comment(pin, "    "))
         arrange, call = Support.arrange(target, pin.input, private_calls: private_calls, const: const, thawed: pin.thawed)
+        # An after reads the receiver once the call raised too, so the
+        # receiver is built before assert_raises, where the after can name
+        # it. An input whose new or setup call raised read no after, so
+        # its receiver is built inside, where that raise is pinned.
+        after = Support.after_pin(pin)
         if pin.error
+          lines.concat(Support.indent(arrange, "    ")) if after
           lines << "    error = assert_raises(#{pin.error.class_name}) do"
-          lines.concat(Support.indent(arrange + [call], "      "))
+          lines.concat(Support.indent((after ? [] : arrange) + [call], "      "))
           lines << "    end"
           if pin.error.name
             lines << "    assert_equal #{pin.error.name.inspect}, error.name"
@@ -44,14 +50,25 @@ module Branchout
           elsif pin.error.message_pattern
             lines << "    assert_match(#{Regexp.new(pin.error.message_pattern).inspect}, error.message)"
           end
-          return lines << "  end"
+        else
+          lines.concat(Support.indent(arrange, "    "))
+          lines.concat(value_lines(pin, call, Support.keys_for(pin, pin_keys)))
         end
+        if after && after.varying != :whole
+          source = after.input.after.source
+          lines.concat(value_lines(after, source, Support.keys_for(after, []), on: Support.receiver_form(source)))
+        end
+        lines << "  end"
+      end
 
-        lines.concat(Support.indent(arrange, "    "))
-        pinned = Support.pinned_value(pin.value, Support.keys_for(pin, pin_keys))
+      # The assertions that pin +pin+'s value, which +call+ gives.
+      # +on+ is +call+ as a method's receiver.
+      def value_lines(pin, call, keys, on: call)
+        lines = []
+        pinned = Support.pinned_value(pin.value, keys)
         if !pinned.equal?(pin.value) && Support.literal?(pinned)
           keys = pinned.keys.map { |key| Support.ruby_literal(key) }.join(", ")
-          lines << "    assert_equal(#{Support.ruby_literal(pinned)}, #{call}.slice(#{keys}))"
+          lines << "    assert_equal(#{Support.ruby_literal(pinned)}, #{on}.slice(#{keys}))"
         elsif !pinned.equal?(pin.value)
           lines.concat(part_lines(pinned, call))
         elsif pin.value.nil?
@@ -70,7 +87,6 @@ module Branchout
           lines << "    value = #{call}"
           lines.concat(Support.shape_assertions(pin.value).map { |line| "    #{line}" })
         end
-        lines << "  end"
         lines
       end
 

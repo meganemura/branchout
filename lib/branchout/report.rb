@@ -33,6 +33,7 @@ module Branchout
       frontier_brief(lines, result.frontier)
       returned_brief(lines, returned(Array(result.pins), pin_keys))
       exceptions_brief(lines, result.exceptions)
+      after_brief(lines, after(Array(result.pins)), after_unread(Array(result.pins)))
       not_pinned_brief(lines, result.covered.reject(&:pinned))
       pinned_by_class_brief(lines, result.pins, pin_keys) if tests
       not_counted_brief(lines, Array(result.not_counted))
@@ -231,6 +232,34 @@ module Branchout
       end
     end
 
+    # What each after read, once its call returned or raised, as
+    # [source, shown, value, pins], grouped as RETURNED groups what the
+    # calls returned. A call's value and its after are told apart, so a
+    # raise that left the receiver changed reads as both.
+    def after(pins)
+      pins.select(&:observed).group_by { |pin| pin.input.after.source }.sort_by(&:first).flat_map do |source, group|
+        returned(group.map { |pin| Emitters::Support.after_pin(pin) }, []).map { |shown, whole, read| [source, shown, whole, read] }
+      end
+    end
+
+    # The inputs whose after read nothing, as [source, reason, pins].
+    def after_unread(pins)
+      unread = pins.select { |pin| pin.input.after && !pin.observed }
+      unread.group_by { |pin| [pin.input.after.source, unread_reason(pin)] }.sort_by(&:first).map { |(source, reason), group| [source, reason, group] }
+    end
+
+    def unread_reason(pin)
+      pin.error&.class_name == "Timeout::Error" ? "the call timed out" : "new or a setup call raised before the call"
+    end
+
+    def after_brief(lines, groups, unread)
+      return if groups.empty? && unread.empty?
+
+      lines << "" << "AFTER (what each after read once its call returned or raised; compare each with the state the call should leave)"
+      groups.each { |source, shown, _, group| lines << "#{source} is #{shown} for #{group.map { |pin| shown_input(pin) }.join(", ")}" }
+      unread.each { |source, reason, group| lines << "#{source} read nothing for #{group.map { |pin| shown_input(pin) }.join(", ")}: #{reason}" }
+    end
+
     def not_pinned_brief(lines, arms)
       return if arms.empty?
 
@@ -244,11 +273,16 @@ module Branchout
     # Each part of a returned value that an emitted test can check only by
     # its class, as "value[:at]" => [class name, inputs that returned it].
     def pinned_by_class(pins, pin_keys)
-      parts = pins.reject { |pin| pin.error || pin.varying == :whole }.flat_map do |pin|
-        Emitters::Support.class_pins(Emitters::Support.pinned_value(pin.value, Emitters::Support.keys_for(pin, pin_keys))).map { |part| [part, pin.input] }
+      by_class = lambda do |pin, keys, root|
+        Emitters::Support.class_pins(Emitters::Support.pinned_value(pin.value, Emitters::Support.keys_for(pin, keys))).map { |path, name| [["#{root}#{path}", name], pin.input] }
       end
+      parts = pins.reject { |pin| pin.error || pin.varying == :whole }.flat_map { |pin| by_class.(pin, pin_keys, "value") }
+      # An after's value is pinned as a returned one is, so its parts with
+      # no literal are checked by their class too.
+      parts += pins.filter_map { |pin| Emitters::Support.after_pin(pin) }.reject { |pin| pin.varying == :whole }
+                   .flat_map { |pin| by_class.(pin, [], pin.input.after.source) }
       parts.group_by(&:first).map do |(path, name), group|
-        ["value#{path}", name, group.map(&:last).uniq(&:canonical)]
+        [path, name, group.map(&:last).uniq(&:canonical)]
       end
     end
 
@@ -293,6 +327,11 @@ module Branchout
       section(lines, "FRONTIER", result.frontier) { |arm| [*frontier_lines(arm), "path: #{format_path(arm.path)}"] }
       section(lines, "RETURNED", returned(Array(result.pins), pin_keys)) { |shown, whole, group| ["returns: #{whole || shown}", *group.map { |pin| "input: #{pin.input.text}" }] }
       section(lines, "EXCEPTIONS", result.exceptions) { |finding| finding_lines(finding) }
+      read = after(Array(result.pins)).map { |source, shown, whole, group| ["after: #{source}", "is: #{whole || shown}", group] } +
+             after_unread(Array(result.pins)).map { |source, reason, group| ["after: #{source}", "read nothing: #{reason}", group] }
+      unless read.empty?
+        section(lines, "AFTER", read) { |source, outcome, group| [source, outcome, *group.map { |pin| "input: #{pin.input.text}" }] }
+      end
       section(lines, "NOT COUNTED", Array(result.not_counted)) { |callee| callee_lines(callee) }
       section(lines, "OPERATORS", Array(result.operators)) { |found| operator_lines(found) }
       section(lines, "BOUNDARIES", Array(result.boundaries)) { |found| operator_lines(found) }
@@ -323,6 +362,11 @@ module Branchout
           {"returns" => shown, "value" => whole, "inputs" => group.map { |pin| input_hash(pin.input) }}.compact
         },
         "exceptions" => result.exceptions.map { |finding| finding_hash(finding) },
+        "after" => after(Array(result.pins)).map { |source, shown, whole, group|
+          {"after" => source, "is" => shown, "value" => whole, "inputs" => group.map { |pin| input_hash(pin.input) }}.compact
+        } + after_unread(Array(result.pins)).map { |source, reason, group|
+          {"after" => source, "read_nothing" => reason, "inputs" => group.map { |pin| input_hash(pin.input) }}
+        },
         "not_counted" => Array(result.not_counted).map { |callee| callee_hash(callee) },
         "operators_not_counted" => Array(result.operators).map { |found| operator_hash(found) },
         "boundaries_not_counted" => Array(result.boundaries).map { |found| operator_hash(found) },

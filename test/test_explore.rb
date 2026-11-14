@@ -37,6 +37,24 @@ class ExploreTest < Minitest::Test
     end
   end
 
+  # The after reads the row the call wrote before the savepoint is rolled
+  # back, and the emitted test, which has no savepoint, sees the same.
+  def test_an_after_reads_the_rows_before_the_rollback
+    Dir.mktmpdir do |dir|
+      env = {"EMIT_TO" => File.join(dir, "pantry_test.rb"), "REPORT_TO" => File.join(dir, "report.txt")}
+      stdout, stderr, status = run_suite("#{SUITE}/pantry_after_explore_test.rb", env)
+      assert status.success?, stdout + stderr
+      report = File.read(env["REPORT_TO"])
+      assert_includes report, "\nActiveRecord::Base.rows.length is 1 for inputs[0]\n"
+      assert_includes report, "rows left: 0\n"
+      assert_includes File.read(env["EMIT_TO"]), "    pantry = Pantry.new(owner)\n    assert_equal :first, pantry.stock(\"jam\")\n" \
+                                                 "    assert_equal 1, ActiveRecord::Base.rows.length\n"
+      stdout, stderr, status = run_suite(env["EMIT_TO"])
+      assert status.success?, stdout + stderr
+      assert_includes stdout, "1 runs, 2 assertions, 0 failures, 0 errors"
+    end
+  end
+
   def test_inputs_see_each_others_rows_without_the_rollback
     Dir.mktmpdir do |dir|
       report, emitted = explore_pantry(dir, around: "run_only")

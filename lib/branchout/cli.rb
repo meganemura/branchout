@@ -150,7 +150,7 @@ module Branchout
       user_inputs = []
       type_overrides = nil
       if opts[:inputs]
-        user_inputs, type_overrides = InputFile.load(opts[:inputs])
+        user_inputs, type_overrides, opts[:after] = InputFile.load(opts[:inputs])
         InputFile.quoted_strings(user_inputs).each { |line| $stderr.puts "branchout: #{line}" }
       end
 
@@ -167,7 +167,8 @@ module Branchout
           mutate_cap: opts[:mutate_cap],
           timeout: opts[:timeout],
           requires: opts[:requires],
-          load_paths: opts[:load_paths]
+          load_paths: opts[:load_paths],
+          after: opts[:after]
         )
         if result.repeated_inputs.positive?
           $stderr.puts "branchout: #{result.repeated_inputs} of #{user_inputs.length} inputs repeat an earlier input, " \
@@ -244,7 +245,8 @@ module Branchout
         timeout: opts[:timeout],
         command: "baselines",
         requires: opts[:requires],
-        load_paths: opts[:load_paths]
+        load_paths: opts[:load_paths],
+        after: opts[:after]
       )
     end
 

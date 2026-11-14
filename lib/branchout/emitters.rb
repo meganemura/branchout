@@ -30,12 +30,15 @@ module Branchout
     def write(format, result, target, destination, require_by_name: false, pin_keys: [])
       pins = project_pins(result.pins, destination)
       Support.write_file(destination, render(format, result, target, destination, require_by_name: require_by_name, pin_keys: pin_keys))
-      varying = result.pins.select(&:varying).map { |pin| varying_warning(pin, pin_keys) }
+      varying = result.pins.select(&:varying).map { |pin| varying_warning(pin, pin_keys) } +
+                result.pins.filter_map { |pin| Support.after_pin(pin) }.select(&:varying).map { |pin| after_varying_warning(pin) }
       passed = pins.flat_map { |pin| Support.machine_paths(pin.input) }.uniq
       pinned = pins.flat_map do |pin|
         # A pattern pins the rest of its message as written, paths too.
         message = pin.error.exact_message || pin.error.message if pin.error&.stable_message || pin.error&.message_pattern
-        Support.machine_paths_in([Support.pinned_value(pin.value, Support.keys_for(pin, pin_keys)), message])
+        after = Support.after_pin(pin)
+        read = Support.pinned_value(after.value, Support.keys_for(after, [])) if after && after.varying != :whole
+        Support.machine_paths_in([Support.pinned_value(pin.value, Support.keys_for(pin, pin_keys)), message, read])
       end
       existing, missing = passed.partition { |path| File.exist?(path) }
       outside = Support.required_outside_project(result.requires, (target.path unless result.target_required), destination,
@@ -51,8 +54,8 @@ module Branchout
         "branchout: the emitted test passes #{path}, a path of this machine outside the test's project that does not exist, " \
           "so the test holds this machine's directories. Put the path under the project, and the test names it from its own directory."
       end + (pinned.uniq - existing).map do |path|
-        "branchout: the emitted test pins #{path}, a path of this machine outside the test's project, in a returned value " \
-          "or an error message, so the test passes only here. Give #{target.entry} a path under the project."
+        "branchout: the emitted test pins #{path}, a path of this machine outside the test's project, in a returned value, " \
+          "an error message, or what an after read, so the test passes only here. Give #{target.entry} a path under the project."
       end
     end
 
@@ -74,14 +77,23 @@ module Branchout
         "so its test pins only #{Support.keys_for(pin, pin_keys).join(", ")}."
     end
 
+    def after_varying_warning(pin)
+      return "branchout: the after #{pin.input.after.source} of #{pin.input.text} read a value that differed between two runs, so its test does not check it." if pin.varying == :whole
+
+      "branchout: the after #{pin.input.after.source} of #{pin.input.text} read a Hash whose #{pin.varying.join(", ")} differed between two runs, " \
+        "so its test pins only #{Support.keys_for(pin, []).join(", ")}."
+    end
+
     # Each pin with the paths under the test's project in its input, its
-    # returned value, and its error message written from the test's file.
+    # returned value, its error message, and what its after read written
+    # from the test's file.
     # A pin whose value differed as a whole between two runs is left out.
     def project_pins(pins, destination)
       pins.reject { |pin| pin.varying == :whole }.map do |pin|
         pin.dup.tap do |copy|
           copy.input = Support.project_paths(pin.input, destination)
           copy.value = Support.project_value(pin.value, destination)
+          copy.observed = pin.observed.dup.tap { |read| read.value = Support.project_value(read.value, destination) } if pin.observed
           next unless pin.error
 
           copy.error = pin.error.dup.tap do |error|

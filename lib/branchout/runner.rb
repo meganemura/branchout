@@ -13,7 +13,11 @@ module Branchout
     # +varying+ is nil when a second run gave the same value, :whole when
     # the value differed as a whole, or the keys of a returned Hash whose
     # values differed.
-    Execution = Struct.new(:input, :value, :error, :lines, :branches, :path_ids, :origin, :thawed, :varying, keyword_init: true)
+    # +observed+ is the Observation of what the input's after read, or nil.
+    Execution = Struct.new(:input, :value, :error, :lines, :branches, :path_ids, :origin, :thawed, :varying, :observed, keyword_init: true)
+    # What an input's after read once the call returned or raised. +varying+
+    # is as Execution's is for the returned value.
+    Observation = Struct.new(:value, :varying, keyword_init: true)
     # +name+ is the missing name of a NameError, which is stable where its
     # message is not: Ruby 3.4 reworded both NameError and NoMethodError.
     # +message+ has its line breaks folded for reports; a test pins
@@ -90,6 +94,7 @@ module Branchout
       return if run.error&.class_name == "Timeout::Error"
 
       again = attempt(run.input, run.thawed)
+      run.observed.varying = again.observed ? Runner.differing(run.observed.value, again.observed.value) : :whole if run.observed
       if run.error && again.error&.class_name == run.error.class_name
         unless again.error.message == run.error.message && again.error.exact_message == run.error.exact_message
           run.error = run.error.dup.tap do |error|
@@ -134,9 +139,11 @@ module Branchout
     private_class_method :same_pin?
 
     def attempt(input, thawed)
+      @observed = nil
       value, error = @host ? refusing_lets(input) { outcome(input, thawed) } : outcome(input, thawed)
       data = extract(Coverage.result(stop: false, clear: true))
-      Execution.new(input: input, value: value, error: error, lines: data[:lines], branches: data[:branches], thawed: thawed)
+      Execution.new(input: input, value: value, error: error, lines: data[:lines], branches: data[:branches], thawed: thawed,
+                    observed: @observed)
     end
 
     def outcome(input, thawed)
@@ -432,8 +439,13 @@ module Branchout
       value
     end
 
+    # An input with an after reads it once the entry returned or raised,
+    # in the input's scope, so it reads the receiver by the name the
+    # emitted test gives it, and in a suite before the input's savepoint
+    # is rolled back.
     def run_entry(input, thawed)
       scope = new_scope
+      entered = false
       run = proc do
         receiver, args, kwargs, block = built_by_input(input) do
           scope.eval(input.before.source, "(input)") if input.before
@@ -441,16 +453,45 @@ module Branchout
           args, kwargs = fresh_arguments(input, scope, thawed)
           [receiver, args, kwargs, (scope.eval("proc #{input.block.source}", "(input)") if input.block)]
         end
+        entered = true
         if @target.singleton
           measure { @method.call(*args, **kwargs, &block) }
         else
           measure { @method.bind_call(receiver, *args, **kwargs, &block) }
         end
       end
-      if @timeout
-        Timeout.timeout(@timeout, &run)
-      else
-        run.call
+      begin
+        value = timed(&run)
+      rescue Error, Timeout::Error
+        raise
+      rescue Exception # rubocop:disable Lint/RescueException
+        read_after(input, scope, entered)
+        raise
+      end
+      read_after(input, scope, entered)
+      value
+    end
+
+    def timed(&run)
+      @timeout ? Timeout.timeout(@timeout, &run) : run.call
+    end
+
+    # When new or a setup call raised, no call left a state to read, and
+    # the error is pinned as it is without an after; the report says the
+    # after read nothing. An after that raises reads nothing an emitted
+    # test could pin, so explore stops and says which input to fix.
+    def read_after(input, scope, entered)
+      return unless input.after && entered
+
+      begin
+        @observed = Observation.new(value: timed { scope.eval(input.after.source, "(input)") })
+      rescue Error
+        raise
+      rescue Timeout::Error
+        raise Error, "the after #{input.after.source.inspect} of the input #{Canon.json(input.to_h)} did not end within the timeout. Fix the after."
+      rescue Exception => e # rubocop:disable Lint/RescueException
+        raise Error, "the after #{input.after.source.inspect} of the input #{Canon.json(input.to_h)} raised #{e.class}: " \
+                     "#{ExceptionInfo.one_line(e.message)}. Fix the after."
       end
     end
 
@@ -493,9 +534,9 @@ module Branchout
       else
         new_args, new_kwargs = input.receiver ? fresh_arguments(input.receiver, scope, thawed) : [[], {}]
         receiver = @const.send(:new, *new_args, **new_kwargs)
-        # With setup calls the emitted test names the receiver too, so a
-        # setup block, or an argument, can read it.
-        scope.local_variable_set(Emitters::Support.built_receiver_name(@target), receiver) unless input.setup.empty?
+        # With setup calls or an after the emitted test names the receiver
+        # too, so a setup block, an argument, or the after can read it.
+        scope.local_variable_set(Emitters::Support.built_receiver_name(@target), receiver) unless input.setup.empty? && input.after.nil?
       end
       input.setup.each do |call|
         call_args, call_kwargs = fresh_arguments(call.arguments, scope, thawed)

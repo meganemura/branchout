@@ -43,7 +43,8 @@ class PropertyTest < Minitest::Test
     setup = receiver ? tc.draw(arrays(names, max_size: 2)) : []
     setup = setup.map { |name| Branchout::Input::SetupCall.new(name, draw_input(tc, receiver: false)) }
     block = Branchout::Code.block("{ |item| item * 2 }") if receiver && tc.draw(booleans)
-    Branchout::Input.new(args: args, kwargs: kwargs, receiver: new_args, setup: setup, block: block)
+    after = Branchout::Code.expression(tc.draw(sampled_from(["cart.items", "[cart.size, cart.empty?]", "{n: cart.size}"])), "cart.items") if receiver && tc.draw(booleans)
+    Branchout::Input.new(args: args, kwargs: kwargs, receiver: new_args, setup: setup, block: block, after: after)
   end
 
   def test_canonical_json_parses_back_to_the_value

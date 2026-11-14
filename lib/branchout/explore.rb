@@ -64,7 +64,7 @@ module Branchout
       raise Error, "verbose: is only valid with the text report; json: true holds every arm and the run settings"
     end
     target ||= defining_file(entry)
-    user_inputs, type_overrides = inputs.is_a?(String) ? InputFile.load(inputs) : [parse_inputs(inputs), nil]
+    user_inputs, type_overrides, after = inputs.is_a?(String) ? InputFile.load(inputs) : [parse_inputs(inputs), nil, nil]
     requires = requires.nil? ? [loaded_helper].compact : Array(requires)
     format = Emitters.resolve(format&.to_s, emit_tests) if emit_tests
     if emit_tests && requires.empty?
@@ -75,7 +75,7 @@ module Branchout
                     test_class: within.class.superclass.name, spec_type: spec_type_of(within))
     result = Engine.explore(
       target: target, entry: entry, user_inputs: user_inputs, type_overrides: type_overrides, seed: seed,
-      strategies: strategies, random: random, mutate_cap: mutate_cap, timeout: timeout, requires: requires, host: host
+      strategies: strategies, random: random, mutate_cap: mutate_cap, timeout: timeout, requires: requires, host: host, after: after
     )
     if emit_tests
       warnings = Emitters.write(format, result, Target.parse(target, entry, type_overrides: type_overrides),

@@ -137,6 +137,12 @@ module Branchout
           else
             lines << "#{indent}  expect(#{call}).to #{value_matcher(pin.value, Support.keys_for(pin, @pin_keys))}"
           end
+          # The let memoizes the receiver, so the after reads the object the
+          # call ran on, after it returned or raised.
+          after = Support.after_pin(pin)
+          if after && after.varying != :whole
+            lines << "#{indent}  expect(#{after.input.after.source}).to #{value_matcher(after.value, Support.keys_for(after, []))}"
+          end
           lines << "#{indent}end"
         end
 

@@ -135,6 +135,7 @@
       "message": "divided by 0"
     }
   ],
+  "after": [],
   "not_counted": [],
   "operators_not_counted": [
     {

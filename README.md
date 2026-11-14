@@ -350,7 +350,7 @@ A coding agent adding tests can see that a branch was missed and still not know 
 
 The method follows concolic testing ([DART](https://doi.org/10.1145/1065010.1065036), [CUTE](https://doi.org/10.1145/1094811.1094816)) and LLM-guided concolic work such as [ConcoLLMic](https://concollmic.github.io/). branchout is inspired by concolic testing but does no symbolic solving. The agent proposes inputs from the branch frontier.
 
-From a checkout of this repository, `ruby bin/branchout` runs the same command as `branchout`. The seed file holds one input, `[0]`. `--verbose` prints the whole report: the run settings of the strategies that ran and the counts, then `COVERED` (the input that took each arm), `FRONTIER` (each arm no input took, with `path`, the arms `nearest` took), `RETURNED` (each value and the inputs that returned it), `EXCEPTIONS` (one record for each input that raised), `NOT COUNTED`, `OPERATORS`, and `BOUNDARIES`. Without it, the report keeps the counts, the `FRONTIER` arms that an input reached, one line each under the `nearest` input to change, one line for each decision that no input reached, one line for each returned value, and one line for each error and the place that raised it, as in [Try it without an app](#try-it-without-an-app). `--json` holds every field of the whole report.
+From a checkout of this repository, `ruby bin/branchout` runs the same command as `branchout`. The seed file holds one input, `[0]`. `--verbose` prints the whole report: the run settings of the strategies that ran and the counts, then `COVERED` (the input that took each arm), `FRONTIER` (each arm no input took, with `path`, the arms `nearest` took), `RETURNED` (each value and the inputs that returned it), `EXCEPTIONS` (one record for each input that raised), `AFTER` when an input has an `after` (each value it read and the inputs that read it), `NOT COUNTED`, `OPERATORS`, and `BOUNDARIES`. Without it, the report keeps the counts, the `FRONTIER` arms that an input reached, one line each under the `nearest` input to change, one line for each decision that no input reached, one line for each returned value, and one line for each error and the place that raised it, as in [Try it without an app](#try-it-without-an-app). `--json` holds every field of the whole report.
 
 ```sh
 ruby bin/branchout explore examples/magic_value.rb MagicValue.classify \
@@ -459,7 +459,72 @@ An inputs file starts as one seed:
 }
 ```
 
-An entry may be a bare array. Keywords go in `kwargs`, constructor arguments go in `new`, and calls that build the receiver's state go in `setup`. A receiver that `new` cannot build, such as a saved record, is Ruby in `receiver`: `{"receiver": {"ruby": "Factories.loan(3)"}, "args": [{"ruby": "loan.amount"}]}`. The receiver takes the name the emitted test gives it, the class in snake case, so the arguments, `setup`, and `block` can read from it. Ruby in `before` runs before the receiver and the arguments, in the input's own savepoint, and makes what the method reads, such as the rows a class method looks up: `{"before": {"ruby": "FactoryBot.create(:part, sku: \"A\")"}, "args": ["A"]}`. RSpec writes it as the `before` of the input's context, and minitest as the line before the call, each line of it indented except the body and the terminator of a `<<` or `<<-` heredoc, which keep their columns so that the heredoc ends and its text stays the same. A `before` of several lines is named by the lines that differ from its siblings', a call by its keywords that differ (`after FactoryBot.create(:membership) with enabled: false`). A Ruby argument that runs a block through `tap` or `then` is named by its block when its siblings differ there (`when fact.tap { Parts.rows.replace(["A"]) }`), and so is a `before` that does (`after FactoryBot.create(:part).tap { |p| p.update!(size: 1) }`). A `before` named by a call whose label would pass 80 characters keeps the fewest of its keywords and its block that tell it from each sibling (`after FactoryBot.create(:part) with code: "B"`). A block over 30 characters in a text that would still pass 80 is cut where it parts from its siblings' blocks (`when fact.tap { ...long piece', 2]) }`). An entry with `new`, `receiver`, `setup`, `kwargs`, `block`, or `before` may leave out `args` for a call with no positional argument: `{"receiver": {"ruby": "FactoryBot.build(:user)"}}`. If type inference is wrong, set `"types"` to one of `int`, `float`, `string`, `array`, `hash`, or `bool` per positional parameter. A default value of `[]`, `{}`, `true`, or `false` gives its type, and `bool` makes mutation and random sampling try both `false` and `true`. Other top-level keys, such as `meta`, are ignored. A `note` on an entry keeps the reason for that input beside it and takes no part in the call; it names the input: `RETURNED` shows a long input by its place and its note (`inputs[9] (one save)`), `--json` keeps it on the input, a minitest name is made from its words (`test_one_save_returns_array_of_1`), and an RSpec example says it after the outcome (`returns 1 (one save)`). A note with no Latin letter or digit gives a minitest name no words, so that input is named by its values. An entry's `pin_keys` (`{"args": [3], "pin_keys": ["tax"]}`) replaces `--pin-keys` for that input's test, and `"pin_keys": []` pins its Hash whole. A value JSON cannot write, such as a record or an exception, is Ruby in `{"ruby": "..."}`, often a factory in a `--require` file: `{"args": [{"ruby": "Factories.loan(3)"}]}`. Each call evaluates it again at the top level, and the emitted tests write it as given (`Lending.approve(Factories.loan(3))`). A block the method takes goes in `block`, with braces: `{"args": [5], "block": "{ |amount| amount > 2 }"}`. A Hash argument whose one key is `"ruby"` is written as Ruby too: `{"ruby": "{\"ruby\" => \"3.4\"}"}`. A String that names a path under the emitted test's project (the nearest directory above the test with a `Gemfile`, a gemspec, or `.git`) is written from the test's own directory, `File.expand_path("../fixtures/files/rates.csv", __dir__)`, so the test passes in any checkout of the project, a jitcatch copy too. Its name and description say the path from the project root (`spec/fixtures/files/rates.csv`). A path under the temporary or the home directory and outside the project stays as written, and stderr names it: one that exists, since the test passes only on this machine, and one that does not, since the test still holds this machine's directories. Put such a path under the project, for example in `spec/fixtures/files`. A returned value or an error message that holds a path under the project names the project root from the test's own directory too (`"No such file or directory @ rb_sysopen - #{File.expand_path("..", __dir__)}/spec/fixtures/none.csv"`). One that holds a path of this machine outside the project stays as written, and stderr names it. A test name or description says a path under the temporary or the home directory by its file alone, so it is the same on every machine. Append entries. Do not delete or reorder them.
+An entry may be a bare array. Keywords go in `kwargs`, constructor arguments go in `new`, and calls that build the receiver's state go in `setup`. A receiver that `new` cannot build, such as a saved record, is Ruby in `receiver`: `{"receiver": {"ruby": "Factories.loan(3)"}, "args": [{"ruby": "loan.amount"}]}`. The receiver takes the name the emitted test gives it, the class in snake case, so the arguments, `setup`, and `block` can read from it. Ruby in `before` runs before the receiver and the arguments, in the input's own savepoint, and makes what the method reads, such as the rows a class method looks up: `{"before": {"ruby": "FactoryBot.create(:part, sku: \"A\")"}, "args": ["A"]}`. RSpec writes it as the `before` of the input's context, and minitest as the line before the call, each line of it indented except the body and the terminator of a `<<` or `<<-` heredoc, which keep their columns so that the heredoc ends and its text stays the same. A `before` of several lines is named by the lines that differ from its siblings', a call by its keywords that differ (`after FactoryBot.create(:membership) with enabled: false`). A Ruby argument that runs a block through `tap` or `then` is named by its block when its siblings differ there (`when fact.tap { Parts.rows.replace(["A"]) }`), and so is a `before` that does (`after FactoryBot.create(:part).tap { |p| p.update!(size: 1) }`). A `before` named by a call whose label would pass 80 characters keeps the fewest of its keywords and its block that tell it from each sibling (`after FactoryBot.create(:part) with code: "B"`). A block over 30 characters in a text that would still pass 80 is cut where it parts from its siblings' blocks (`when fact.tap { ...long piece', 2]) }`). An entry with `new`, `receiver`, `setup`, `kwargs`, `block`, `before`, or `after` may leave out `args` for a call with no positional argument: `{"receiver": {"ruby": "FactoryBot.build(:user)"}}`. If type inference is wrong, set `"types"` to one of `int`, `float`, `string`, `array`, `hash`, or `bool` per positional parameter. A default value of `[]`, `{}`, `true`, or `false` gives its type, and `bool` makes mutation and random sampling try both `false` and `true`. Other top-level keys, such as `meta`, are ignored. A `note` on an entry keeps the reason for that input beside it and takes no part in the call; it names the input: `RETURNED` shows a long input by its place and its note (`inputs[9] (one save)`), `--json` keeps it on the input, a minitest name is made from its words (`test_one_save_returns_array_of_1`), and an RSpec example says it after the outcome (`returns 1 (one save)`). A note with no Latin letter or digit gives a minitest name no words, so that input is named by its values. An entry's `pin_keys` (`{"args": [3], "pin_keys": ["tax"]}`) replaces `--pin-keys` for that input's test, and `"pin_keys": []` pins its Hash whole. A value JSON cannot write, such as a record or an exception, is Ruby in `{"ruby": "..."}`, often a factory in a `--require` file: `{"args": [{"ruby": "Factories.loan(3)"}]}`. Each call evaluates it again at the top level, and the emitted tests write it as given (`Lending.approve(Factories.loan(3))`). A block the method takes goes in `block`, with braces: `{"args": [5], "block": "{ |amount| amount > 2 }"}`. A Hash argument whose one key is `"ruby"` is written as Ruby too: `{"ruby": "{\"ruby\" => \"3.4\"}"}`. A String that names a path under the emitted test's project (the nearest directory above the test with a `Gemfile`, a gemspec, or `.git`) is written from the test's own directory, `File.expand_path("../fixtures/files/rates.csv", __dir__)`, so the test passes in any checkout of the project, a jitcatch copy too. Its name and description say the path from the project root (`spec/fixtures/files/rates.csv`). A path under the temporary or the home directory and outside the project stays as written, and stderr names it: one that exists, since the test passes only on this machine, and one that does not, since the test still holds this machine's directories. Put such a path under the project, for example in `spec/fixtures/files`. A returned value or an error message that holds a path under the project names the project root from the test's own directory too (`"No such file or directory @ rb_sysopen - #{File.expand_path("..", __dir__)}/spec/fixtures/none.csv"`). One that holds a path of this machine outside the project stays as written, and stderr names it. A test name or description says a path under the temporary or the home directory by its file alone, so it is the same on every machine. Append entries. Do not delete or reorder them.
+
+For a method that changes state, the value is half of what it does. `after` reads the other half: one Ruby expression that runs once the call returned or raised, in the input's scope, so it reads the receiver by the name the emitted test gives it. It goes on an entry, or at the top of the file for every input, where an entry's own `after` replaces it and the inputs that `mutate` and `random` make take it too. Inside a suite it runs before the input's savepoint is rolled back. In a checkout of quint_driver, this file explores `QuintDriver::Hold#start`, which runs a block until the block pauses and holds its name until then:
+
+```json
+{
+  "after": {"ruby": "hold.held"},
+  "inputs": [
+    {"note": "pauses", "args": ["r1"], "block": "{ hold.pause(:read); :written }"},
+    {"note": "ends without a pause", "args": ["r1"], "block": "{ :written }"},
+    {"note": "raises before a pause", "args": ["r1"], "block": "{ raise \"boom\" }"},
+    {"note": "name already held", "args": ["r1"], "block": "{ :again }",
+     "setup": [{"method": "start", "args": ["r1"], "block": "{ hold.pause(:read) }"}]}
+  ]
+}
+```
+
+```sh
+branchout explore lib/quint_driver/hold.rb 'QuintDriver::Hold#start' --inputs hold.json \
+  --strategy inputs --random 0 --seed 1 --emit-tests test/hold_start_test.rb
+```
+
+```
+branchout explore lib/quint_driver/hold.rb QuintDriver::Hold#start
+covered: 5 of 6 arms by 4 inputs
+raised: 2 inputs
+tests: test/hold_start_test.rb
+
+FRONTIER (add an input like the nearest above each arm, changed as the arm says)
+nearest: {"after":{"ruby":"hold.held"},"args":["r1"],"block":"{ :written }"}
+lib/quint_driver/hold.rb:71:10 makes `%i[paused done].include?(kind) && answer.is_a?(Array)` false
+
+RETURNED (coverage does not check a value; compare each with what the method should return)
+returns :written for inputs[1] (ends without a pause)
+returns :read for inputs[0] (pauses)
+
+EXCEPTIONS
+ArgumentError at lib/quint_driver/hold.rb:32 raised by {"after":{"ruby":"hold.held"},"args":["r1"],"block":"{ :again }","setup":[{"args":["r1"],"block":"{ hold.pause(:read) }","method":"start"}]}: quint: "r1" is already held; finish it first
+RuntimeError at lib/quint_driver/hold.rb:34 raised by {"after":{"ruby":"hold.held"},"args":["r1"],"block":"{ raise \"boom\" }"}: boom
+
+AFTER (what each after read once its call returned or raised; compare each with the state the call should leave)
+hold.held is ["r1"] for inputs[3] (name already held), inputs[0] (pauses)
+hold.held is [] for inputs[1] (ends without a pause), inputs[2] (raises before a pause)
+
+OPERATORS (coverage does not see which side ran; vary each left side)
+lib/quint_driver/hold.rb:70:46 && in `%i[paused done].include?(kind) && answer.is_a?(Array)`
+
+Pass --verbose for every covered arm and the run settings.
+```
+
+The emitted test pins what the after read as it pins a value, after the value or the error. For a call that raised, the receiver is built before `assert_raises`, so the after can read it:
+
+```ruby
+  def test_raises_before_a_pause_raises_runtime_error
+    # covers:
+    #   line 32: if held?(name) -> else
+    hold = QuintDriver::Hold.new
+    error = assert_raises(RuntimeError) do
+      hold.start("r1") { raise "boom" }
+    end
+    assert_equal "boom", error.message
+    assert_equal [], hold.held
+  end
+```
+
+RSpec writes `expect(hold.held).to eq([])` after `expect { hold.start("r1") { raise "boom" } }.to raise_error(RuntimeError, "boom")`, on the `let` the call ran on. Without the `rescue` in `Hold#run` that frees the name, `start` still raises `RuntimeError` with `boom`, and only the after fails: `Expected: []`, `Actual: ["r1"]`. A value an after reads anew on each run is not pinned, a Hash keeps the keys that were the same on both runs, and stderr names each, as for a returned value. A path in it is written as a returned path is. Read several values as one Array or Hash (`[cart.items, cart.total]`); a modifier `if` or two statements are refused. An after that raises stops explore and names the input. When `new` or a setup call raised, no call left a state, so `AFTER` says `read nothing` for that input and its test pins the error as before. `--json` lists each value under `after`, with `after`, `is`, `value`, and `inputs`.
 
 ```sh
 ruby bin/branchout explore examples/hidden_bug.rb HiddenBug.scale \

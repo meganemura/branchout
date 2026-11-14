@@ -25,6 +25,20 @@ module Branchout
       new(-source)
     end
 
+    # One expression, as an emitted test passes it to assert_equal or
+    # expect: a modifier if or two statements would not parse there.
+    def self.expression(source, example)
+      raise Error, "Ruby #{source.inspect} is not one expression such as #{example.inspect}" unless source.is_a?(String)
+
+      code = parse(source)
+      unless Prism.parse(source).value.statements.body.length == 1 && Prism.parse("m(#{source})").errors.empty?
+        raise Error, "Ruby #{source.inspect} is not one expression such as #{example.inspect}; " \
+                     "read several values as one Array or Hash"
+      end
+
+      code
+    end
+
     def to_s = source
   end
 
@@ -78,9 +92,13 @@ module Branchout
     # +note+ is the reason the inputs file gives for the input, which names
     # it in the report and in an emitted test. Like +pin_keys+, it is not
     # part of the call, so it is not in to_h.
-    attr_reader :args, :kwargs, :receiver, :setup, :pin_keys, :block, :before, :note
+    # +after+ is the Code of one expression that reads what the call left,
+    # such as the receiver's state, once the call returned or raised, or
+    # nil. Its value is pinned beside the call's, so it is in to_h: two
+    # inputs that read different things are two tests.
+    attr_reader :args, :kwargs, :receiver, :setup, :pin_keys, :block, :before, :note, :after
 
-    def initialize(args:, kwargs: {}, receiver: nil, setup: [], pin_keys: nil, block: nil, before: nil, note: nil)
+    def initialize(args:, kwargs: {}, receiver: nil, setup: [], pin_keys: nil, block: nil, before: nil, note: nil, after: nil)
       @args = deep_freeze(normalize(args))
       unless @args.is_a?(Array)
         raise Error, "input args must be an array"
@@ -100,7 +118,14 @@ module Branchout
       @block = block
       @before = before
       @note = note && -note
+      @after = after
       freeze
+    end
+
+    # This input with +changes+ in place of its own parts.
+    def with(**changes)
+      parts = {args: args, kwargs: kwargs, receiver: receiver, setup: setup, pin_keys: pin_keys, block: block, before: before, note: note, after: after}
+      Input.new(**parts, **changes)
     end
 
     def to_h
@@ -113,6 +138,7 @@ module Branchout
       hash["setup"] = setup.map(&:to_h) unless setup.empty?
       hash["block"] = block.source if block
       hash["before"] = before if before
+      hash["after"] = after if after
       hash
     end
 
@@ -124,7 +150,7 @@ module Branchout
     # the args array so an agent can paste it back into inputs.json. The
     # entry form leaves out empty kwargs, which an inputs file may omit.
     def text
-      return Canon.json(args) if kwargs.empty? && receiver.nil? && setup.empty? && block.nil? && before.nil?
+      return Canon.json(args) if kwargs.empty? && receiver.nil? && setup.empty? && block.nil? && before.nil? && after.nil?
 
       Canon.json(short_h)
     end
@@ -145,7 +171,8 @@ module Branchout
         self.class.weight_of(receiver) +
         setup.sum { |call| 1 + call.arguments.weight } +
         (block ? block.source.length : 0) +
-        (before ? before.source.length : 0)
+        (before ? before.source.length : 0) +
+        (after ? after.source.length : 0)
     end
 
     def self.weight_of(value)

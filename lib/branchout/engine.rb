@@ -26,22 +26,28 @@ module Branchout
     # +varying+ is Runner::Execution's: what differed between two runs.
     # +listed_at+ is the input's index in the inputs file, or nil for an
     # input branchout made.
-    Pin = Struct.new(:input, :value, :error, :covers, :thawed, :varying, :listed_at, keyword_init: true)
+    # +observed+ is the Runner::Observation of what the input's after read,
+    # or nil when the input has no after or its call timed out.
+    Pin = Struct.new(:input, :value, :error, :covers, :thawed, :varying, :listed_at, :observed, keyword_init: true)
     Cover = Struct.new(:line, :column, :text, keyword_init: true)
     Finding = Struct.new(:class_name, :message, :loc, :input, :stable_message, keyword_init: true)
 
     def self.explore(target:, entry:, user_inputs: [], type_overrides: nil, seed: 0, strategies: STRATEGY_ORDER,
-                     random: 16, mutate_cap: 256, timeout: 1, command: "explore", requires: [], load_paths: [], host: nil)
+                     random: 16, mutate_cap: 256, timeout: 1, command: "explore", requires: [], load_paths: [], host: nil, after: nil)
       new(
         target: target, entry: entry, user_inputs: user_inputs, type_overrides: type_overrides,
         seed: seed, strategies: strategies, random: random, mutate_cap: mutate_cap,
-        timeout: timeout, command: command, requires: requires, load_paths: load_paths, host: host
+        timeout: timeout, command: command, requires: requires, load_paths: load_paths, host: host, after: after
       ).explore
     end
 
+    # +after+ is the inputs file's own after, the Code that reads what each
+    # call left. The listed inputs have it already; the inputs that mutate
+    # and random make get it here, so every call of the run reads the same.
     def initialize(target:, entry:, user_inputs:, type_overrides:, seed:, strategies:, random:, mutate_cap:, timeout:, command:,
-                   requires:, load_paths:, host:)
+                   requires:, load_paths:, host:, after: nil)
       @host = host
+      @after = after
       @path = target
       @load_paths = load_paths.map { |dir| File.expand_path(dir) }
       @requires = requires.map { |name| required_file(name) or raise Error, require_not_found(name) }
@@ -61,6 +67,7 @@ module Branchout
       user = @strategies.include?("inputs") ? @user_inputs : []
       mutated = @strategies.include?("mutate") ? Mutator.new(target, cap: @mutate_cap).inputs : []
       randoms = @strategies.include?("random") ? Sampler.new(target, seed: @seed, count: @random).inputs : []
+      mutated, randoms = [mutated, randoms].map { |list| list.map { |input| input.with(after: @after) } } if @after
 
       counts = {inputs: 0, mutate: 0, random: 0}
       seen = {}
@@ -233,7 +240,8 @@ module Branchout
           error: execution.error,
           covers: covers_of(target, execution),
           thawed: execution.thawed,
-          varying: execution.varying
+          varying: execution.varying,
+          observed: execution.observed
         )
       end
     end

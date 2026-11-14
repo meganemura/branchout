@@ -631,6 +631,139 @@ class CLITest < Minitest::Test
     end
   end
 
+  LATCH_INPUTS = {
+    "after" => {"ruby" => "fixture_latch.held"},
+    "inputs" => [
+      {"note" => "keeps the name", "args" => ["a"], "block" => "{ :keep }"},
+      {"note" => "frees the name", "args" => ["a"], "block" => "{ :done }"},
+      {"note" => "raises in the block", "args" => ["a"], "block" => "{ raise \"boom\" }"},
+      {"note" => "name already held", "args" => ["a"], "block" => "{ :done }",
+       "setup" => [{"method" => "take", "args" => ["a"], "block" => "{ :keep }"}]}
+    ]
+  }.freeze
+
+  # An after reads the receiver once the call returned or raised, and the
+  # emitted tests pin it as they pin the value, so a change that keeps the
+  # value and leaves another state fails them.
+  def test_an_after_pins_what_the_call_left_after_a_return_and_after_a_raise
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "latch.rb")
+      FileUtils.cp(File.join(ROOT, "test/fixtures/latch.rb"), target)
+      inputs = write_inputs(dir, LATCH_INPUTS)
+      test = File.join(dir, "latch_test.rb")
+      spec = File.join(dir, "latch_spec.rb")
+      [test, spec].each do |out|
+        stdout, stderr, status = run_cli("explore", target, "FixtureLatch#take", "--strategy", "inputs", "--inputs", inputs, "--emit-tests", out)
+        assert status.success?, stderr
+        assert_empty stderr
+        assert_includes stdout, "\nAFTER (what each after read once its call returned or raised; compare each with the state the call should leave)\n" \
+                                "fixture_latch.held is [\"a\"] for inputs[3] (name already held), inputs[0] (keeps the name)\n" \
+                                "fixture_latch.held is [] for inputs[1] (frees the name), inputs[2] (raises in the block)\n"
+      end
+      json = JSON.parse(run_cli("explore", target, "FixtureLatch#take", "--strategy", "inputs", "--inputs", inputs, "--json").first)
+      assert_equal [["fixture_latch.held", "[\"a\"]", 2], ["fixture_latch.held", "[]", 2]],
+                   json["after"].map { |entry| [entry["after"], entry["value"], entry["inputs"].length] }
+      assert_equal({"ruby" => "fixture_latch.held"}, json["after"].first["inputs"].first["after"])
+
+      assert_includes File.read(test), "    fixture_latch = FixtureLatch.new\n    error = assert_raises(RuntimeError) do\n" \
+                                       "      fixture_latch.take(\"a\") { raise \"boom\" }\n    end\n" \
+                                       "    assert_equal \"boom\", error.message\n    assert_equal [], fixture_latch.held\n"
+      assert_includes File.read(test), "    assert_equal :keep, fixture_latch.take(\"a\") { :keep }\n    assert_equal [\"a\"], fixture_latch.held\n"
+      assert_includes File.read(spec), "      expect { fixture_latch.take(\"a\") { raise \"boom\" } }.to raise_error(RuntimeError, \"boom\")\n" \
+                                       "      expect(fixture_latch.held).to eq([])\n"
+      _out, err, status = Open3.capture3(RbConfig.ruby, test)
+      assert status.success?, err
+      _out, err, status = Open3.capture3(RbConfig.ruby, "-rrspec/autorun", "-e", "", spec)
+      assert status.success?, err
+
+      # Without the rescue that frees the name, take raises the same error.
+      File.write(target, File.read(target).sub("  rescue RuntimeError\n    @held.delete(name)\n    raise\n", ""))
+      out, _err, status = Open3.capture3(RbConfig.ruby, test)
+      refute status.success?
+      assert_includes out, "1 failures"
+      out, _err, status = Open3.capture3(RbConfig.ruby, "-rrspec/autorun", "-e", "", spec)
+      refute status.success?
+      assert_includes out, "1 failure"
+    end
+  end
+
+  # An input's own after replaces the file's, and the inputs mutate makes
+  # read the file's. An input whose new raised read nothing, and its test
+  # pins that raise as before.
+  def test_the_files_after_reaches_every_input_and_new_that_raises_reads_nothing
+    Dir.mktmpdir do |dir|
+      inputs = write_inputs(dir, {"after" => {"ruby" => "fixture_account.inspect.size.positive?"},
+                                  "inputs" => [{"args" => [1], "new" => [5], "after" => {"ruby" => "[1]"}}, {"args" => [1], "new" => [5], "setup" => [{"method" => "withdraw", "args" => ["x"]}]}]})
+      out = File.join(dir, "account_test.rb")
+      stdout, stderr, status = run_cli("explore", "test/fixtures/account.rb", "FixtureAccount#withdraw", "--strategy", "inputs,mutate", "--random", "0",
+                                       "--inputs", inputs, "--emit-tests", out)
+      assert status.success?, stderr
+      assert_includes stdout, "\n[1] is [1] for inputs[0]\n"
+      assert_match(/^fixture_account\.inspect\.size\.positive\? is true for \{"after":/, stdout)
+      assert_includes stdout, "\nfixture_account.inspect.size.positive? read nothing for inputs[1]: new or a setup call raised before the call\n"
+      source = File.read(out)
+      assert_includes source, "    assert_equal [1], [1]\n"
+      assert_includes source, "    assert_equal true, fixture_account.inspect.size.positive?\n"
+      _out, err, status = Open3.capture3(RbConfig.ruby, out)
+      assert status.success?, err
+    end
+  end
+
+  def test_an_after_that_raises_or_is_not_one_expression_is_refused
+    Dir.mktmpdir do |dir|
+      [
+        [{"inputs" => [{"args" => [1], "new" => [5], "after" => {"ruby" => "fixture_account.nope"}}]},
+         "branchout: the after \"fixture_account.nope\" of the input {\"after\":{\"ruby\":\"fixture_account.nope\"},\"args\":[1],\"kwargs\":{},\"new\":{\"args\":[5],\"kwargs\":{}}} " \
+         "raised NoMethodError: undefined method 'nope' for an instance of FixtureAccount. Fix the after.\n"],
+        [{"inputs" => [{"args" => [1], "new" => [5], "after" => {"ruby" => "a if b"}}]},
+         "branchout: #{dir}/inputs.json inputs[0] after \"a if b\" is not one expression such as \"cart.items\"; read several values as one Array or Hash\n"],
+        [{"after" => "x", "inputs" => []}, "branchout: #{dir}/inputs.json after must be Ruby such as {\"ruby\": \"cart.items\"}\n"]
+      ].each do |body, message|
+        inputs = write_inputs(dir, body)
+        _stdout, stderr, status = run_cli("explore", "test/fixtures/account.rb", "FixtureAccount#withdraw", "--strategy", "inputs", "--inputs", inputs)
+        refute status.success?
+        # Ruby 3.3 words a NoMethodError otherwise.
+        assert_equal message, stderr unless message.include?("NoMethodError") && RUBY_VERSION < "3.4"
+      end
+    end
+  end
+
+  # A value an after reads anew on each call is not pinned, as a returned
+  # one is not, and stderr says so.
+  def test_an_after_that_differs_between_two_runs_is_not_pinned
+    Dir.mktmpdir do |dir|
+      inputs = write_inputs(dir, {"inputs" => [{"args" => [1], "new" => [5], "after" => {"ruby" => "{n: 1, id: Object.new.object_id}"}},
+                                               {"args" => [2], "new" => [5], "after" => {"ruby" => "Object.new.object_id"}}]})
+      out = File.join(dir, "account_test.rb")
+      stdout, stderr, status = run_cli("explore", "test/fixtures/account.rb", "FixtureAccount#withdraw", "--strategy", "inputs", "--inputs", inputs, "--emit-tests", out)
+      assert status.success?, stderr
+      assert_includes stderr, "branchout: the after {n: 1, id: Object.new.object_id} of {\"after\":{\"ruby\":\"{n: 1, id: Object.new.object_id}\"},\"args\":[1],\"new\":{\"args\":[5]}} " \
+                              "read a Hash whose id differed between two runs, so its test pins only n.\n"
+      assert_includes stderr, "branchout: the after Object.new.object_id of {\"after\":{\"ruby\":\"Object.new.object_id\"},\"args\":[2],\"new\":{\"args\":[5]}} " \
+                              "read a value that differed between two runs, so its test does not check it.\n"
+      assert_includes stdout, "Object.new.object_id is a value that differed between two runs for "
+      source = File.read(out)
+      assert_includes source, "    assert_equal({ n: 1 }, ({n: 1, id: Object.new.object_id}).slice(:n))\n"
+      refute_includes source, "Object.new.object_id\n  end"
+      _out, err, status = Open3.capture3(RbConfig.ruby, out)
+      assert status.success?, err
+    end
+  end
+
+  # A part of what an after read that has no literal is checked by its
+  # class, and PINNED BY CLASS names it by the after's source.
+  def test_a_part_an_after_read_with_no_literal_is_pinned_by_class
+    Dir.mktmpdir do |dir|
+      inputs = write_inputs(dir, {"inputs" => [{"args" => [1], "new" => [5], "after" => {"ruby" => "[Object.new, 1]"}}]})
+      out = File.join(dir, "account_test.rb")
+      stdout, stderr, status = run_cli("explore", "test/fixtures/account.rb", "FixtureAccount#withdraw", "--strategy", "inputs", "--inputs", inputs, "--emit-tests", out)
+      assert status.success?, stderr
+      assert_includes stdout, "\n[Object.new, 1] is an Array of 2 for inputs[0]\n"
+      assert_includes stdout, "\n[Object.new, 1][0] is an Object: {\"after\":{\"ruby\":\"[Object.new, 1]\"},\"args\":[1],\"new\":{\"args\":[5]}}\n"
+      assert_includes File.read(out), "    value = [Object.new, 1]\n    assert_kind_of Object, value[0]\n    assert_equal([value[0], 1], value)\n"
+    end
+  end
+
   def test_setup_is_refused_for_a_class_method
     Dir.mktmpdir do |dir|
       path = write_inputs(dir, { "inputs" => [{ "args" => [1], "setup" => [{ "method" => "add", "args" => [] }] }] })
@@ -1614,7 +1747,7 @@ class CLITest < Minitest::Test
         assert_includes source, %q["No such file or directory @ rb_sysopen - #{File.expand_path("..", __dir__)}/spec/fixtures/none.csv"]
         refute_includes source, app
         assert_equal "branchout: the emitted test pins #{outside}, a path of this machine outside the test's project, in a returned " \
-                     "value or an error message, so the test passes only here. Give Sheet.read a path under the project.\n", err
+                     "value, an error message, or what an after read, so the test passes only here. Give Sheet.read a path under the project.\n", err
         next if name.end_with?("_spec.rb")
 
         assert_equal %w[test_nothing_csv_raises_errno_enoent test_spec_fixtures_none_csv_raises_errno_enoent

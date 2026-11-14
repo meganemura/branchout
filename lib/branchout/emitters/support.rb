@@ -156,8 +156,7 @@ module Branchout
         end
         receiver = input.receiver.is_a?(Input) ? project_paths(input.receiver, destination) : input.receiver
         setup = input.setup.map { |call| Input::SetupCall.new(call.method_name, project_paths(call.arguments, destination)) }
-        Input.new(args: rewrite.(input.args), kwargs: rewrite.(input.kwargs), receiver: receiver, setup: setup,
-                  pin_keys: input.pin_keys, block: input.block, before: input.before, note: input.note)
+        input.with(args: rewrite.(input.args), kwargs: rewrite.(input.kwargs), receiver: receiver, setup: setup)
       end
 
       # +value+, a returned value or an error message, with each String
@@ -244,10 +243,10 @@ module Branchout
         end
         call = ->(on) { with_block(call_text(on, target.method_name, argument_list(input, thawed: thawed), private_calls), input.block) }
         before = input.before ? input.before.source.lines(chomp: true) : []
-        return [before, call.(receiver)] if input.setup.empty? && !input.receiver.is_a?(Code)
+        return [before, call.(receiver)] if target.singleton || (input.setup.empty? && !input.receiver.is_a?(Code) && input.after.nil?)
 
-        # The name explore gave the receiver, so a setup block or an
-        # argument that reads it reads the same object here.
+        # The name explore gave the receiver, so a setup block, an argument,
+        # or the after that reads it reads the same object here.
         name = built_receiver_name(target)
         statements = [*before, "#{name} = #{receiver}"]
         input.setup.each do |setup_call|
@@ -544,6 +543,7 @@ module Branchout
         end
         out << [[:block], input.block] if input.block
         out << [[:before], input.before] if input.before
+        out << [[:after], input.after] if input.after
         out
       end
 
@@ -598,6 +598,29 @@ module Branchout
         stable = pin.value.keys.map(&:to_s) - pin.varying
         chosen = keys & stable
         chosen.empty? ? stable : chosen
+      end
+
+      # What +pin+'s after read, as a pin of its own whose value is that
+      # read, so a report and a test pin it as they pin a returned value.
+      # The input's pin_keys name keys of the returned Hash, not of this
+      # one. nil for a pin with no after read.
+      def after_pin(pin)
+        return nil unless pin.observed
+
+        pin.dup.tap do |copy|
+          copy.input = pin.input.with(pin_keys: nil)
+          copy.value = pin.observed.value
+          copy.varying = pin.observed.varying
+          copy.error = nil
+          copy.observed = nil
+        end
+      end
+
+      # +source+, an expression, as the receiver of a method call: in
+      # parentheses unless it is a chain of names and calls, where a call
+      # after it binds to the whole.
+      def receiver_form(source)
+        source.match?(/\A[A-Za-z_@$][\w@$]*(?:(?:\.|::)[A-Za-z_]\w*[?!]?(?:\([^()]*\))?)*\z/) ? source : "(#{source})"
       end
 
       def outcome_text(pin, differing, short: false)

@@ -1,0 +1,54 @@
+# Generated from lib/branchout/emitters/rspec.rb with RBS::Inline
+
+module Branchout
+  module Emitters
+    # Emits RSpec source. This file does not load the rspec gem.
+    #
+    # Each input becomes a list of steps: the receiver (a let), each setup
+    # call (a before, or inline when the input raised), and each leaf of the
+    # arguments (a fact, which only names). Inputs that start with the same
+    # steps share a context that holds them, so an example is left with the
+    # outcome and the facts of its own.
+    module RSpec
+      # The longest description or context text.
+      LIMIT: Integer
+
+      # rspec puts these on the load path of a run from the project root.
+      RUNNER_LOAD_PATHS: Array[String]
+
+      CALLS: Array[Symbol]
+
+      # The steps whose code runs in a context, so an input that still has
+      # one gets a context of its own.
+      CONTEXT_STEPS: Array[Symbol]
+
+      class Example < Data
+        attr_reader pin(): Engine::Pin
+
+        attr_reader steps(): Array[Step]
+
+        attr_reader facts(): Array[Step]
+
+        def self.new: (Engine::Pin pin, Array[Step] steps, Array[Step] facts) -> instance
+                    | (pin: Engine::Pin, steps: Array[Step], facts: Array[Step]) -> instance
+
+        def self.members: () -> [ :pin, :steps, :facts ]
+
+        def members: () -> [ :pin, :steps, :facts ]
+      end
+
+      # Names that a let or a subject must not take: RSpec's own methods.
+      TAKEN_NAMES: Array[String]
+
+      # @rbs result: Engine::Result
+      # @rbs target: Target
+      # @rbs destination: String
+      # @rbs require_by_name: bool
+      # @rbs pin_keys: Array[String]
+      # @rbs from: String
+      # @rbs all_varied: bool
+      # @rbs return: String
+      def self?.render: (Engine::Result result, Target target, String destination, ?require_by_name: bool, ?pin_keys: Array[String], ?from: String, ?all_varied: bool) -> String
+    end
+  end
+end

@@ -1,0 +1,367 @@
+# Generated from lib/branchout/runner.rb with RBS::Inline
+
+module Branchout
+  # Loads the target under Coverage and runs one input at a time.
+  # Branch counters are cleared between calls. Load-time execution is discarded.
+  class Runner
+    type branch_key = [ Symbol, Integer, Integer, Integer, Integer, Integer ]
+
+    type branches = Hash[branch_key, Hash[branch_key, Integer]]
+
+    type varying = :whole | Array[String] | nil
+
+    # +thawed+ is true when the input ran with unfrozen Strings, because
+    # with frozen ones, as literals in an emitted test are, it raised
+    # FrozenError.
+    # +varying+ is nil when a second run gave the same value, :whole when
+    # the value differed as a whole, or the keys of a returned Hash whose
+    # values differed.
+    # +observed+ is the Observation of what the input's after read, or nil.
+    class Execution < Struct[Input | untyped | ExceptionInfo? | Array[Integer?] | branches | Array[String]? | Symbol? | bool | varying | Observation?]
+      attr_accessor input(): Input
+
+      attr_accessor value(): untyped
+
+      attr_accessor error(): ExceptionInfo?
+
+      attr_accessor lines(): Array[Integer?]
+
+      attr_accessor branches(): branches
+
+      attr_accessor path_ids(): Array[String]?
+
+      attr_accessor origin(): Symbol?
+
+      attr_accessor thawed(): bool
+
+      attr_accessor varying(): varying
+
+      attr_accessor observed(): Observation?
+
+      def self.new: (?input: Input, ?value: untyped, ?error: ExceptionInfo?, ?lines: Array[Integer?], ?branches: branches, ?path_ids: Array[String]?, ?origin: Symbol?, ?thawed: bool, ?varying: varying, ?observed: Observation?) -> instance
+                  | ({ ?input: Input, ?value: untyped, ?error: ExceptionInfo?, ?lines: Array[Integer?], ?branches: branches, ?path_ids: Array[String]?, ?origin: Symbol?, ?thawed: bool, ?varying: varying, ?observed: Observation? }) -> instance
+    end
+
+    # What an input's after read once the call returned or raised. +varying+
+    # is as Execution's is for the returned value.
+    class Observation < Struct[untyped | varying]
+      attr_accessor value(): untyped
+
+      attr_accessor varying(): varying
+
+      def self.new: (?value: untyped, ?varying: varying) -> instance
+                  | ({ ?value: untyped, ?varying: varying }) -> instance
+    end
+
+    # +name+ is the missing name of a NameError, which is stable where its
+    # message is not: Ruby 3.4 reworded both NameError and NoMethodError.
+    # +message+ has its line breaks folded for reports; a test pins
+    # +exact_message+, the message as raised, when that is stable.
+    # +message_pattern+ is the source of a Regexp for a message that quotes
+    # a backtrace frame: Ruby 3.4 labels a frame 'Box.run' where 3.3 wrote
+    # `run', so the pattern keeps the rest and accepts either label. It
+    # accepts any file descriptor (fd:\d+) where the message names one.
+    class ExceptionInfo < Struct[String | String? | bool | Symbol?]
+      attr_accessor class_name(): String
+
+      attr_accessor message(): String
+
+      attr_accessor loc(): String?
+
+      attr_accessor stable_message(): bool
+
+      attr_accessor name(): Symbol?
+
+      attr_accessor exact_message(): String?
+
+      attr_accessor message_pattern(): String?
+
+      def self.new: (?class_name: String, ?message: String, ?loc: String?, ?stable_message: bool, ?name: Symbol?, ?exact_message: String?, ?message_pattern: String?) -> instance
+                  | ({ ?class_name: String, ?message: String, ?loc: String?, ?stable_message: bool, ?name: Symbol?, ?exact_message: String?, ?message_pattern: String? }) -> instance
+    end
+
+    # +arms+ is nil when the callee's file holds no coverage to count from.
+    class Callee < Struct[String | Integer?]
+      attr_accessor name(): String
+
+      attr_accessor loc(): String
+
+      attr_accessor arms(): Integer?
+
+      def self.new: (?name: String, ?loc: String, ?arms: Integer?) -> instance
+                  | ({ ?name: String, ?loc: String, ?arms: Integer? }) -> instance
+    end
+
+    # +private_calls+ names the entry and new when they are private or
+    # protected, so a test has to call them through send.
+    # +const_expression+ names the target class as a test can write it:
+    # a private constant has to be reached through const_get.
+    # +target_required+ is true when a --require file already loads the
+    # target, so a test needs no require of its own for it.
+    # +not_counted+ lists the methods in other files that the counted code
+    # calls on self, such as a parent class's helper. Their arms are not in
+    # the report, so a check moved into one makes arms_total smaller.
+    attr_reader template: { lines: Array[Integer?], branches: branches }
+
+    attr_reader private_calls: Array[Symbol]
+
+    attr_reader target_required: bool
+
+    attr_reader const_expression: String
+
+    attr_reader not_counted: Array[Callee]
+
+    @installed_dirs: Array[String]
+
+    @required_new: [ String, Integer ]?
+
+    @method: untyped
+
+    @const: Class
+
+    @owner: Module
+
+    @observed: Observation?
+
+    @rolled_back: bool
+
+    @host: Host?
+
+    @load_paths: Array[String]
+
+    @requires: Array[String]
+
+    @timeout: Integer | Float | nil
+
+    @target: Target
+
+    # +requires+ are files the target needs loaded first, such as its
+    # library's entry file. They load after coverage starts, so the target
+    # is measured even when one of them requires it. Each one's directory
+    # joins the end of the load path, after the gems, because a Rails app's
+    # config/environment.rb sits beside config/puma.rb. Each +load_paths+
+    # directory (-I) goes first, as ruby -I puts it.
+    # +host+ is the test that runs explore from inside a suite, which loaded
+    # the target and the requires already.
+    # : (Target, timeout: Integer | Float | nil, ?requires: Array[String], ?load_paths: Array[String], ?host: Host?) -> void
+    def initialize: (Target, timeout: Integer | Float | nil, ?requires: Array[String], ?load_paths: Array[String], ?host: Host?) -> void
+
+    # An input runs with frozen Strings, as an emitted test's literals are.
+    # Only when that raises FrozenError and unfrozen Strings do not does
+    # it keep the unfrozen run, which the emitted test then writes as +"".
+    # In a suite, an around that did not run the input in ROLL_BACK, such as
+    # RUN_ONLY, keeps what the first run wrote, which a second run would see
+    # and no emitted test would, so there the FrozenError stays.
+    # : (Input) -> Execution
+    def execute: (Input) -> Execution
+
+    private
+
+    # A second run starts from the rows the first saw only when the first
+    # was rolled back.
+    # : () -> bool
+    def repeatable?: () -> bool
+
+    # A value made anew on each run, such as a generated id, a factory
+    # sequence, or a SecureRandom token, would fail the emitted test on its
+    # first run, so the input runs once more and what differs is not pinned.
+    # An error whose message differs is pinned by its class alone.
+    # An input that timed out is not run again: a second wait would double
+    # the run and its error has no message to compare.
+    # : (Execution) -> void
+    def compare_with_second_run: (Execution) -> void
+
+    # nil when +first+ and +second+ would be pinned the same, the String
+    # keys of a Hash whose values differ when only some do, else :whole.
+    # A stable value with no literal, such as a Date or a record, is pinned
+    # by its class, as same_pin? compares it.
+    # : (untyped, untyped) -> varying
+    def self.differing: (untyped, untyped) -> varying
+
+    # A literal is pinned by its value, anything else by its class and the
+    # literals inside it.
+    # : (untyped, untyped) -> bool
+    def self.same_pin?: (untyped, untyped) -> bool
+
+    # : (Input, bool) -> Execution
+    def attempt: (Input, bool) -> Execution
+
+    # : (Input, bool) -> [untyped, ExceptionInfo?]
+    def outcome: (Input, bool) -> [ untyped, ExceptionInfo? ]
+
+    # : [T] (Input) { () -> T } -> T
+    def refusing_lets: [T] (Input) { () -> T } -> T
+
+    # : () -> void
+    def boot: () -> void
+
+    # Loading the target again would run its class body twice, and a
+    # Rails model declares validations and callbacks there, so the target
+    # is measured only when it loaded after branchout/coverage.
+    # : () -> void
+    def attach: () -> void
+
+    # rspec requires each file .rspec or -r names before the spec files,
+    # so a model those files load is loaded before the explore file's first
+    # line, and -r branchout/coverage comes after them too. bundle exec
+    # reads RUBYOPT before Bundler sets the load path, so the command names
+    # bundler/setup first, or a path or git gem would not be found.
+    # : () -> String?
+    def rspec_required_first: () -> String?
+
+    # Ruby adds a file to $LOADED_FEATURES when its load ends, so a helper
+    # listed before the target finished without loading it. A helper listed
+    # after it, such as a rails_helper that booted the app, may be the one
+    # that did, and so may every helper rspec required after that one.
+    # : (Array[String]) -> Array[String]
+    def helpers_done_before_target: (Array[String]) -> Array[String]
+
+    # Kernel#load, as Rails uses for an initializer, leaves the file out of
+    # $LOADED_FEATURES, but coverage holds every file loaded after setup.
+    # : () -> bool
+    def target_loaded?: () -> bool
+
+    # : () -> bool
+    def target_measured?: () -> bool
+
+    # Another checkout's lib/branchout reopens the running tool's classes,
+    # so the run would mix two versions. A copy is a file that opens the
+    # Branchout namespace; a project file that only shares a file name with
+    # one of branchout's is not. The running lib is loaded already, so
+    # require never opens its classes again. The check is a closure built
+    # before anything loads, because the copy can redefine every method and
+    # constant.
+    # : () -> ^(String) -> void
+    def loader_refusing_another_branchout: () -> ^(String) -> void
+
+    # : () -> void
+    def resolve: () -> void
+
+    # +loaded+ is the coverage of everything loaded, which holds the arms of
+    # each file loaded after coverage started. A method defined in C, in
+    # Ruby's own prelude, or by a file loaded before that has no arms to
+    # count here.
+    # : (Hash[String, untyped]) -> Array[Callee]
+    def callees_in_other_files: (Hash[String, untyped]) -> Array[Callee]
+
+    # Where installed gems and Ruby's own library live. An app cannot move
+    # a check into one, so its methods hide none of the app's arms.
+    # : () -> Array[String]
+    def installed_dirs: () -> Array[String]
+
+    # The class +const+ names where it is written, inside +namespace+, as
+    # Ruby's lexical lookup finds it.
+    # : (String, String) -> untyped
+    def built_class: (String, String) -> untyped
+
+    # +holder+ is the class the call is made on. A module with no name has
+    # only an inspect that carries its address, so it is named by +holder+.
+    # : (Module, Module, bool, Symbol) -> String
+    def callee_name: (Module, Module, bool, Symbol) -> String
+
+    # What an input has to give in "new": the required positional
+    # arguments and the required keywords of initialize, with their count,
+    # or nil when it needs neither.
+    # : (Method::param_types) -> [String, Integer]?
+    def required_text: (Method::param_types) -> [ String, Integer ]?
+
+    # : (Input) -> void
+    def check_receiver: (Input) -> void
+
+    # The target's own output is discarded, at load time too, so stdout
+    # stays the report.
+    # : [T] () { () -> T } -> T
+    def quietly: [T] () { () -> T } -> T
+
+    # : (Input, bool) -> untyped
+    def invoke: (Input, bool) -> untyped
+
+    # An input with an after reads it once the entry returned or raised,
+    # in the input's scope, so it reads the receiver by the name the
+    # emitted test gives it, and in a suite before the input's savepoint
+    # is rolled back.
+    # : (Input, bool) -> untyped
+    def run_entry: (Input, bool) -> untyped
+
+    # : () { (?) -> untyped } -> untyped
+    def timed: () { (?) -> untyped } -> untyped
+
+    # When new or a setup call raised, no call left a state to read, and
+    # the error is pinned as it is without an after; the report says the
+    # after read nothing. An after that raises reads nothing an emitted
+    # test could pin, so explore stops and says which input to fix.
+    # : (Input, Binding, bool) -> void
+    def read_after: (Input, Binding, bool) -> void
+
+    # FactoryBot's methods that a suite reaches bare only when it includes
+    # FactoryBot::Syntax::Methods.
+    FACTORY_METHODS: Array[Symbol]
+
+    # An error raised in the input's own Ruby, before the entry runs and
+    # outside the target's file, says nothing about the entry, and a test
+    # that pinned it would keep it, so explore stops. An error raised by new
+    # or a setup call is the class's own and is pinned.
+    # : [T] (Input) { () -> T } -> T
+    def built_by_input: [T] (Input) { () -> T } -> T
+
+    # : (String) -> bool
+    def own_file?: (String) -> bool
+
+    # Each input gets a new receiver, as an emitted test does, so one input
+    # cannot change the state the next input sees. new and the setup calls
+    # run outside coverage: the arms they take are not the entry's.
+    # A receiver the input's Ruby builds gets the name the emitted test
+    # gives it, so the arguments can be read from it, as in
+    # "room.participants.first".
+    # : (Input, Binding, bool) -> untyped
+    def prepared_receiver: (Input, Binding, bool) -> untyped
+
+    # Each call gets its own copy, so the target cannot rewrite the input.
+    # Its Strings are frozen, as literals in an emitted test are, unless
+    # +thawed+. Code is evaluated here, as an emitted test does, so each
+    # call gets its own object.
+    # : (Input, Binding, bool) -> [Array[untyped], Hash[Symbol, untyped]]
+    def fresh_arguments: (Input, Binding, bool) -> [ Array[untyped], Hash[Symbol, untyped] ]
+
+    # : (untyped, Binding, bool) -> untyped
+    def built: (untyped, Binding, bool) -> untyped
+
+    # Where one input's Ruby runs: the top level, as in an emitted test, or
+    # in a suite the test itself, so it reaches the test's factories,
+    # fixtures, and helpers. A string eval keeps this method's locals out.
+    # : () -> Binding
+    def new_scope: () -> Binding
+
+    # : [T] () { () -> T } -> T
+    def measure: [T] () { () -> T } -> T
+
+    # The target loaded under CoverageSession, which measures lines and
+    # branches, so the result holds both for its file.
+    # : (Hash[String, untyped]) -> { lines: Array[Integer?], branches: branches }
+    def extract: (Hash[String, untyped]) -> { lines: Array[Integer?], branches: branches }
+  end
+
+  class Runner::ExceptionInfo
+    # : (Exception, String, String, ?fallback_line: Integer?) -> Runner::ExceptionInfo
+    def self.from: (Exception, String, String, ?fallback_line: Integer?) -> Runner::ExceptionInfo
+
+    # A report line holds the whole message, so each line break, with the
+    # blanks around it, becomes one space. Other whitespace is part of
+    # what the message says, such as the blank String a FrozenError quotes.
+    # : (String) -> String
+    def self.one_line: (String) -> String
+
+    FRAME_LABEL: Regexp
+
+    # An Errno message from an IO names its file descriptor (fd:5), whose
+    # number depends on what the process opened before, so a test that ran
+    # after other files were opened would see another one.
+    FILE_DESCRIPTOR: Regexp
+
+    # : (String) -> String?
+    def self.frame_pattern: (String) -> String?
+
+    # : (Exception, String, String) -> String?
+    def self.locate: (Exception, String, String) -> String?
+  end
+end

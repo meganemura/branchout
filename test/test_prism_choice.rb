@@ -37,11 +37,13 @@ class PrismChoiceTest < Minitest::Test
     assert_nil Branchout::PrismChoice.accepted(versions("1.9.0", "2.1.0"), specs)
   end
 
-  # A bundle names its own prism, and a gem call outside it raises.
+  # A bundle names its own prism, and a gem call outside it raises. The
+  # test's own bundle can already hold a prism, so the check compares the
+  # loaded specs before and after the call.
   def test_activates_nothing_inside_a_bundle
-    out, err, status = activate_in_ruby("module Bundler; end", 'print Gem.loaded_specs.key?("prism")')
+    out, err, status = activate_in_ruby("module Bundler; end; loaded = Gem.loaded_specs.keys", "print loaded == Gem.loaded_specs.keys")
     assert status.success?, err
-    assert_equal "false", out
+    assert_equal "true", out
   end
 
   # A second gem call for another version would raise.

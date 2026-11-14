@@ -1,0 +1,9 @@
+# rbs-inline reads the members of a Struct.new, but not the methods its
+# block defines, so they are declared here.
+module Branchout
+  class Input
+    class SetupCall
+      def to_h: () -> Hash[String, untyped]
+    end
+  end
+end

@@ -1,0 +1,5 @@
+# Generated from lib/branchout.rb with RBS::Inline
+
+module Branchout
+  Error: untyped
+end

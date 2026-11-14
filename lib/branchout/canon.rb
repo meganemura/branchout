@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+# rbs_inline: enabled
 
 module Branchout
   # Byte-stable JSON. Key order is sorted, floats have a fixed spelling,
@@ -6,6 +7,7 @@ module Branchout
   module Canon
     module_function
 
+    #: (untyped) -> String
     def json(obj)
       case obj
       when nil then "null"
@@ -29,6 +31,7 @@ module Branchout
     # Float#to_s is the shortest text that reads back as the same float in
     # Ruby and in JSON. A fixed precision is not: %.16g printed 0.1 + 0.2 as
     # 0.3, and the largest float as a number that parses to Infinity.
+    #: (Float) -> String
     def format_float(value)
       raise Error, "non-finite float" unless value.finite?
       return "0.0" if value.zero?
@@ -36,6 +39,7 @@ module Branchout
       value.to_s
     end
 
+    #: (untyped, ?Integer) -> String
     def pretty(obj, indent = 0)
       pad = "  " * indent
       case obj

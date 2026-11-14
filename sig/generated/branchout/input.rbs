@@ -1,0 +1,149 @@
+# Generated from lib/branchout/input.rb with RBS::Inline
+
+module Branchout
+  # Ruby source that an input passes in place of a JSON value: a record, an
+  # exception, or a block, which JSON cannot write. An inputs file spells it
+  # {"ruby": "Factories.loan(3)"}. Each call evaluates it again, so every
+  # call gets a new object, and an emitted test writes it as it was given.
+  #
+  # Neither rbs-inline nor steep reads the methods of a Data.define block, so
+  # sig/branchout/code.rbs declares them, and steep does not check them.
+  class Code < Data
+    attr_reader source(): String
+
+    def self.new: (String source) -> instance
+                | (source: String) -> instance
+
+    def self.members: () -> [ :source ]
+
+    def members: () -> [ :source ]
+  end
+
+  # A String input that names a path under the emitted test's project. The
+  # test writes it from its own directory (+from_test+), so it passes in a
+  # copy of the project on another machine. Its text is the path from the
+  # project root, which the test's names and descriptions say.
+  class ProjectPath < String
+    attr_reader from_test: String
+
+    # : (String, String) -> void
+    def initialize: (String, String) -> void
+  end
+
+  # A returned String or an error message that holds paths under the
+  # emitted test's project. The test writes the project root from its own
+  # directory (+root_from_test+) between the +pieces+, so it passes in a
+  # copy of the project on another machine. Its text says each path from
+  # the project root, as a ProjectPath does.
+  class ProjectText < String
+    attr_reader pieces: Array[String]
+
+    attr_reader root_from_test: String
+
+    # : (Array[String], String) -> void
+    def initialize: (Array[String], String) -> void
+  end
+
+  class Input
+    # One call made on the receiver after new and before the entry.
+    # +arguments+ is an Input with no receiver and no setup of its own.
+    # sig/branchout/input.rbs declares the method of the block, which neither
+    # rbs-inline nor steep reads.
+    class SetupCall < Struct[String | Input]
+      attr_accessor method_name(): String
+
+      attr_accessor arguments(): Input
+
+      def self.new: (?String method_name, ?Input arguments) -> instance
+                  | (?method_name: String, ?arguments: Input) -> instance
+    end
+
+    # +receiver+ is the Input whose arguments go to new for a Const#method
+    # entry, the Code that builds the receiver itself (a factory call that
+    # returns a saved record), or nil to call new with none. +setup+ lists
+    # the SetupCalls that build the receiver's state. +pin_keys+, when not nil, replaces
+    # --pin-keys for this input's test. It is not part of the call, so it is
+    # not in to_h. +block+ is the Code of the block the entry gets, or nil.
+    # +before+ is the Code that makes what the call reads, such as the rows
+    # a class method looks up, run first in the input's savepoint, or nil.
+    # +note+ is the reason the inputs file gives for the input, which names
+    # it in the report and in an emitted test. Like +pin_keys+, it is not
+    # part of the call, so it is not in to_h.
+    # +after+ is the Code of one expression that reads what the call left,
+    # such as the receiver's state, once the call returned or raised, or
+    # nil. Its value is pinned beside the call's, so it is in to_h: two
+    # inputs that read different things are two tests.
+    attr_reader args: Array[untyped]
+
+    attr_reader kwargs: Hash[String, untyped]
+
+    attr_reader receiver: Input | Code | nil
+
+    attr_reader setup: Array[SetupCall]
+
+    attr_reader pin_keys: Array[String]?
+
+    attr_reader block: Code?
+
+    attr_reader before: Code?
+
+    attr_reader note: String?
+
+    attr_reader after: Code?
+
+    # @rbs args: Array[untyped]
+    # @rbs kwargs: Hash[String | Symbol, untyped]?
+    # @rbs receiver: Input | Code | nil
+    # @rbs setup: Array[SetupCall]
+    # @rbs pin_keys: Array[String]?
+    # @rbs block: Code?
+    # @rbs before: Code?
+    # @rbs note: String?
+    # @rbs after: Code?
+    # @rbs return: void
+    def initialize: (args: Array[untyped], ?kwargs: Hash[String | Symbol, untyped]?, ?receiver: Input | Code | nil, ?setup: Array[SetupCall], ?pin_keys: Array[String]?, ?block: Code?, ?before: Code?, ?note: String?, ?after: Code?) -> void
+
+    # This input with +changes+ in place of its own parts.
+    # : (**untyped) -> Input
+    def with: (**untyped) -> Input
+
+    # : () -> Hash[String, untyped]
+    def to_h: () -> Hash[String, untyped]
+
+    # : () -> String
+    def canonical: () -> String
+
+    # Short form used in the text report. An input with only args prints as
+    # the args array so an agent can paste it back into inputs.json. The
+    # entry form leaves out empty kwargs, which an inputs file may omit.
+    # : () -> String
+    def text: () -> String
+
+    # : () -> Hash[String, untyped]
+    def short_h: () -> Hash[String, untyped]
+
+    # Smaller is a simpler witness: absolute numeric size, then string
+    # length, and each setup call counts one.
+    # : () -> (Integer | Float)
+    def weight: () -> (Integer | Float)
+
+    # : (untyped) -> (Integer | Float)
+    def self.weight_of: (untyped) -> (Integer | Float)
+
+    # : (String?) -> (Integer | Float | String | Array[untyped] | Hash[untyped, untyped] | bool)
+    def self.zero: (String?) -> (Integer | Float | String | Array[untyped] | Hash[untyped, untyped] | bool)
+
+    # : (untyped) -> untyped
+    def normalize: (untyped) -> untyped
+
+    # {"ruby": "..."} is Ruby source. A Hash argument with one key "ruby"
+    # is written as Ruby too: {"ruby": "{\"ruby\" => \"3.4\"}"}.
+    # : (Hash[untyped, untyped]) -> bool
+    def code?: (Hash[untyped, untyped]) -> bool
+
+    # It returns +value+ itself; steep does not narrow a type parameter in a
+    # case, so the signature cannot say so.
+    # : (untyped) -> untyped
+    def deep_freeze: (untyped) -> untyped
+  end
+end

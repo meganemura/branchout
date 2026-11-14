@@ -1,0 +1,13 @@
+# rbs-inline reads the members of a Data.define, but not the methods its
+# block defines, so they are declared here.
+module Branchout
+  class Code
+    def self.parse: (String source) -> Code
+
+    def self.block: (untyped source) -> Code
+
+    def self.expression: (untyped source, String example) -> Code
+
+    def to_s: () -> String
+  end
+end

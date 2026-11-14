@@ -1,0 +1,41 @@
+# Generated from lib/branchout/coverage_session.rb with RBS::Inline
+
+module Branchout
+  # Coverage counts a file's arms only when the file loads after Coverage
+  # was set up. Setup leaves measurement suspended: explore resumes it
+  # around each call.
+  module CoverageSession
+    # __dir__ is nil only in code that eval runs.
+    LIB: String
+
+    # Many suites start SimpleCov unconditionally at the top of a helper.
+    # From a helper that loads after the session, its Coverage.start would
+    # raise "coverage measurement is already setup", so the session keeps
+    # measuring, and the tool reads the session's result when it reports.
+    module LaterStart
+      # : (*untyped, **untyped) -> untyped
+      def setup: (*untyped, **untyped) -> untyped
+
+      # : (*untyped, **untyped) -> untyped
+      def start: (*untyped, **untyped) -> untyped
+    end
+
+    self.@installed: bool
+
+    # Coverage that another tool started earlier measures lines only, so
+    # the session stops it and sets Coverage up again with branches.
+    # : () -> void
+    def self?.install: () -> void
+
+    # : () -> bool
+    def self?.installed?: () -> bool
+
+    # A file of branchout's own lib loads with the tool, so it has arms only
+    # when coverage was set up before the tool loaded. Only a run that names
+    # one sets it up that early: each call reads the coverage of every file
+    # loaded after setup, and the tool's own files made that 1.3 ms a call
+    # instead of 0.04 ms.
+    # : (Array[String], ?from: String) -> bool
+    def self?.names_own_file?: (Array[String], ?from: String) -> bool
+  end
+end

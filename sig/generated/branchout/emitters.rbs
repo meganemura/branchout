@@ -1,0 +1,40 @@
+# Generated from lib/branchout/emitters.rb with RBS::Inline
+
+module Branchout
+  module Emitters
+    FORMATS: Array[String]
+
+    # : (String?, String?) -> String
+    def self?.resolve: (String?, String?) -> String
+
+    # Returns a warning for each file the test requires by a path out of its
+    # project, and for each path of this machine that the test passes
+    # as it is (Support.machine_paths), or pins in a returned value or an
+    # error message, for the caller to print.
+    # : (String, Engine::Result, Target, String, ?require_by_name: bool, ?pin_keys: Array[String]) -> Array[String]
+    def self?.write: (String, Engine::Result, Target, String, ?require_by_name: bool, ?pin_keys: Array[String]) -> Array[String]
+
+    # +pin_keys+ names the keys a returned Hash pins; empty pins it whole.
+    # +from+ is the directory the test's runner starts in.
+    # A file with no pin says whether no input ran or each one differed
+    # between two runs.
+    # : (String, Engine::Result, Target, String, ?require_by_name: bool, ?pin_keys: Array[String], ?from: String) -> String
+    def self?.render: (String, Engine::Result, Target, String, ?require_by_name: bool, ?pin_keys: Array[String], ?from: String) -> String
+
+    # : (Engine::Pin, Array[String]) -> String
+    def self?.varying_warning: (Engine::Pin, Array[String]) -> String
+
+    # : (Engine::Pin) -> String
+    def self?.after_varying_warning: (Engine::Pin) -> String
+
+    # Each pin with the paths under the test's project in its input, its
+    # returned value, its error message, and what its after read written
+    # from the test's file.
+    # A pin whose value differed as a whole between two runs is left out.
+    # : (Array[Engine::Pin], String) -> Array[Engine::Pin]
+    def self?.project_pins: (Array[Engine::Pin], String) -> Array[Engine::Pin]
+
+    # : (String) -> (singleton(Minitest) | singleton(RSpec))
+    def self?.emitter_for: (String) -> (singleton(Minitest) | singleton(RSpec))
+  end
+end

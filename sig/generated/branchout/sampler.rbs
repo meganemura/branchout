@@ -1,0 +1,34 @@
+# Generated from lib/branchout/sampler.rb with RBS::Inline
+
+module Branchout
+  class Sampler
+    ALPHABET: String
+
+    INT_MIN: Integer
+
+    INT_MAX: Integer
+
+    @target: Target
+
+    @rng: Rng
+
+    @count: Integer
+
+    # : (Target, seed: Integer, count: Integer) -> void
+    def initialize: (Target, seed: Integer, count: Integer) -> void
+
+    # : () -> Array[Input]
+    def inputs: () -> Array[Input]
+
+    # The entry's values are drawn before the constructor's, so the stream
+    # for a class method is the same as before constructors were sampled.
+    # : () -> Input
+    def build: () -> Input
+
+    # : (Array[Target::Parameter]) -> Input
+    def draw: (Array[Target::Parameter]) -> Input
+
+    # : (String?) -> (Integer | Float | String | Array[Integer] | Hash[String, Integer] | bool)
+    def sample: (String?) -> (Integer | Float | String | Array[Integer] | Hash[String, Integer] | bool)
+  end
+end

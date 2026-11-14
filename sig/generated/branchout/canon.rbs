@@ -1,0 +1,19 @@
+# Generated from lib/branchout/canon.rb with RBS::Inline
+
+module Branchout
+  # Byte-stable JSON. Key order is sorted, floats have a fixed spelling,
+  # and non-ASCII is escaped so the bytes do not depend on a JSON mode flag.
+  module Canon
+    # : (untyped) -> String
+    def self?.json: (untyped) -> String
+
+    # Float#to_s is the shortest text that reads back as the same float in
+    # Ruby and in JSON. A fixed precision is not: %.16g printed 0.1 + 0.2 as
+    # 0.3, and the largest float as a number that parses to Infinity.
+    # : (Float) -> String
+    def self?.format_float: (Float) -> String
+
+    # : (untyped, ?Integer) -> String
+    def self?.pretty: (untyped, ?Integer) -> String
+  end
+end

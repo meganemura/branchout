@@ -1,0 +1,56 @@
+# Generated from lib/branchout/mutator.rb with RBS::Inline
+
+module Branchout
+  # Literal mutation in the style of a cheap comparison-guided fuzzer.
+  # Every source literal is tried in each argument slot. A capped cartesian
+  # product of the first two numeric slots comes after that, so a magic
+  # constant is not dropped just because it sorts late.
+  class Mutator
+    TYPES: Array[String]
+
+    @target: Target
+
+    @cap: Integer
+
+    # : (Target, cap: Integer) -> void
+    def initialize: (Target, cap: Integer) -> void
+
+    # A slot is one value an input passes: a positional or required keyword
+    # parameter of the entry, or of initialize when the entry is an instance
+    # method. Optional keywords keep their defaults.
+    class Slot < Struct[:entry | :new | Target::Parameter]
+      attr_accessor owner(): :entry | :new
+
+      attr_accessor param(): Target::Parameter
+
+      def self.new: (?:entry | :new owner, ?Target::Parameter param) -> instance
+                  | (?owner: :entry | :new, ?param: Target::Parameter) -> instance
+    end
+
+    # : () -> Array[Input]
+    def inputs: () -> Array[Input]
+
+    # Every input passes each required keyword, or the call stops at
+    # ArgumentError before the method body runs.
+    # : (:entry | :new, Array[Target::Parameter]) -> Array[Slot]
+    def slots_of: (:entry | :new, Array[Target::Parameter]) -> Array[Slot]
+
+    # : (Hash[Slot, untyped]) -> Input
+    def build: (Hash[Slot, untyped]) -> Input
+
+    # : (Hash[Slot, untyped], ?Input?) -> Input
+    def arguments: (Hash[Slot, untyped], ?Input?) -> Input
+
+    # : (Target::Parameter) -> Array[untyped]
+    def pool_for: (Target::Parameter) -> Array[untyped]
+
+    # : (Target::Parameter) -> untyped
+    def base_value: (Target::Parameter) -> untyped
+
+    # : (Target::Parameter) -> bool
+    def numeric?: (Target::Parameter) -> bool
+
+    # : (Array[Input]) -> Array[Input]
+    def sort_inputs: (Array[Input]) -> Array[Input]
+  end
+end

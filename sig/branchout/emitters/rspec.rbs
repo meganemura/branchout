@@ -1,0 +1,145 @@
+# Two Data classes of the RSpec emitter that rbs-inline cannot declare.
+module Branchout
+  module Emitters
+    module RSpec
+      # Its block defines an initialize that makes code and leaf optional,
+      # which rbs-inline does not read.
+      class Step < Data
+        attr_reader kind(): Symbol
+
+        attr_reader label(): String
+
+        attr_reader code(): String?
+
+        # A fact's [path, value]; a before's or a let's [[kind], what it builds].
+        attr_reader leaf(): [Array[untyped], untyped]?
+
+        def self.new: (Symbol kind, String label, ?String? code, ?[Array[untyped], untyped]? leaf) -> instance
+                    | (kind: Symbol, label: String, ?code: String?, ?leaf: [Array[untyped], untyped]?) -> instance
+
+        def self.members: () -> [ :kind, :label, :code, :leaf ]
+
+        def members: () -> [ :kind, :label, :code, :leaf ]
+
+        def initialize: (kind: Symbol, label: String, ?code: String?, ?leaf: [Array[untyped], untyped]?) -> void
+      end
+
+      # Its member +members+ has the name of Data#members, so rbs-inline
+      # would declare the method twice.
+      class Node < Data
+        attr_reader steps(): Array[Step]
+
+        # The examples and the nodes this node holds; Data#members is
+        # [:steps, :members], as for any Data.
+        def members: () -> Array[Example | Node]
+
+        def self.new: (Array[Step] steps, Array[Example | Node] members) -> instance
+                    | (steps: Array[Step], members: Array[Example | Node]) -> instance
+
+        def self.members: () -> [ :steps, :members ]
+      end
+
+      # rbs-inline 0.14.0 declares its methods as module functions, after the
+      # module_function of RSpec above it.
+      class Spec
+        @steps: Hash[Engine::Pin, Array[Step]]
+
+        @root: Node
+
+        @short_outcomes: Hash[Engine::Pin, String]
+
+        @outcomes: Hash[Engine::Pin, String]
+
+        @one_argument: bool
+
+        @subject: String | false | nil
+
+        @receiver: String
+
+        @pin_keys: Array[String]
+
+        @private_calls: Array[Symbol]
+
+        @const: String
+
+        @target: Target
+
+        def initialize: (Target, Array[Engine::Pin], Array[Symbol], Array[String], ?String) -> void
+
+        def lines: () -> Array[String]
+
+        private
+
+        def node_lines: (Node, String) -> Array[String]
+
+        def example_lines: (Example, String, String) -> Array[String]
+
+        def error_matcher: (Runner::ExceptionInfo) -> String
+
+        def value_matcher: (untyped, Array[String]) -> String
+
+        def member_texts: (Array[Example | Node]) -> Hash[Example | Node, String]
+
+        def noted_text: (Example) -> String
+
+        def cut_after: (String, Integer, ?Integer) -> String
+
+        def kept_start: (Example | Node, String) -> Integer
+
+        def last_segment: (String) -> String
+
+        def telling: (Array[Step], Array[Engine::Pin]) -> Array[Step]
+
+        def fitted: (Example | Node, Array[Step], Array[Engine::Pin]) -> String
+
+        def member_text: (Example | Node, Array[Step], Array[Engine::Pin], ?short: bool) -> String
+
+        def quoted: (String) -> String
+
+        def pins_of: (Example | Node) -> Array[Engine::Pin]
+
+        def label: (Array[Step], ?Array[Engine::Pin], ?short: bool) -> String
+
+        def call_label: (Step, Array[Engine::Pin], ?short: bool) -> String
+
+        def keyword_label: (Code, Array[Code], ?short: bool) -> String
+
+        def series: (Array[String]) -> String
+
+        def build: (Array[Step], Array[[ Engine::Pin, Array[Step] ]]) -> Node
+
+        def merged: (Node) -> Node
+
+        def steps_of: (Engine::Pin) -> Array[Step]
+
+        def fact_steps: (Input) -> Array[Step]
+
+        def fact_label: ([ Array[untyped], untyped ], ?Array[Engine::Pin], ?short: bool) -> String
+
+        def block_part: (String, Array[String], ?short: bool) -> String
+
+        def value_text: (untyped, Array[untyped]) -> String
+
+        def parted: (String, Array[String]) -> String
+
+        def peer_paths: (untyped, Array[Engine::Pin]) -> Array[Array[untyped]]
+
+        def peer_values: ([ Array[untyped], untyped ], Array[Engine::Pin]) -> Array[untyped]
+
+        def parameter_names: () -> Array[String]
+
+        def receiver_label: (Input) -> String
+
+        def receiver_step_label: (Step, Array[Engine::Pin]) -> String
+
+        def receiver_expression: () -> String
+
+        def entry_call: (?Input?, ?bool) -> String
+
+        def receiver_name: () -> String
+
+        def subject_name: () -> (String | false)
+      end
+    end
+  end
+end

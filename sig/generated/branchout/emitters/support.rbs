@@ -1,0 +1,597 @@
+# Generated from lib/branchout/emitters/support.rb with RBS::Inline
+
+module Branchout
+  module Emitters
+    # Shared, deterministic rendering used by every characterization emitter.
+    module Support
+      # : (Target, String, String) -> Array[String]
+      def self?.header: (Target, String, String) -> Array[String]
+
+      # The target as the report names it when it is under the working
+      # directory. Otherwise it is relative to the root of its project (the
+      # nearest directory with a Gemfile, a gemspec, or .git), so a committed
+      # file does not carry one machine's path.
+      # : (Target, String) -> String
+      def self?.header_path: (Target, String) -> String
+
+      # : (String) -> String?
+      def self?.project_root: (String) -> String?
+
+      # The requires of an emitted test: the --require files, then the
+      # target. +by_name+ requires each through the load path, named from
+      # the first of the -I directories (+load_paths+) and the --require
+      # files' directories that holds it, so the test loads whichever
+      # checkout the runner's -I names. With neither, the nearest lib
+      # directory above the target names it, or the target's own directory,
+      # as for a library's entry file. A file under none of them keeps its
+      # path, behind a comment that says why. A comment above the requires
+      # names, as -I, each directory a require by name needs and the
+      # runner does not put on the load path itself (+runner_load_paths+,
+      # from +from+, where the runner starts).
+      # +target_path+ is a String or nil, which [*target_path] drops; steep
+      # does not follow that, so it is untyped here and in the methods below.
+      # : (Array[String], untyped, String, ?by_name: bool, ?load_paths: Array[String], ?runner_load_paths: Array[String], ?from: String) -> Array[String]
+      def self?.require_lines: (Array[String], untyped, String, ?by_name: bool, ?load_paths: Array[String], ?runner_load_paths: Array[String], ?from: String) -> Array[String]
+
+      # A directory as a person passes it to -I: from the working directory
+      # when it is under it, else from its project's root, named after it,
+      # so a committed test carries no machine's path where it can avoid one.
+      # : (String, ?from: String) -> String
+      def self?.shown_directory: (String, ?from: String) -> String
+
+      # The files of +requires+ and +target_path+ that --require-by-name
+      # cannot name, because no directory in +load_paths+ or of +requires+
+      # holds them.
+      # : (Array[String], untyped, ?load_paths: Array[String]) -> Array[String]
+      def self?.unnamed_requires: (Array[String], untyped, ?load_paths: Array[String]) -> Array[String]
+
+      # The files require_lines requires by path that sit in another project
+      # than +destination+, or under no project when it has one: their
+      # require_relative names this machine's directories, absolute or
+      # climbing out of the test's project.
+      # : (Array[String], untyped, String, ?by_name: bool, ?load_paths: Array[String]) -> Array[String]
+      def self?.required_outside_project: (Array[String], untyped, String, ?by_name: bool, ?load_paths: Array[String]) -> Array[String]
+
+      # : (Array[String], String?, Array[String]) -> Array[String]
+      def self?.name_roots: (Array[String], String?, Array[String]) -> Array[String]
+
+      # : (Array[String], Array[String]) -> Array[String]
+      def self?.require_roots: (Array[String], Array[String]) -> Array[String]
+
+      # : (String) -> String
+      def self?.load_root: (String) -> String
+
+      # Paths that share only / give the absolute path: a climb to / breaks
+      # as soon as either file moves, and require_relative accepts it.
+      # : (String, String) -> String
+      def self?.relative_require: (String, String) -> String
+
+      # +input+ with each String that names a path under the project of
+      # +destination+ as a ProjectPath. A String that File.expand_path
+      # would not give back as written, such as one with a trailing /, stays.
+      # : (Input, String) -> Input
+      def self?.project_paths: (Input, String) -> Input
+
+      # +value+, a returned value or an error message, with each String
+      # that holds a path under the project of +destination+ written from
+      # the test's directory: a String that is one such path as a
+      # ProjectPath, and one that holds such paths among other text as a
+      # ProjectText.
+      # : (untyped, String) -> untyped
+      def self?.project_value: (untyped, String) -> untyped
+
+      # +value+ as a ProjectPath when it is one path under +root+ that
+      # File.expand_path gives back as written (a trailing / it would not).
+      # : (String, String, String) -> ProjectPath?
+      def self?.project_path: (String, String, String) -> ProjectPath?
+
+      # File.expand_path reads a leading ~ as a home directory.
+      # : (String, String) -> String
+      def self?.from_test: (String, String) -> String
+
+      # The paths of this machine, under the home or the temporary
+      # directory, that the Strings of +value+ hold anywhere in their text.
+      # : (untyped) -> Array[String]
+      def self?.machine_paths_in: (untyped) -> Array[String]
+
+      # : () -> Array[String]
+      def self?.machine_homes: () -> Array[String]
+
+      # The Strings of +input+ that are a path of this machine: one under
+      # the home or the temporary directory, whether it exists or not.
+      # /dev/null, or /tmp itself, is the same on every machine.
+      # : (Input) -> Array[String]
+      def self?.machine_paths: (Input) -> Array[String]
+
+      # : (untyped) -> Array[String]
+      def self?.strings: (untyped) -> Array[String]
+
+      # The statements that build the receiver, and the entry call. With no
+      # setup calls the receiver is built inline and there is no statement.
+      # A name in +private_calls+ (the entry, or new) is called through send,
+      # as explore called it. +const+ is the class as the test writes it.
+      # : (Target, Input, ?private_calls: Array[Symbol], ?const: String, ?thawed: bool) -> [Array[String], String]
+      def self?.arrange: (Target, Input, ?private_calls: Array[Symbol], ?const: String, ?thawed: bool) -> [ Array[String], String ]
+
+      # How the receiver of an instance method's input is built: the Code
+      # the input gives, or new with the input's arguments for it.
+      # : (Input, String, Array[Symbol], ?thawed: bool) -> String
+      def self?.receiver_text: (Input, String, Array[Symbol], ?thawed: bool) -> String
+
+      # : (String, Symbol | String, String, Array[Symbol]) -> String
+      def self?.call_text: (String, Symbol | String, String, Array[Symbol]) -> String
+
+      # : (String, Code?) -> String
+      def self?.with_block: (String, Code?) -> String
+
+      # The name a receiver built by the input's Ruby takes in every format,
+      # which RSpec's own method names cannot take, so that the input's
+      # arguments can name it while explore runs and in the emitted test.
+      # : (Target) -> String
+      def self?.built_receiver_name: (Target) -> String
+
+      # The class name in snake case, as a reader would name the object.
+      # : (Target) -> String
+      def self?.receiver_name: (Target) -> String
+
+      RESERVED_NAMES: Array[String]
+
+      # : (Input, ?thawed: bool) -> String
+      def self?.argument_list: (Input, ?thawed: bool) -> String
+
+      # An emitted test has frozen_string_literal, so a +thawed+ string is
+      # written with a leading + to match the copy the explore run passed.
+      # : (untyped, ?thawed: bool) -> String
+      def self?.ruby_literal: (untyped, ?thawed: bool) -> String
+
+      # A Regexp literal for a String that quotes a backtrace frame, whose
+      # label Ruby 3.4 writes in another form than 3.3, or nil.
+      # : (untyped) -> String?
+      def self?.frame_pattern: (untyped) -> String?
+
+      # : (untyped) -> boolish
+      def self?.literal?: (untyped) -> boolish
+
+      # A Date of the default calendar reads back from Date.new(year, month,
+      # day). A DateTime, or a Date of another calendar reform, does not.
+      # : (untyped) -> boolish
+      def self?.plain_date?: (untyped) -> boolish
+
+      # A Data or a Struct reads back from its class's new when its class's
+      # name leads to it, each member has a literal, and new with those
+      # members makes an equal value: an initialize of its own may change
+      # what it is given.
+      # : (untyped) -> bool
+      def self?.value_object?: (untyped) -> bool
+
+      # A Struct made with keyword_init: false takes its members by position.
+      # : (untyped) -> bool
+      def self?.positional?: (untyped) -> bool
+
+      # A value with no Ruby literal, such as a Set or a Struct, is pinned by
+      # its class. An anonymous class has no stable name, so its nearest
+      # named superclass stands in.
+      # : (untyped) -> String
+      def self?.class_literal: (untyped) -> String
+
+      # A Symbol key takes the key: form, as the keyword of a call does.
+      # : (untyped) -> String
+      def self?.hash_key_literal: (untyped) -> String
+
+      # : (untyped) -> String
+      def self?.keyword_literal: (untyped) -> String
+
+      # : (Target) -> String
+      def self?.class_name_for: (Target) -> String
+
+      # Minitest method names: the input's values, then what the test pins.
+      # Siblings, inputs whose names would be the same, are named by the
+      # leaves that differ between them instead, so a name tells them apart
+      # and adding an input can rename its siblings. A name that still
+      # collides gets six hex digits of its input's digest, and a digest
+      # collision a counter.
+      # : (Array[Engine::Pin], ?Array[String]) -> Array[String]
+      def self?.test_names: (Array[Engine::Pin], ?Array[String]) -> Array[String]
+
+      # : (Array[untyped], String) -> String
+      def self?.name_of: (Array[untyped], String) -> String
+
+      # For each input, the words of every leaf whose value is not the same
+      # in all +inputs+: the deepest key above it, then its value, or "none"
+      # where the input has no such leaf. Strings at one leaf drop the words
+      # they all start with, so a shared start does not fill the name.
+      # Leaves keep their order in the first input by canonical form, so the
+      # words do not depend on the order of +inputs+.
+      # : (Array[Input]) -> Array[Array[untyped]]
+      def self?.differing_words: (Array[Input]) -> Array[Array[untyped]]
+
+      # A key that several leaves of an absent collection end in says
+      # "none" once, and so do the missing items at the end of a shorter
+      # Array, which have no key.
+      # : (Array[untyped]) -> Array[untyped]
+      def self?.without_repeated_none: (Array[untyped]) -> Array[untyped]
+
+      # A String, or the Ruby source of a receiver or argument, reads as words.
+      # : (untyped) -> bool
+      def self?.worded?: (untyped) -> bool
+
+      # How many leading words all of +values+ share, when they read as words.
+      # : (Array[untyped]) -> Integer
+      def self?.shared_start: (Array[untyped]) -> Integer
+
+      # [path, value] for every scalar or empty collection of an input. A
+      # Symbol step names a part of the input, a String a String Hash key, a
+      # SymbolKey a Symbol Hash key, and an Integer a position.
+      # : (Input) -> Array[[Array[untyped], untyped]]
+      def self?.input_leaves: (Input) -> Array[[ Array[untyped], untyped ]]
+
+      # +whole_arrays+ keeps an Array of scalars as one leaf, so a reader
+      # sees items is [1, 2] and not each item by its position.
+      # : (untyped, Array[untyped], Array[[Array[untyped], untyped]], ?whole_arrays: bool) -> Array[[Array[untyped], untyped]]
+      def self?.collect_leaves: (untyped, Array[untyped], Array[[ Array[untyped], untyped ]], ?whole_arrays: bool) -> Array[[ Array[untyped], untyped ]]
+
+      # What each pin's test pins, as RSpec says it: "raises KeyError",
+      # "returns :miss". A Hash says the scalar entries that differ between
+      # the Hashes of +pins+, so siblings say how their results differ.
+      # +short+ names a leaf by its deepest key (discarded: 1).
+      # : (Array[Engine::Pin], ?Array[String], ?short: bool) -> Hash[Engine::Pin, String]
+      def self?.outcomes: (Array[Engine::Pin], ?Array[String], ?short: bool) -> Hash[Engine::Pin, String]
+
+      # The entries of a returned Hash whose keys +pin_keys+ names, by
+      # name, so a key added later fails no test. A value that is not a
+      # Hash, or a Hash with none of the keys, is pinned whole.
+      # : (untyped, Array[String]) -> untyped
+      def self?.pinned_value: (untyped, Array[String]) -> untyped
+
+      # : (Engine::Pin, Array[String]) -> Engine::Pin
+      def self?.pinned_pin: (Engine::Pin, Array[String]) -> Engine::Pin
+
+      # The keys that pin +pin+'s Hash: its input's own, or else +pin_keys+,
+      # without the keys whose values differed between two runs.
+      # : (Engine::Pin, Array[String]) -> Array[String]
+      def self?.keys_for: (Engine::Pin, Array[String]) -> Array[String]
+
+      # What +pin+'s after read, as a pin of its own whose value is that
+      # read, so a report and a test pin it as they pin a returned value.
+      # The input's pin_keys name keys of the returned Hash, not of this
+      # one. nil for a pin with no after read.
+      # : (Engine::Pin) -> Engine::Pin?
+      def self?.after_pin: (Engine::Pin) -> Engine::Pin?
+
+      # +source+, an expression, as the receiver of a method call: in
+      # parentheses unless it is a chain of names and calls, where a call
+      # after it binds to the whole.
+      # : (String) -> String
+      def self?.receiver_form: (String) -> String
+
+      # : (Engine::Pin, Array[[Array[untyped], untyped]], ?short: bool) -> String
+      def self?.outcome_text: (Engine::Pin, Array[[ Array[untyped], untyped ]], ?short: bool) -> String
+
+      # Where a cut of +text+ from +start+ to +finish+ ends: at +finish+,
+      # or, when that falls inside a word, before the word, unless that
+      # leaves fewer than 12 characters.
+      # : (String, Integer, Integer) -> Integer
+      def self?.word_end: (String, Integer, Integer) -> Integer
+
+      # An item of an Array that holds both scalars and collections: a
+      # scalar as written, and a collection by its keys or its size.
+      # : (untyped) -> String
+      def self?.item_text: (untyped) -> String
+
+      # An RSpec matcher argument for a value with no literal: a Struct or
+      # Data by its class and members, an Array or Hash by its items, and
+      # anything else by its class.
+      # : (untyped) -> String
+      def self?.shape_matcher: (untyped) -> String
+
+      # Minitest assertions on the returned +value+, held in a local named
+      # value, that check what shape_matcher checks: each part with a
+      # literal by its value, and each part class_pins names by its class.
+      # A Hash or an Array is compared whole, each part with no literal
+      # standing in as itself, so a missing key or item fails too.
+      # : (untyped, ?String) -> Array[String]
+      def self?.shape_assertions: (untyped, ?String) -> Array[String]
+
+      # Minitest 6 fails assert_equal with an expected nil.
+      # : (untyped, String) -> String
+      def self?.literal_assertion: (untyped, String) -> String
+
+      # The literal of a Hash or an Array whose parts with no literal are
+      # read from the returned value, so comparing it with the value checks
+      # the rest; +parts+ gets the assertions on those parts.
+      # : (untyped, String, Array[String]) -> String
+      def self?.shape_template: (untyped, String, Array[String]) -> String
+
+      # [path, class name] for each part of +value+ that has no literal, as
+      # the RSpec matcher reaches it: into a Hash, an Array, and the members
+      # of a Struct or Data, and no further.
+      # : (untyped, ?String) -> Array[Array[String]]
+      def self?.class_pins: (untyped, ?String) -> Array[Array[String]]
+
+      # : (String) -> String
+      def self?.article: (String) -> String
+
+      # For each of +values+, the [path, leaf] entries of a Hash at the
+      # paths chosen to tell its siblings apart: the fewest leaves, nested
+      # ones too, that tell every two different Hashes of +values+ apart, at
+      # most three. Each pick is a leaf that does not repeat its input,
+      # then a leaf every Hash has, when one tells a pair apart, then tells
+      # the most pairs apart, then has the most distinct values. A pick that would make a minitest outcome longer
+      # than OUTCOME_LIMIT is left out, so both formats name the same
+      # leaves. A value that is not a Hash has none.
+      # : (Array[untyped], ?Array[Input]) -> Array[Array[[Array[untyped], untyped]]]
+      def self?.hash_differences: (Array[untyped], ?Array[Input]) -> Array[Array[[ Array[untyped], untyped ]]]
+
+      MISSING: Object
+
+      # The longest minitest outcome part of a name, in characters: room for
+      # the "and" before each of the second and third leaves too.
+      OUTCOME_LIMIT: Integer
+
+      # : (Array[[Array[untyped], untyped]]) -> Integer
+      def self?.outcome_length: (Array[[ Array[untyped], untyped ]]) -> Integer
+
+      # path => leaf for every scalar or empty collection under a Hash.
+      # : (untyped) -> Hash[Array[untyped], untyped]
+      def self?.hash_leaves: (untyped) -> Hash[Array[untyped], untyped]
+
+      # hash_leaves by the names of their keys, each to its own [path, leaf],
+      # so a key that one Hash holds as a Symbol and another as a String is
+      # one leaf to compare, and each still reads as its Hash holds it.
+      # : (untyped) -> Hash[Array[untyped], [Array[untyped], untyped]]
+      def self?.named_leaves: (untyped) -> Hash[Array[untyped], [ Array[untyped], untyped ]]
+
+      # : (Hash[Array[untyped], untyped], Hash[Array[untyped], untyped], Array[untyped]) -> bool
+      def self?.leaves_differ?: (Hash[Array[untyped], untyped], Hash[Array[untyped], untyped], Array[untyped]) -> bool
+
+      # "returns", then each entry's key, as telling_key names it, and its
+      # value.
+      # : (Array[[Array[untyped], untyped]]) -> Array[untyped]
+      def self?.outcome_entry_words: (Array[[ Array[untyped], untyped ]]) -> Array[untyped]
+
+      # A path into a value as a reader writes it. A Symbol key that is a
+      # plain name reads bare, lines[0].sku, and any other Symbol key as a
+      # Symbol, [:"a b"]. A String key keeps its quotes, params["sku"], so a
+      # String-keyed Hash does not read as if a Symbol lookup would find it.
+      # +root+, when given, is the name the path starts from.
+      # : (Array[untyped], ?String?) -> String
+      def self?.path_text: (Array[untyped], ?String?) -> String
+
+      # Leaves of a returned Hash, each a [path, value text], as a reader
+      # writes them: due: 0 and lines[0].sku: "A" by their path, and a leaf
+      # whose path would start at a bracket as the literal that holds it,
+      # "counts" => {"discarded" => 0}. With +merge+, leaves under one key
+      # share its literal, "tests" => [{"file" => "a.rb", "state" => "ok"}];
+      # a short path does not, since its first key may sit at two depths.
+      # : (Array[[Array[untyped], String]], ?merge: bool) -> String
+      def self?.entries_text: (Array[[ Array[untyped], String ]], ?merge: bool) -> String
+
+      # Leaves that share a value, each a [path into it, value text], as
+      # the literal of that value, with _ for an Array element no leaf is in.
+      # : (Array[[Array[untyped], String]], ?braces: bool) -> String
+      def self?.held_entries: (Array[[ Array[untyped], String ]], ?braces: bool) -> String
+
+      # : (untyped) -> String
+      def self?.key_literal: (untyped) -> String
+
+      # A Symbol Hash key in a path. It is a step of its own, so a String key
+      # of the same name makes another path and the two inputs read apart.
+      # sig/branchout/emitters/support.rbs declares its to_s, which rbs-inline
+      # does not read in a Data.define block.
+      class SymbolKey < Data
+        attr_reader name(): String
+
+        def self.new: (String name) -> instance
+                    | (name: String) -> instance
+
+        def self.members: () -> [ :name ]
+
+        def members: () -> [ :name ]
+      end
+
+      # : (untyped) -> bool
+      def self?.key_step?: (untyped) -> bool
+
+      # : (untyped) -> untyped
+      def self?.plain_step: (untyped) -> untyped
+
+      # : (Array[untyped]) -> Array[String]
+      def self?.key_texts: (Array[untyped]) -> Array[String]
+
+      # A Code that is a plain literal, such as [{sku: "B"}], names as the
+      # value it builds, so it reads in the style of a JSON value and its
+      # Symbol keys read apart from String keys. Any other Code stays whole.
+      # : (untyped) -> untyped
+      def self?.written_value: (untyped) -> untyped
+
+      # +lines+ of Ruby, each indented by +indent+, except an empty line and
+      # a line of the body or the terminator of a << or <<- heredoc: an
+      # indented terminator of << does not end it, and <<- keeps the
+      # indentation of its body in its text. A <<~ heredoc removes the
+      # indentation its lines share, so its body is indented with the rest.
+      # : (Array[String], String) -> Array[String]
+      def self?.indent: (Array[String], String) -> Array[String]
+
+      # Node types, not classes: naming a class would load prism when branchout loads, before the suite chose its version.
+      HEREDOCS: Array[Symbol]
+
+      # : (String, ?untyped, ?Set[Integer]) -> Set[Integer]
+      def self?.heredoc_lines: (String, ?untyped, ?Set[Integer]) -> Set[Integer]
+
+      # The statements of Ruby source, each as its own Code, so sources
+      # that share some lines read apart by the lines that differ.
+      # : (Code) -> Array[Code]
+      def self?.statements: (Code) -> Array[Code]
+
+      # The call before its keyword arguments, in a path into a Ruby call.
+      # It has no name of its own, so the leaf reads as the argument.
+      class CallHead < Data
+        def self.new: () -> instance
+                    | () -> instance
+
+        def self.members: () -> [ ]
+
+        def members: () -> [ ]
+      end
+
+      # A Ruby call with keyword arguments, such as a factory call, as its
+      # head and each keyword, so inputs that share a long call read apart
+      # by the keywords that differ (b is "Y") and not by a cut source.
+      # Empty for any other Ruby, which stays one leaf.
+      # : (Code) -> Array[Array[untyped]]
+      def self?.call_parts: (Code) -> Array[Array[untyped]]
+
+      # The block of a tap or then, as a step of a path. A Ruby argument
+      # that runs one, such as FactoryBot.build(:fact).tap { create(:part) },
+      # reads apart from its siblings by the block, which the call's source
+      # cut at its start would not show.
+      class TapBlock < Data
+        attr_reader name(): String
+
+        def self.new: (String name) -> instance
+                    | (name: String) -> instance
+
+        def self.members: () -> [ :name ]
+
+        def members: () -> [ :name ]
+      end
+
+      # : (untyped) -> boolish
+      def self?.tapped?: (untyped) -> boolish
+
+      # The parts of the receiver, as call_parts gives them or as one head,
+      # then the block on one line.
+      # : (untyped) -> Array[Array[untyped]]
+      def self?.tap_parts: (untyped) -> Array[Array[untyped]]
+
+      # : (untyped) -> String
+      def self?.block_text: (untyped) -> String
+
+      # : (untyped) -> untyped
+      def self?.plain_literal: (untyped) -> untyped
+
+      # An input with a note is named by the note, which says why the input
+      # is there in the words of its author; the values, with their escapes
+      # and their Ruby, say it less well. A note with no Latin letter or
+      # digit gives no words, so its input is named by its values.
+      # : (Input) -> Array[untyped]
+      def self?.named_input_words: (Input) -> Array[untyped]
+
+      # : (Input) -> Array[untyped]
+      def self?.input_words: (Input) -> Array[untyped]
+
+      # +differing+ is the pin's entry of hash_differences: a Hash whose
+      # siblings differ in a leaf is named by those leaves.
+      # : (Engine::Pin, ?Array[[Array[untyped], untyped]]) -> Array[untyped]
+      def self?.outcome_words: (Engine::Pin, ?Array[[ Array[untyped], untyped ]]) -> Array[untyped]
+
+      # A Hash whose keys all have a literal, so RSpec matches it key by key
+      # and a name can say its keys.
+      # : (untyped) -> bool
+      def self?.keyed?: (untyped) -> bool
+
+      # A Hash is named by its keys and an Array of collections by its size,
+      # so the start of a long value does not fill the name.
+      # : (untyped) -> Array[untyped]
+      def self?.shape_words: (untyped) -> Array[untyped]
+
+      # A Hash argument is named by its values, a collection in it by its
+      # key and size (groups_3, tags_empty), and an Array of collections by
+      # its size, so a tree of arguments does not fill the name and two
+      # trees of different sizes read apart. An empty argument still says
+      # so (empty_array), so the name keeps every input.
+      # : (untyped) -> Array[untyped]
+      def self?.argument_words: (untyped) -> Array[untyped]
+
+      # : (untyped) -> bool
+      def self?.collection?: (untyped) -> bool
+
+      # A value object reads as one thing, as a collection does, and not as
+      # the scalars it holds.
+      # : (untyped) -> bool
+      def self?.composite?: (untyped) -> bool
+
+      # : (untyped) -> bool
+      def self?.mixed_array?: (untyped) -> bool
+
+      # The shortest end of +path+ that starts at a Hash key and ends no
+      # other path in +paths+, so id at the top and items[0].id read apart.
+      # With no key in +path+, the whole path.
+      # : (Array[untyped], Array[Array[untyped]]) -> Array[untyped]
+      def self?.telling_path: (Array[untyped], Array[Array[untyped]]) -> Array[untyped]
+
+      # The fewest last Hash keys of +path+ that end the keys of no other
+      # path in +paths+, as one Key: items_id. Paths with the same keys,
+      # such as args[0].value and args[1].value, cannot be told apart by
+      # keys, so they do not lengthen each other's.
+      # : (Array[untyped], Array[Array[untyped]]) -> Key?
+      def self?.telling_key: (Array[untyped], Array[Array[untyped]]) -> Key?
+
+      # : (untyped) -> Array[String]
+      def self?.value_words: (untyped) -> Array[String]
+
+      # A String or a Symbol that reads as nil, true, or false says it is
+      # text, so a name does not claim the literal for it.
+      # : (Array[String]) -> Array[String]
+      def self?.literal_safe: (Array[String]) -> Array[String]
+
+      # +value+ as a name or a description says it: a path under the
+      # project from the project root, and a path of this machine by its
+      # file alone.
+      # : (untyped) -> untyped
+      def self?.described: (untyped) -> untyped
+
+      # The directories of a path under the home or the temporary directory
+      # differ per machine, so a name keeps only the file of such a path.
+      # A whole path may hold spaces, so it keeps all of its file name.
+      # : (String) -> String
+      def self?.without_machine_directories: (String) -> String
+
+      # +value+ as a report shows it: each path under the temporary or the
+      # home directory starts with <tmp>/ or <home>/, and .../ stands for
+      # its directories below that. The report stays the same on every
+      # machine, and a reader still sees where the value held a path, which
+      # the file alone of a test name would hide.
+      # : (untyped) -> untyped
+      def self?.marked: (untyped) -> untyped
+
+      # : (String) -> String
+      def self?.with_machine_marks: (String) -> String
+
+      # A number longer than LONG_NUMBER digits fills a name, so it keeps
+      # its first three digits and its power of ten: 123e46.
+      # : (Integer) -> String
+      def self?.number_word: (Integer) -> String
+
+      LONG_NUMBER: Integer
+
+      # : (String) -> Array[String]
+      def self?.snake_words: (String) -> Array[String]
+
+      # Joins words into identifier characters, at most +limit+ long, cut
+      # between words. Only a first word longer than +limit+ is cut inside.
+      # A key whose value the cut drops goes too, so a name never ends in a
+      # key that says nothing.
+      # : (Array[untyped], Integer | Float) -> String
+      def self?.clip: (Array[untyped], Integer | Float) -> String
+
+      # : (untyped) -> Array[String]
+      def self?.tokens: (untyped) -> Array[String]
+
+      # Why a file holds no test, in the words of the report's NOT PINNED.
+      # : (bool) -> String
+      def self?.no_pin_reason: (bool) -> String
+
+      # : (Engine::Pin, String) -> Array[String]
+      def self?.cover_comment: (Engine::Pin, String) -> Array[String]
+
+      # Says why the Strings of a thawed input carry a +, which a reader of
+      # a frozen_string_literal file would otherwise take for noise.
+      # : (Engine::Pin, String) -> Array[String]
+      def self?.thawed_comment: (Engine::Pin, String) -> Array[String]
+
+      # : (String, String) -> void
+      def self?.write_file: (String, String) -> void
+    end
+  end
+end

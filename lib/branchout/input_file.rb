@@ -1,9 +1,12 @@
 # frozen_string_literal: true
+# rbs_inline: enabled
 
 module Branchout
   module InputFile
     module_function
 
+    # The inputs, the types, and the file's after.
+    #: (String) -> [Array[Input], Array[String]?, Code?]
     def load(path)
       raise Error, "inputs file not found: #{path}" unless File.file?(path)
 
@@ -40,10 +43,11 @@ module Branchout
       [inputs, types, after]
     end
 
-    AFTER_EXAMPLE = "{\"ruby\": \"cart.items\"}"
+    AFTER_EXAMPLE = "{\"ruby\": \"cart.items\"}" #: String
 
     # The Code of an after: one expression, which an emitted test pins as
     # it pins a returned value.
+    #: (untyped, String) -> Code
     def parse_after(value, label)
       raise Error, "#{label} after must be Ruby such as #{AFTER_EXAMPLE}" unless value.is_a?(Hash) && code?(value)
 
@@ -55,10 +59,11 @@ module Branchout
     end
 
     # Keys that say how the entry is called, so args may be left out for none.
-    CALL_KEYS = %w[new receiver setup kwargs block before after].freeze
+    CALL_KEYS = %w[new receiver setup kwargs block before after].freeze #: Array[String]
 
-    METHOD_NAME = /\A(?:[A-Za-z_][A-Za-z0-9_]*[?!=]?|<<|>>|\[\]=?|[-+*\/%&|^<>]|\*\*|<=>|==|!=|<=|>=|=~)\z/
+    METHOD_NAME = /\A(?:[A-Za-z_][A-Za-z0-9_]*[?!=]?|<<|>>|\[\]=?|[-+*\/%&|^<>]|\*\*|<=>|==|!=|<=|>=|=~)\z/ #: Regexp
 
+    #: (untyped, String, ?Array[String]) -> Input
     def parse_entry(entry, label, keys = %w[args kwargs new receiver setup note pin_keys block before after])
       case entry
       when Array
@@ -111,6 +116,7 @@ module Branchout
     # A String argument wrapped in its own quotes, as "\"0306406150\"", is
     # most often Ruby or JSON source written where a JSON value goes, and
     # the method then gets the quotes too.
+    #: (Array[Input]) -> Array[String]
     def quoted_strings(inputs)
       inputs.each_with_index.flat_map do |input, index|
         named = input.args.each_with_index.map { |value, at| ["args[#{at}]", value] } +
@@ -118,7 +124,7 @@ module Branchout
         named.filter_map do |place, value|
           next unless value.is_a?(String) && value.length >= 2 && value.match?(/\A(["']).*\z/m)
 
-          unquoted = value[1...-1]
+          unquoted = value[1...-1] #: String
           "inputs[#{index}] #{place} is the String #{value.inspect}, quotes included. " \
             "An inputs file is JSON, so write #{unquoted.inspect} for the #{unquoted.empty? ? "empty String" : "String #{unquoted}"}, " \
             "or {\"ruby\": \"...\"} for Ruby source. Keep the quotes only if the method should get them."
@@ -126,10 +132,12 @@ module Branchout
       end
     end
 
+    #: (Hash[untyped, untyped]) -> bool
     def code?(value)
       value.keys == ["ruby"] && value["ruby"].is_a?(String)
     end
 
+    #: (untyped, String) -> Array[Input::SetupCall]
     def parse_setup(steps, label)
       raise Error, "#{label} must be an array" unless steps.is_a?(Array)
 

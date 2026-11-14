@@ -1,0 +1,22 @@
+# Generated from lib/branchout/rng.rb with RBS::Inline
+
+module Branchout
+  # Park-Miller minimal standard generator. Pure Ruby so the stream does not
+  # depend on CRuby's Random implementation.
+  class Rng
+    MOD: Integer
+
+    MULTIPLIER: Integer
+
+    @state: Integer
+
+    # : (Integer | String) -> void
+    def initialize: (Integer | String) -> void
+
+    # : () -> Integer
+    def next_int: () -> Integer
+
+    # : (Integer, Integer) -> Integer
+    def rand_inclusive: (Integer, Integer) -> Integer
+  end
+end

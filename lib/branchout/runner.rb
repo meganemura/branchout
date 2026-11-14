@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+# rbs_inline: enabled
 
 require "rbconfig"
 require_relative "coverage_session"
@@ -7,6 +8,13 @@ module Branchout
   # Loads the target under Coverage and runs one input at a time.
   # Branch counters are cleared between calls. Load-time execution is discarded.
   class Runner
+    # A branch or an arm of Coverage's branch result is
+    # [type, id, first line, first column, last line, last column].
+    # @rbs!
+    #   type branch_key = [Symbol, Integer, Integer, Integer, Integer, Integer]
+    #   type branches = Hash[branch_key, Hash[branch_key, Integer]]
+    #   type varying = :whole | Array[String] | nil
+
     # +thawed+ is true when the input ran with unfrozen Strings, because
     # with frozen ones, as literals in an emitted test are, it raised
     # FrozenError.
@@ -14,10 +22,26 @@ module Branchout
     # the value differed as a whole, or the keys of a returned Hash whose
     # values differed.
     # +observed+ is the Observation of what the input's after read, or nil.
-    Execution = Struct.new(:input, :value, :error, :lines, :branches, :path_ids, :origin, :thawed, :varying, :observed, keyword_init: true)
+    Execution = Struct.new(
+      :input, #: Input
+      :value, #: untyped
+      :error, #: ExceptionInfo?
+      :lines, #: Array[Integer?]
+      :branches, #: branches
+      :path_ids, #: Array[String]?
+      :origin, #: Symbol?
+      :thawed, #: bool
+      :varying, #: varying
+      :observed, #: Observation?
+      keyword_init: true
+    )
     # What an input's after read once the call returned or raised. +varying+
     # is as Execution's is for the returned value.
-    Observation = Struct.new(:value, :varying, keyword_init: true)
+    Observation = Struct.new(
+      :value, #: untyped
+      :varying, #: varying
+      keyword_init: true
+    )
     # +name+ is the missing name of a NameError, which is stable where its
     # message is not: Ruby 3.4 reworded both NameError and NoMethodError.
     # +message+ has its line breaks folded for reports; a test pins
@@ -26,10 +50,23 @@ module Branchout
     # a backtrace frame: Ruby 3.4 labels a frame 'Box.run' where 3.3 wrote
     # `run', so the pattern keeps the rest and accepts either label. It
     # accepts any file descriptor (fd:\d+) where the message names one.
-    ExceptionInfo = Struct.new(:class_name, :message, :loc, :stable_message, :name, :exact_message, :message_pattern,
-                               keyword_init: true)
+    ExceptionInfo = Struct.new(
+      :class_name, #: String
+      :message, #: String
+      :loc, #: String?
+      :stable_message, #: bool
+      :name, #: Symbol?
+      :exact_message, #: String?
+      :message_pattern, #: String?
+      keyword_init: true
+    )
     # +arms+ is nil when the callee's file holds no coverage to count from.
-    Callee = Struct.new(:name, :loc, :arms, keyword_init: true)
+    Callee = Struct.new(
+      :name, #: String
+      :loc, #: String
+      :arms, #: Integer?
+      keyword_init: true
+    )
 
     # +private_calls+ names the entry and new when they are private or
     # protected, so a test has to call them through send.
@@ -40,7 +77,25 @@ module Branchout
     # +not_counted+ lists the methods in other files that the counted code
     # calls on self, such as a parent class's helper. Their arms are not in
     # the report, so a check moved into one makes arms_total smaller.
-    attr_reader :template, :private_calls, :target_required, :const_expression, :not_counted
+    attr_reader :template #: { lines: Array[Integer?], branches: branches }
+    attr_reader :private_calls #: Array[Symbol]
+    attr_reader :target_required #: bool
+    attr_reader :const_expression #: String
+    attr_reader :not_counted #: Array[Callee]
+
+    # @rbs @target: Target
+    # @rbs @timeout: Integer | Float | nil
+    # @rbs @requires: Array[String]
+    # @rbs @load_paths: Array[String]
+    # @rbs @host: Host?
+    # @rbs @rolled_back: bool
+    # @rbs @observed: Observation?
+    # @rbs @owner: Module
+    # @rbs @const: Class
+    # A Method for a class method, an UnboundMethod for an instance method.
+    # @rbs @method: untyped
+    # @rbs @required_new: [String, Integer]?
+    # @rbs @installed_dirs: Array[String]
 
     # +requires+ are files the target needs loaded first, such as its
     # library's entry file. They load after coverage starts, so the target
@@ -50,6 +105,7 @@ module Branchout
     # directory (-I) goes first, as ruby -I puts it.
     # +host+ is the test that runs explore from inside a suite, which loaded
     # the target and the requires already.
+    #: (Target, timeout: Integer | Float | nil, ?requires: Array[String], ?load_paths: Array[String], ?host: Host?) -> void
     def initialize(target, timeout:, requires: [], load_paths: [], host: nil)
       @target = target
       @timeout = timeout
@@ -65,6 +121,7 @@ module Branchout
     # In a suite, an around that did not run the input in ROLL_BACK, such as
     # RUN_ONLY, keeps what the first run wrote, which a second run would see
     # and no emitted test would, so there the FrozenError stays.
+    #: (Input) -> Execution
     def execute(input)
       check_receiver(input)
       run = attempt(input, false)
@@ -80,6 +137,7 @@ module Branchout
 
     # A second run starts from the rows the first saw only when the first
     # was rolled back.
+    #: () -> bool
     def repeatable?
       !@host || @rolled_back
     end
@@ -90,13 +148,14 @@ module Branchout
     # An error whose message differs is pinned by its class alone.
     # An input that timed out is not run again: a second wait would double
     # the run and its error has no message to compare.
+    #: (Execution) -> void
     def compare_with_second_run(run)
       return if run.error&.class_name == "Timeout::Error"
 
       again = attempt(run.input, run.thawed)
       run.observed.varying = again.observed ? Runner.differing(run.observed.value, again.observed.value) : :whole if run.observed
       if run.error && again.error&.class_name == run.error.class_name
-        unless again.error.message == run.error.message && again.error.exact_message == run.error.exact_message
+        unless again.error.message == run.error.message && again.error.exact_message == run.error.exact_message # steep:ignore NoMethod
           run.error = run.error.dup.tap do |error|
             error.stable_message = false
             error.exact_message = nil
@@ -114,6 +173,7 @@ module Branchout
     # keys of a Hash whose values differ when only some do, else :whole.
     # A stable value with no literal, such as a Date or a record, is pinned
     # by its class, as same_pin? compares it.
+    #: (untyped, untyped) -> varying
     def self.differing(first, second)
       return nil if same_pin?(first, second)
       return :whole unless first.is_a?(Hash) && second.is_a?(Hash) && first.keys == second.keys &&
@@ -125,6 +185,7 @@ module Branchout
 
     # A literal is pinned by its value, anything else by its class and the
     # literals inside it.
+    #: (untyped, untyped) -> bool
     def self.same_pin?(first, second)
       return first.eql?(second) if Emitters::Support.literal?(first) || Emitters::Support.literal?(second)
       return false unless first.class == second.class
@@ -138,6 +199,7 @@ module Branchout
     end
     private_class_method :same_pin?
 
+    #: (Input, bool) -> Execution
     def attempt(input, thawed)
       @observed = nil
       value, error = @host ? refusing_lets(input) { outcome(input, thawed) } : outcome(input, thawed)
@@ -146,6 +208,7 @@ module Branchout
                     observed: @observed)
     end
 
+    #: (Input, bool) -> [untyped, ExceptionInfo?]
     def outcome(input, thawed)
       [invoke(input, thawed), nil]
     rescue Error
@@ -154,8 +217,10 @@ module Branchout
       [nil, ExceptionInfo.from(e, @target.display_path, @target.path, fallback_line: @target.ranges.first&.begin)]
     end
 
+    #: [T] (Input) { () -> T } -> T
     def refusing_lets(input, &call)
-      read, made, result = @host.lets_read_by(&call)
+      # Only a run inside a suite, which has a host, refuses lets.
+      read, made, result = @host.lets_read_by(&call) # steep:ignore NoMethod
       return result if read.empty?
 
       savepoint = " A let an input reads first is made in that input's rolled-back savepoint and kept for the next input." unless made.empty?
@@ -163,6 +228,7 @@ module Branchout
                    "of the exploring test, which the emitted test does not have.#{savepoint} Build it in the input's Ruby."
     end
 
+    #: () -> void
     def boot
       CoverageSession.install
       load_file = loader_refusing_another_branchout
@@ -194,7 +260,7 @@ module Branchout
         raise Error, "failed to load #{Target.display_path(loading)}: #{e.message.lines.first.strip} (#{e.class}).#{hint}"
       rescue StandardError => e
         raised = e.backtrace_locations&.first
-        at = " at #{Target.display_path(raised.path)}:#{raised.lineno}" if raised
+        at = " at #{Target.display_path(raised.path)}:#{raised.lineno}" if raised # steep:ignore ArgumentTypeMismatch
         raise Error, "failed to load #{Target.display_path(loading)}: #{e.message.lines.first&.strip} (#{e.class}#{at})"
       end
       unless target_measured?
@@ -209,6 +275,7 @@ module Branchout
     # Loading the target again would run its class body twice, and a
     # Rails model declares validations and callbacks there, so the target
     # is measured only when it loaded after branchout/coverage.
+    #: () -> void
     def attach
       unless Coverage.state == :suspended
         raise Error, "Coverage is #{Coverage.state}, so explore cannot measure #{@target.display_path}. " \
@@ -230,10 +297,12 @@ module Branchout
     # line, and -r branchout/coverage comes after them too. bundle exec
     # reads RUBYOPT before Bundler sets the load path, so the command names
     # bundler/setup first, or a path or git gem would not be found.
+    #: () -> String?
     def rspec_required_first
-      return unless defined?(::RSpec) && ::RSpec.respond_to?(:configuration)
+      # RSpec is the suite's, so its signatures are not in this check.
+      return unless defined?(::RSpec) && ::RSpec.respond_to?(:configuration) # steep:ignore UnknownConstant
 
-      helpers = ::RSpec.configuration.requires.reject { |name| name.start_with?("branchout") }
+      helpers = ::RSpec.configuration.requires.reject { |name| name.start_with?("branchout") } # steep:ignore UnknownConstant
       return if helpers.empty?
 
       harmless = helpers_done_before_target(helpers)
@@ -247,6 +316,7 @@ module Branchout
     # listed before the target finished without loading it. A helper listed
     # after it, such as a rails_helper that booted the app, may be the one
     # that did, and so may every helper rspec required after that one.
+    #: (Array[String]) -> Array[String]
     def helpers_done_before_target(helpers)
       target_at = $LOADED_FEATURES.index(File.realpath(@target.path))
       return [] unless target_at
@@ -260,10 +330,12 @@ module Branchout
 
     # Kernel#load, as Rails uses for an initializer, leaves the file out of
     # $LOADED_FEATURES, but coverage holds every file loaded after setup.
+    #: () -> bool
     def target_loaded?
       $LOADED_FEATURES.include?(File.realpath(@target.path)) || target_measured?
     end
 
+    #: () -> bool
     def target_measured?
       wanted = File.expand_path(@target.path)
       Coverage.peek_result.any? { |file, _data| File.expand_path(file) == wanted }
@@ -276,6 +348,7 @@ module Branchout
     # require never opens its classes again. The check is a closure built
     # before anything loads, because the copy can redefine every method and
     # constant.
+    #: () -> ^(String) -> void
     def loader_refusing_another_branchout
       lambda do |path|
         copy = false
@@ -291,8 +364,9 @@ module Branchout
       end
     end
 
+    #: () -> void
     def resolve
-      expression = nil
+      expression = nil #: String?
       const = @target.const_name.split("::").inject(Object) do |mod, name|
         # Each name is one its lexical parent defines, so a name that
         # Module#constants leaves out is a private constant.
@@ -319,7 +393,7 @@ module Branchout
         @method = const.instance_method(@target.method_name)
         @required_new = required_text(const.instance_method(:initialize).parameters)
         @private_calls = [[const.singleton_class, :new], [const, @target.method_name]]
-                         .reject { |owner, name| owner.public_method_defined?(name) }.map(&:last)
+                         .reject { |owner, name| owner.public_method_defined?(name) }.map(&:last) # steep:ignore NoMethod
       end
     rescue NameError => e
       raise Error, "cannot resolve #{@target.entry}: #{e.message}"
@@ -329,6 +403,7 @@ module Branchout
     # each file loaded after coverage started. A method defined in C, in
     # Ruby's own prelude, or by a file loaded before that has no arms to
     # count here.
+    #: (Hash[String, untyped]) -> Array[Callee]
     def callees_in_other_files(loaded)
       # CoverageSession measures lines and branches, so every file's data
       # is a Hash that holds both.
@@ -365,12 +440,14 @@ module Branchout
 
     # Where installed gems and Ruby's own library live. An app cannot move
     # a check into one, so its methods hide none of the app's arms.
+    #: () -> Array[String]
     def installed_dirs
-      @installed_dirs ||= [*(Gem.path if defined?(Gem)), RbConfig::CONFIG["rubylibdir"]].map { |dir| File.join(File.expand_path(dir), "") }
+      @installed_dirs ||= [*(Gem.path if defined?(Gem)), RbConfig::CONFIG["rubylibdir"]].map { |dir| File.join(File.expand_path(dir), "") } # steep:ignore ArgumentTypeMismatch
     end
 
     # The class +const+ names where it is written, inside +namespace+, as
     # Ruby's lexical lookup finds it.
+    #: (String, String) -> untyped
     def built_class(namespace, const)
       scopes = namespace.split("::")
       scopes.length.downto(0).each do |depth|
@@ -382,8 +459,10 @@ module Branchout
 
     # +holder+ is the class the call is made on. A module with no name has
     # only an inspect that carries its address, so it is named by +holder+.
+    #: (Module, Module, bool, Symbol) -> String
     def callee_name(owner, holder, singleton, name)
-      return "#{owner.attached_object.name}.#{name}" if owner.singleton_class?
+      # A singleton class is a Class, which has attached_object.
+      return "#{owner.attached_object.name}.#{name}" if owner.singleton_class? # steep:ignore NoMethod
 
       "#{owner.name || "#{holder.name} (an anonymous module)"}#{singleton ? "." : "#"}#{name}"
     end
@@ -391,15 +470,17 @@ module Branchout
     # What an input has to give in "new": the required positional
     # arguments and the required keywords of initialize, with their count,
     # or nil when it needs neither.
+    #: (Method::param_types) -> [String, Integer]?
     def required_text(parameters)
       count = parameters.count { |kind, _name| kind == :req }
       keywords = parameters.filter_map { |kind, name| "#{name}:" if kind == :keyreq }
-      parts = []
+      parts = [] #: Array[String]
       parts << "#{count} argument#{"s" unless count == 1}" if count.positive?
       parts << "the keyword#{"s" if keywords.size > 1} #{keywords.join(", ")}" unless keywords.empty?
       [parts.join(" and "), count + keywords.size] unless parts.empty?
     end
 
+    #: (Input) -> void
     def check_receiver(input)
       if @target.singleton
         raise Error, "#{@target.entry} is not an instance method, so its inputs take no \"new\" or \"receiver\"" if input.receiver
@@ -415,6 +496,7 @@ module Branchout
 
     # The target's own output is discarded, at load time too, so stdout
     # stays the report.
+    #: [T] () { () -> T } -> T
     def quietly
       previous_out = $stdout
       previous_err = $stderr
@@ -426,13 +508,14 @@ module Branchout
       $stderr = previous_err
     end
 
+    #: (Input, bool) -> untyped
     def invoke(input, thawed)
       return quietly { run_entry(input, thawed) } unless @host
 
       value = nil
       Thread.current[:branchout_rolled_back] = false
       begin
-        quietly { @host.around.call { value = run_entry(input, thawed) } }
+        quietly { @host.around.call { value = run_entry(input, thawed) } } # steep:ignore NoMethod
       ensure
         @rolled_back = Thread.current[:branchout_rolled_back]
       end
@@ -443,6 +526,7 @@ module Branchout
     # in the input's scope, so it reads the receiver by the name the
     # emitted test gives it, and in a suite before the input's savepoint
     # is rolled back.
+    #: (Input, bool) -> untyped
     def run_entry(input, thawed)
       scope = new_scope
       entered = false
@@ -455,13 +539,13 @@ module Branchout
         end
         entered = true
         if @target.singleton
-          measure { @method.call(*args, **kwargs, &block) }
+          measure { @method.call(*args, **kwargs, &block) } # steep:ignore UnannotatedEmptyCollection
         else
-          measure { @method.bind_call(receiver, *args, **kwargs, &block) }
+          measure { @method.bind_call(receiver, *args, **kwargs, &block) } # steep:ignore UnannotatedEmptyCollection
         end
       end
       begin
-        value = timed(&run)
+        value = timed(&run) # steep:ignore BlockTypeMismatch
       rescue Error, Timeout::Error
         raise
       rescue Exception # rubocop:disable Lint/RescueException
@@ -472,6 +556,7 @@ module Branchout
       value
     end
 
+    #: () { (?) -> untyped } -> untyped
     def timed(&run)
       @timeout ? Timeout.timeout(@timeout, &run) : run.call
     end
@@ -480,6 +565,7 @@ module Branchout
     # the error is pinned as it is without an after; the report says the
     # after read nothing. An after that raises reads nothing an emitted
     # test could pin, so explore stops and says which input to fix.
+    #: (Input, Binding, bool) -> void
     def read_after(input, scope, entered)
       return unless input.after && entered
 
@@ -497,19 +583,20 @@ module Branchout
 
     # FactoryBot's methods that a suite reaches bare only when it includes
     # FactoryBot::Syntax::Methods.
-    FACTORY_METHODS = %i[create build build_stubbed attributes_for create_list build_list].freeze
+    FACTORY_METHODS = %i[create build build_stubbed attributes_for create_list build_list].freeze #: Array[Symbol]
 
     # An error raised in the input's own Ruby, before the entry runs and
     # outside the target's file, says nothing about the entry, and a test
     # that pinned it would keep it, so explore stops. An error raised by new
     # or a setup call is the class's own and is pinned.
+    #: [T] (Input) { () -> T } -> T
     def built_by_input(input)
       yield
     rescue Error, Timeout::Error
       raise
     rescue Exception => e # rubocop:disable Lint/RescueException
       raise unless e.backtrace_locations.to_a.any? { |frame| frame.path == "(input)" } &&
-                   e.backtrace_locations.take_while { |frame| frame.path != "(input)" }.none? { |frame| own_file?(frame.path) }
+                   e.backtrace_locations.take_while { |frame| frame.path != "(input)" }.none? { |frame| own_file?(frame.path) } # steep:ignore NoMethod
 
       factory = " a bare #{e.name} or build needs FactoryBot::Syntax::Methods in the suite; without it write FactoryBot.#{e.name}." if
         e.is_a?(NoMethodError) && FACTORY_METHODS.include?(e.name)
@@ -517,6 +604,7 @@ module Branchout
                    "#{ExceptionInfo.one_line(e.message)}. Fix the input#{factory ? ":#{factory}" : "."}"
     end
 
+    #: (String) -> bool
     def own_file?(path)
       File.expand_path(path) == File.expand_path(@target.path)
     end
@@ -527,6 +615,7 @@ module Branchout
     # A receiver the input's Ruby builds gets the name the emitted test
     # gives it, so the arguments can be read from it, as in
     # "room.participants.first".
+    #: (Input, Binding, bool) -> untyped
     def prepared_receiver(input, scope, thawed)
       if input.receiver.is_a?(Code)
         receiver = scope.eval(input.receiver.source, "(input)")
@@ -550,11 +639,13 @@ module Branchout
     # Its Strings are frozen, as literals in an emitted test are, unless
     # +thawed+. Code is evaluated here, as an emitted test does, so each
     # call gets its own object.
+    #: (Input, Binding, bool) -> [Array[untyped], Hash[Symbol, untyped]]
     def fresh_arguments(input, scope, thawed)
       [built(Marshal.load(Marshal.dump(input.args)), scope, thawed),
        built(Marshal.load(Marshal.dump(input.kwargs)), scope, thawed).transform_keys(&:to_sym)]
     end
 
+    #: (untyped, Binding, bool) -> untyped
     def built(value, scope, thawed)
       case value
       when Code then scope.eval(value.source, "(input)")
@@ -568,10 +659,12 @@ module Branchout
     # Where one input's Ruby runs: the top level, as in an emitted test, or
     # in a suite the test itself, so it reaches the test's factories,
     # fixtures, and helpers. A string eval keeps this method's locals out.
+    #: () -> Binding
     def new_scope
-      @host ? @host.test.instance_eval("binding", __FILE__, __LINE__) : TOPLEVEL_BINDING.eval("binding", __FILE__, __LINE__)
+      @host ? @host.test.instance_eval("binding", __FILE__, __LINE__) : TOPLEVEL_BINDING.eval("binding", __FILE__, __LINE__) # steep:ignore NoMethod
     end
 
+    #: [T] () { () -> T } -> T
     def measure
       Coverage.resume
       yield
@@ -581,6 +674,7 @@ module Branchout
 
     # The target loaded under CoverageSession, which measures lines and
     # branches, so the result holds both for its file.
+    #: (Hash[String, untyped]) -> { lines: Array[Integer?], branches: branches }
     def extract(raw)
       wanted = File.expand_path(@target.path)
       _file, data = raw.find { |file, _data| File.expand_path(file) == wanted }
@@ -590,6 +684,7 @@ module Branchout
   end
 
   class Runner::ExceptionInfo
+    #: (Exception, String, String, ?fallback_line: Integer?) -> Runner::ExceptionInfo
     def self.from(exception, display_path, real_path, fallback_line: nil)
       raw = exception.message.to_s
       clean = one_line(raw.gsub(/#<[^>]*>/, "#<obj>").gsub(/0x[0-9a-f]+/i, "0xID"))[0, 180]
@@ -601,23 +696,26 @@ module Branchout
         loc = "#{display_path}:#{fallback_line}"
       end
       missing = exception.name if exception.is_a?(NameError) && exception.name.is_a?(Symbol)
-      new(class_name: exception.class.name, message: clean, loc: loc, stable_message: stable, name: missing, exact_message: (raw if stable),
+      # An exception's class has a name unless it is anonymous.
+      new(class_name: exception.class.name, message: clean, loc: loc, stable_message: stable, name: missing, exact_message: (raw if stable), # steep:ignore UnresolvedOverloading
           message_pattern: (pattern if whole))
     end
 
     # A report line holds the whole message, so each line break, with the
     # blanks around it, becomes one space. Other whitespace is part of
     # what the message says, such as the blank String a FrozenError quotes.
+    #: (String) -> String
     def self.one_line(text)
       text.gsub(/\A\s*\R|\R\s*\z/, "").gsub(/\s*\R\s*/, " ")
     end
 
-    FRAME_LABEL = /(:\d+:in )[`'][^`'\n]*'/
+    FRAME_LABEL = /(:\d+:in )[`'][^`'\n]*'/ #: Regexp
     # An Errno message from an IO names its file descriptor (fd:5), whose
     # number depends on what the process opened before, so a test that ran
     # after other files were opened would see another one.
-    FILE_DESCRIPTOR = /\bfd:\d+/
+    FILE_DESCRIPTOR = /\bfd:\d+/ #: Regexp
 
+    #: (String) -> String?
     def self.frame_pattern(raw)
       varying = Regexp.union(FRAME_LABEL, FILE_DESCRIPTOR)
       return nil unless varying.match?(raw)
@@ -625,19 +723,21 @@ module Branchout
       source = +""
       at = 0
       raw.to_enum(:scan, varying).map { Regexp.last_match }.each do |match|
-        source << Regexp.escape(raw[at...match.begin(0)])
+        # @type var match: MatchData
+        source << Regexp.escape(raw[at...match.begin(0)]) # steep:ignore ArgumentTypeMismatch
         source << (match[1] ? "#{Regexp.escape(match[1])}[`'][^`'\\n]*'" : "fd:\\d+")
         at = match.end(0)
       end
-      source << Regexp.escape(raw[at..])
+      source << Regexp.escape(raw[at..]) # steep:ignore ArgumentTypeMismatch
       "\\A#{source.gsub("\\ ", " ")}\\z"
     end
 
+    #: (Exception, String, String) -> String?
     def self.locate(exception, display_path, real_path)
       Array(exception.backtrace).each do |frame|
         next unless frame =~ /\A(.+):(\d+):/
 
-        file = Regexp.last_match(1)
+        file = Regexp.last_match(1) #: String
         line = Regexp.last_match(2).to_i
         candidate = File.expand_path(file)
         return "#{display_path}:#{line}" if candidate == File.expand_path(real_path)

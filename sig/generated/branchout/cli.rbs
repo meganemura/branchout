@@ -1,0 +1,42 @@
+# Generated from lib/branchout/cli.rb with RBS::Inline
+
+module Branchout
+  module CLI
+    HELP: String
+
+    type options = { seed: Integer, random: Integer, mutate_cap: Integer, timeout: Integer | Float, strategies: Array[String], json: bool, verbose: bool, inputs: String?, entry: String?, json_out: String?, md_out: String?, emit_tests: String?, format: String?, require_by_name: bool, pin_keys: Array[String], requires: Array[String], load_paths: Array[String], ?after: Code? }
+
+    # The exit status.
+    # : (Array[String]) -> Integer
+    def self?.start: (Array[String]) -> Integer
+
+    # : (Array[String]) -> Integer
+    def self?.run: (Array[String]) -> Integer
+
+    # : (String, String, Array[Input], Array[String]?, options, Array[String]) -> Engine::Result
+    def self?.run_strategy: (String, String, Array[Input], Array[String]?, options, Array[String]) -> Engine::Result
+
+    # A file outside the test's project has had its warning from
+    # Emitters.write already.
+    # : (Engine::Result, String, String) -> void
+    def self?.warn_unnamed: (Engine::Result, String, String) -> void
+
+    # : (String?, String) -> void
+    def self?.write_optional: (String?, String) -> void
+
+    # : (Array[String], String) -> String
+    def self?.take: (Array[String], String) -> String
+
+    # : (String, String) -> Integer
+    def self?.parse_int: (String, String) -> Integer
+
+    # : (String) -> (Integer | Float)
+    def self?.parse_timeout: (String) -> (Integer | Float)
+
+    # : (String) -> Array[String]
+    def self?.parse_keys: (String) -> Array[String]
+
+    # : (String) -> Array[String]
+    def self?.parse_strategies: (String) -> Array[String]
+  end
+end

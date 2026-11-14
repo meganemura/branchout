@@ -1,11 +1,19 @@
 # frozen_string_literal: true
+# rbs_inline: enabled
 
 module Branchout
   # Ruby source that an input passes in place of a JSON value: a record, an
   # exception, or a block, which JSON cannot write. An inputs file spells it
   # {"ruby": "Factories.loan(3)"}. Each call evaluates it again, so every
   # call gets a new object, and an emitted test writes it as it was given.
-  Code = Data.define(:source) do
+  #
+  # Neither rbs-inline nor steep reads the methods of a Data.define block, so
+  # sig/branchout/code.rbs declares them, and steep does not check them.
+  Code = Data.define(
+    :source #: String
+  ) do
+    # steep:ignore:start
+
     def self.parse(source)
       raise Error, "Ruby #{source.inspect} does not parse" unless Prism.parse(source).errors.empty?
 
@@ -40,6 +48,8 @@ module Branchout
     end
 
     def to_s = source
+
+    # steep:ignore:end
   end
 
   # A String input that names a path under the emitted test's project. The
@@ -47,8 +57,9 @@ module Branchout
   # copy of the project on another machine. Its text is the path from the
   # project root, which the test's names and descriptions say.
   class ProjectPath < String
-    attr_reader :from_test
+    attr_reader :from_test #: String
 
+    #: (String, String) -> void
     def initialize(from_root, from_test)
       super(from_root)
       @from_test = -from_test
@@ -62,8 +73,10 @@ module Branchout
   # copy of the project on another machine. Its text says each path from
   # the project root, as a ProjectPath does.
   class ProjectText < String
-    attr_reader :pieces, :root_from_test
+    attr_reader :pieces #: Array[String]
+    attr_reader :root_from_test #: String
 
+    #: (Array[String], String) -> void
     def initialize(pieces, root_from_test)
       super(pieces.join)
       @pieces = pieces.map { |piece| -piece }.freeze
@@ -75,10 +88,19 @@ module Branchout
   class Input
     # One call made on the receiver after new and before the entry.
     # +arguments+ is an Input with no receiver and no setup of its own.
-    SetupCall = Struct.new(:method_name, :arguments) do
+    # sig/branchout/input.rbs declares the method of the block, which neither
+    # rbs-inline nor steep reads.
+    SetupCall = Struct.new(
+      :method_name, #: String
+      :arguments #: Input
+    ) do
+      # steep:ignore:start
+
       def to_h
         arguments.to_h.merge("method" => method_name)
       end
+
+      # steep:ignore:end
     end
 
     # +receiver+ is the Input whose arguments go to new for a Const#method
@@ -96,8 +118,26 @@ module Branchout
     # such as the receiver's state, once the call returned or raised, or
     # nil. Its value is pinned beside the call's, so it is in to_h: two
     # inputs that read different things are two tests.
-    attr_reader :args, :kwargs, :receiver, :setup, :pin_keys, :block, :before, :note, :after
+    attr_reader :args #: Array[untyped]
+    attr_reader :kwargs #: Hash[String, untyped]
+    attr_reader :receiver #: Input | Code | nil
+    attr_reader :setup #: Array[SetupCall]
+    attr_reader :pin_keys #: Array[String]?
+    attr_reader :block #: Code?
+    attr_reader :before #: Code?
+    attr_reader :note #: String?
+    attr_reader :after #: Code?
 
+    # @rbs args: Array[untyped]
+    # @rbs kwargs: Hash[String | Symbol, untyped]?
+    # @rbs receiver: Input | Code | nil
+    # @rbs setup: Array[SetupCall]
+    # @rbs pin_keys: Array[String]?
+    # @rbs block: Code?
+    # @rbs before: Code?
+    # @rbs note: String?
+    # @rbs after: Code?
+    # @rbs return: void
     def initialize(args:, kwargs: {}, receiver: nil, setup: [], pin_keys: nil, block: nil, before: nil, note: nil, after: nil)
       @args = deep_freeze(normalize(args))
       unless @args.is_a?(Array)
@@ -109,7 +149,7 @@ module Branchout
         raise Error, "input kwargs must be an object"
       end
 
-      @kwargs = deep_freeze(raw_kwargs.each_with_object({}) { |(key, value), out|
+      @kwargs = deep_freeze(raw_kwargs.each_with_object({}) { |(key, value), out| # steep:ignore UnannotatedEmptyCollection
         out[key.to_s] = normalize(value)
       })
       @receiver = receiver
@@ -123,13 +163,15 @@ module Branchout
     end
 
     # This input with +changes+ in place of its own parts.
+    #: (**untyped) -> Input
     def with(**changes)
       parts = {args: args, kwargs: kwargs, receiver: receiver, setup: setup, pin_keys: pin_keys, block: block, before: before, note: note, after: after}
-      Input.new(**parts, **changes)
+      Input.new(**parts, **changes) # steep:ignore InsufficientKeywordArguments
     end
 
+    #: () -> Hash[String, untyped]
     def to_h
-      hash = {"args" => args, "kwargs" => kwargs}
+      hash = {"args" => args, "kwargs" => kwargs} #: Hash[String, untyped]
       if receiver.is_a?(Code)
         hash["receiver"] = receiver
       elsif receiver
@@ -142,6 +184,7 @@ module Branchout
       hash
     end
 
+    #: () -> String
     def canonical
       Canon.json(to_h)
     end
@@ -149,32 +192,37 @@ module Branchout
     # Short form used in the text report. An input with only args prints as
     # the args array so an agent can paste it back into inputs.json. The
     # entry form leaves out empty kwargs, which an inputs file may omit.
+    #: () -> String
     def text
       return Canon.json(args) if kwargs.empty? && receiver.nil? && setup.empty? && block.nil? && before.nil? && after.nil?
 
       Canon.json(short_h)
     end
 
+    #: () -> Hash[String, untyped]
     def short_h
       hash = to_h
       hash.delete("kwargs") if kwargs.empty?
-      hash["new"] = receiver.short_h if hash.key?("new")
+      # to_h writes "new" only for an Input receiver.
+      hash["new"] = receiver.short_h if hash.key?("new") # steep:ignore NoMethod
       hash["setup"] = setup.map { |call| call.arguments.short_h.merge("method" => call.method_name) } unless setup.empty?
       hash
     end
 
     # Smaller is a simpler witness: absolute numeric size, then string
     # length, and each setup call counts one.
+    #: () -> (Integer | Float)
     def weight
       args.sum { |value| self.class.weight_of(value) } +
         kwargs.values.sum { |value| self.class.weight_of(value) } +
         self.class.weight_of(receiver) +
-        setup.sum { |call| 1 + call.arguments.weight } +
+        setup.sum { |call| 1 + call.arguments.weight } + # steep:ignore UnresolvedOverloading
         (block ? block.source.length : 0) +
         (before ? before.source.length : 0) +
         (after ? after.source.length : 0)
     end
 
+    #: (untyped) -> (Integer | Float)
     def self.weight_of(value)
       case value
       when Integer then value.abs
@@ -188,19 +236,21 @@ module Branchout
       end
     end
 
+    #: (String?) -> (Integer | Float | String | Array[untyped] | Hash[untyped, untyped] | bool)
     def self.zero(type)
       case type
       when "int" then 0
       when "float" then 0.0
       when "string" then ""
       when "array" then []
-      when "hash" then {}
+      when "hash" then {} #: Hash[untyped, untyped]
       when "bool" then false
       else
         raise Error, "unknown type #{type}"
       end
     end
 
+    #: (untyped) -> untyped
     def normalize(value)
       case value
       when nil, true, false, Integer, ProjectPath
@@ -218,7 +268,7 @@ module Branchout
       when Hash
         return Code.parse(value.values.first) if code?(value)
 
-        value.each_with_object({}) do |(key, item), out|
+        value.each_with_object({}) do |(key, item), out| # steep:ignore UnannotatedEmptyCollection
           out[key.to_s] = normalize(item)
         end
       else
@@ -228,10 +278,14 @@ module Branchout
 
     # {"ruby": "..."} is Ruby source. A Hash argument with one key "ruby"
     # is written as Ruby too: {"ruby": "{\"ruby\" => \"3.4\"}"}.
+    #: (Hash[untyped, untyped]) -> bool
     def code?(value)
       value.length == 1 && value.keys.first.to_s == "ruby" && value.values.first.is_a?(String)
     end
 
+    # It returns +value+ itself; steep does not narrow a type parameter in a
+    # case, so the signature cannot say so.
+    #: (untyped) -> untyped
     def deep_freeze(value)
       case value
       when Array

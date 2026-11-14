@@ -1,0 +1,31 @@
+# Generated from lib/branchout/emitters/minitest.rb with RBS::Inline
+
+module Branchout
+  module Emitters
+    module Minitest
+      # @rbs result: Engine::Result
+      # @rbs target: Target
+      # @rbs destination: String
+      # @rbs require_by_name: bool
+      # @rbs pin_keys: Array[String]
+      # @rbs from: String
+      # @rbs all_varied: bool
+      # @rbs return: String
+      def self?.render: (Engine::Result result, Target target, String destination, ?require_by_name: bool, ?pin_keys: Array[String], ?from: String, ?all_varied: bool) -> String
+
+      # : (Target, Engine::Pin, String, Array[Symbol], Array[String], ?String) -> Array[String]
+      def self?.example_lines: (Target, Engine::Pin, String, Array[Symbol], Array[String], ?String) -> Array[String]
+
+      # The assertions that pin +pin+'s value, which +call+ gives.
+      # +on+ is +call+ as a method's receiver.
+      # : (Engine::Pin, String, Array[String], ?on: String) -> Array[String]
+      def self?.value_lines: (Engine::Pin, String, Array[String], ?on: String) -> Array[String]
+
+      # The stable keys of a Hash with no literal: its literal entries by
+      # value, and each other one by its shape, as RSpec's include pins it.
+      # The call runs once, since a second call could make another record.
+      # : (Hash[untyped, untyped], String) -> Array[String]
+      def self?.part_lines: (Hash[untyped, untyped], String) -> Array[String]
+    end
+  end
+end

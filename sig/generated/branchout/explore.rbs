@@ -1,0 +1,77 @@
+# Generated from lib/branchout/explore.rb with RBS::Inline
+
+module Branchout
+  # The test that runs explore from inside a suite. +test+ is the example or
+  # test instance whose helpers, factories, and fixtures the inputs' Ruby
+  # reaches. +around+ runs one input and undoes what it wrote. +test_class+
+  # is the class an emitted minitest file inherits from, and +spec_type+ the
+  # type metadata an emitted RSpec file gives its describe.
+  #
+  # Neither rbs-inline nor steep reads the methods of a Data.define block, so
+  # sig/branchout/host.rbs declares them, and steep does not check them.
+  class Host < Data
+    attr_reader test(): untyped
+
+    attr_reader around(): Proc
+
+    attr_reader test_class(): String?
+
+    attr_reader spec_type(): untyped
+
+    def self.new: (untyped test, Proc around, String? test_class, untyped spec_type) -> instance
+                | (test: untyped, around: Proc, test_class: String?, spec_type: untyped) -> instance
+
+    def self.members: () -> [ :test, :around, :test_class, :spec_type ]
+
+    def members: () -> [ :test, :around, :test_class, :spec_type ]
+  end
+
+  # The helper files a suite loads before its tests, most specific first.
+  # An emitted test requires the first one loaded from the working directory.
+  HELPERS: Array[String]
+
+  # Each input runs in a savepoint that is rolled back, so no input sees the
+  # rows another wrote, and the example's own rows are left as they were.
+  # It marks the input as rolled back, also when an around calls it, so the
+  # Runner knows that a second run of the input starts from the same rows.
+  # ActiveRecord is the app's, so its signatures are not in this check.
+  ROLL_BACK: Proc
+
+  RUN_ONLY: Proc
+
+  # Explores +entry+ ("Loan#approve" or "Room.open!") from inside a test, and
+  # returns the report the CLI prints. +within+ is the running test: pass
+  # self. +inputs+ is the inputs file's list, or its path. The target is the
+  # file that defines the entry, unless +target+ names it.
+  # @rbs entry: String
+  # @rbs within: untyped
+  # @rbs inputs: String | Array[untyped]
+  # @rbs target: String?
+  # @rbs emit_tests: String?
+  # @rbs format: String | Symbol | nil
+  # @rbs json: bool
+  # @rbs verbose: bool
+  # @rbs pin_keys: Array[String]
+  # @rbs requires: String | Array[String] | nil
+  # @rbs around: Proc?
+  # @rbs strategies: Array[String]
+  # @rbs seed: Integer
+  # @rbs random: Integer
+  # @rbs mutate_cap: Integer
+  # @rbs timeout: Integer | Float
+  # @rbs return: String
+  def self?.explore: (String entry, within: untyped, inputs: String | Array[untyped], ?target: String?, ?emit_tests: String?, ?format: String | Symbol | nil, ?json: bool, ?verbose: bool, ?pin_keys: Array[String], ?requires: String | Array[String] | nil, ?around: Proc?, ?strategies: Array[String], ?seed: Integer, ?random: Integer, ?mutate_cap: Integer, ?timeout: Integer | Float) -> String
+
+  # : (String) -> String
+  def self?.defining_file: (String) -> String
+
+  # Symbol keys and JSON values come back as an inputs file would give them.
+  # : (untyped) -> Array[Input]
+  def self?.parse_inputs: (untyped) -> Array[Input]
+
+  # : () -> String?
+  def self?.loaded_helper: () -> String?
+
+  # : (untyped) -> untyped
+  def self?.spec_type_of: (untyped) -> untyped
+end

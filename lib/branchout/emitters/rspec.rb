@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+# rbs_inline: enabled
 
 module Branchout
   module Emitters
@@ -12,28 +13,46 @@ module Branchout
     module RSpec
       # A fact runs no code; its +leaf+ is the [path, value] it names, so
       # two values whose labels are cut alike stay two facts.
+      # sig/branchout/emitters/rspec.rbs declares Step, whose initialize
+      # neither rbs-inline nor steep reads.
+      # @rbs skip
       Step = Data.define(:kind, :label, :code, :leaf) do
-        def initialize(kind:, label:, code: nil, leaf: nil) = super
+        def initialize(kind:, label:, code: nil, leaf: nil) = super # steep:ignore
       end
       # The longest description or context text.
-      LIMIT = 80
+      LIMIT = 80 #: Integer
       # rspec puts these on the load path of a run from the project root.
-      RUNNER_LOAD_PATHS = %w[spec lib].freeze
-      CALLS = %i[before inline].freeze
+      RUNNER_LOAD_PATHS = %w[spec lib].freeze #: Array[String]
+      CALLS = %i[before inline].freeze #: Array[Symbol]
       # The steps whose code runs in a context, so an input that still has
       # one gets a context of its own.
-      CONTEXT_STEPS = %i[let before].freeze
+      CONTEXT_STEPS = %i[let before].freeze #: Array[Symbol]
+      # sig/branchout/emitters/rspec.rbs declares Node: rbs-inline would
+      # declare its member +members+ twice, once as Data#members.
+      # @rbs skip
       Node = Data.define(:steps, :members)
-      Example = Data.define(:pin, :steps, :facts)
+      Example = Data.define(
+        :pin, #: Engine::Pin
+        :steps, #: Array[Step]
+        :facts #: Array[Step]
+      )
 
       # Names that a let or a subject must not take: RSpec's own methods.
       TAKEN_NAMES = %w[
         subject example expect is_expected described_class context describe let before after it
         raise_error eq include be_a skip pending
-      ].freeze
+      ].freeze #: Array[String]
 
       module_function
 
+      # @rbs result: Engine::Result
+      # @rbs target: Target
+      # @rbs destination: String
+      # @rbs require_by_name: bool
+      # @rbs pin_keys: Array[String]
+      # @rbs from: String
+      # @rbs all_varied: bool
+      # @rbs return: String
       def render(result, target, destination, require_by_name: false, pin_keys: [], from: Dir.pwd, all_varied: false)
         lines = Support.header(target, "specs", destination)
         lines << ""
@@ -62,6 +81,10 @@ module Branchout
 
       # The describe block of one entry: its subject, its tree of contexts,
       # and the examples.
+      #
+      # rbs-inline 0.14.0 reads the module_function above as applying to
+      # this class too, so sig/branchout/emitters/rspec.rbs declares it.
+      # @rbs skip
       class Spec
         def initialize(target, pins, private_calls, pin_keys, const = target.const_name)
           @target = target
@@ -76,9 +99,9 @@ module Branchout
           @one_argument = pins.all? { |pin| pin.input.args.length == 1 && pin.input.kwargs.empty? }
           @outcomes = Support.outcomes(pins, pin_keys)
           @short_outcomes = Support.outcomes(pins, pin_keys, short: true)
-          entries = pins.map { |pin| [pin, steps_of(pin)] }
+          entries = pins.map { |pin| [pin, steps_of(pin)] } #: Array[[Engine::Pin, Array[Step]]]
           shared = entries.map { |_, steps| steps.select { |step| step.kind == :fact } }.reduce(:&)
-          entries = entries.map { |pin, steps| [pin, steps - shared] }
+          entries = entries.map { |pin, steps| [pin, steps - shared] } #: Array[[Engine::Pin, Array[Step]]]
           @root = merged(build([], entries))
         end
 
@@ -87,14 +110,14 @@ module Branchout
             when String then ["    subject(:#{@subject}) { #{entry_call} }", ""]
             when false then ["    subject { #{entry_call} }", ""]
             else []
-          end
+          end #: Array[String]
           out + node_lines(@root, "    ")
         end
 
         private
 
         def node_lines(node, indent)
-          out = []
+          out = [] #: Array[String]
           node.steps.select { |step| step.kind == :let }.each do |step|
             out << "#{indent}let(:#{@receiver}) { #{step.code} }"
           end
@@ -102,7 +125,7 @@ module Branchout
           unless befores.empty?
             out << "" unless out.empty?
             out << "#{indent}before do"
-            out.concat(Support.indent(befores.flat_map { |step| step.code.lines(chomp: true) }, "#{indent}  "))
+            out.concat(Support.indent(befores.flat_map { |step| step.code.lines(chomp: true) }, "#{indent}  ")) # steep:ignore NoMethod
             out << "#{indent}end"
           end
           texts = member_texts(node.members)
@@ -141,7 +164,7 @@ module Branchout
           # call ran on, after it returned or raised.
           after = Support.after_pin(pin)
           if after && after.varying != :whole
-            lines << "#{indent}  expect(#{after.input.after.source}).to #{value_matcher(after.value, Support.keys_for(after, []))}"
+            lines << "#{indent}  expect(#{after.input.after.source}).to #{value_matcher(after.value, Support.keys_for(after, []))}" # steep:ignore NoMethod
           end
           lines << "#{indent}end"
         end
@@ -241,9 +264,9 @@ module Branchout
         def telling(steps, others)
           facts = steps.select { |step| step.kind == :fact }
           left = others.reject { |pin| (facts - steps_of(pin)).empty? }
-          chosen = []
+          chosen = [] #: Array[Step]
           until left.empty?
-            best = facts.max_by { |fact| [left.count { |pin| !steps_of(pin).include?(fact) }, -facts.index(fact)] }
+            best = facts.max_by { |fact| [left.count { |pin| !steps_of(pin).include?(fact) }, -facts.index(fact)] } # steep:ignore NoMethod
             break if best.nil? || chosen.include?(best)
 
             chosen << best
@@ -304,7 +327,7 @@ module Branchout
         def label(steps, peers = [], short: false)
           receiver = steps.select { |step| step.kind == :let }.map { |step| receiver_step_label(step, peers) }
           calls = steps.select { |step| CALLS.include?(step.kind) }.map { |step| call_label(step, peers, short: short) }
-          facts = steps.select { |step| step.kind == :fact }.map { |step| fact_label(step.leaf, peers, short: short) }
+          facts = steps.select { |step| step.kind == :fact }.map { |step| fact_label(step.leaf, peers, short: short) } # steep:ignore ArgumentTypeMismatch
           parts = receiver
           parts += ["after #{series(calls)}"] unless calls.empty?
           parts += ["when #{series(facts)}"] unless facts.empty?
@@ -340,9 +363,9 @@ module Branchout
 
           if short
             left = others.select { |other| differing.any? { |keyword| tells.(keyword, other) } }
-            chosen = []
+            chosen = [] #: Array[untyped]
             until left.empty?
-              best = differing.max_by { |keyword| [left.count { |other| tells.(keyword, other) }, -differing.index(keyword)] }
+              best = differing.max_by { |keyword| [left.count { |other| tells.(keyword, other) }, -differing.index(keyword)] } # steep:ignore NoMethod
               chosen << best
               left.reject! { |other| tells.(best, other) }
             end
@@ -352,20 +375,21 @@ module Branchout
           block, keywords = differing.partition { |key, _| key.is_a?(Support::TapBlock) }
           texts = keywords.map { |key, value| "#{key}: #{value.is_a?(Code) ? value.source : value_text(value, [])}" }
           tapped = block.map { |key, value| ".#{key.name} #{block_part(value.source, others.filter_map { |other| other[key]&.source }, short: short)}" }.join
-          return "#{head[1].source}#{tapped}" if texts.empty?
+          # Each Ruby keyword call has a head, so head is never nil.
+          return "#{head[1].source}#{tapped}" if texts.empty? # steep:ignore NoMethod
 
-          "#{head[1].source} with #{texts.join(", ")}#{" and #{tapped}" unless tapped.empty?}"
+          "#{head[1].source} with #{texts.join(", ")}#{" and #{tapped}" unless tapped.empty?}" # steep:ignore NoMethod
         end
 
         def series(words)
-          words.length < 2 ? words.join : "#{words[0..-2].join(", ")} and #{words.last}"
+          words.length < 2 ? words.join : "#{words[0..-2].join(", ")} and #{words.last}" # steep:ignore NoMethod
         end
 
         # Groups +entries+ by their first step, in the order they appear. An
         # entry left with only facts, or none, is an example; the rest share
         # a node. Examples come before nodes.
         def build(steps, entries)
-          members = []
+          members = [] #: Array[Example | Node]
           groups = entries.group_by { |_, rest| rest.first }
           groups.each do |first, group|
             if group.one? && group.first[1].none? { |step| CONTEXT_STEPS.include?(step.kind) }
@@ -384,16 +408,16 @@ module Branchout
         # members, so a chain of single contexts reads as one.
         def merged(node)
           while node.members.one? && node.members.first.is_a?(Node)
-            node = Node.new(node.steps + node.members.first.steps, node.members.first.members)
+            node = Node.new(node.steps + node.members.first.steps, node.members.first.members) # steep:ignore ArgumentTypeMismatch
           end
           node
         end
 
         def steps_of(pin)
-          @steps ||= {}
+          @steps ||= {} #: Hash[Engine::Pin, Array[Step]]
           @steps[pin] ||= begin
             input = pin.input
-            steps = []
+            steps = [] #: Array[Step]
             steps << Step.new(:before, Support.statements(input.before).map { |code| code.source.gsub(/\s*\n\s*/, " ") }.join("; "), input.before.source, [[:before], input.before]) if input.before
             unless @target.singleton
               steps << Step.new(:let, receiver_label(input), Support.receiver_text(input, @const, @private_calls, thawed: pin.thawed),
@@ -419,7 +443,7 @@ module Branchout
         # left out; a path that starts at a position keeps it (items[0].sku).
         def fact_steps(input)
           names = parameter_names
-          leaves = []
+          leaves = [] #: Array[[Array[untyped], untyped]]
           input.args.each_with_index do |arg, index|
             Support.collect_leaves(arg, [names[index] || "argument #{index + 1}"], leaves, whole_arrays: true)
           end
@@ -491,11 +515,11 @@ module Branchout
         end
 
         def peer_paths(root, peers)
-          peers.flat_map { |pin| steps_of(pin).filter_map { |step| step.leaf[0].drop(1) if step.kind == :fact && step.leaf[0][0] == root } }.uniq
+          peers.flat_map { |pin| steps_of(pin).filter_map { |step| step.leaf[0].drop(1) if step.kind == :fact && step.leaf[0][0] == root } }.uniq # steep:ignore NoMethod
         end
 
         def peer_values(leaf, peers)
-          peers.flat_map { |pin| steps_of(pin).filter_map { |step| step.leaf[1] if step.kind == :fact && step.leaf[0] == leaf[0] } }
+          peers.flat_map { |pin| steps_of(pin).filter_map { |step| step.leaf[1] if step.kind == :fact && step.leaf[0] == leaf[0] } } # steep:ignore NoMethod
         end
 
         def parameter_names

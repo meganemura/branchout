@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+# rbs_inline: enabled
 
 # The test file that explores requires this file first, before its helper
 # loads the app, so that explore can count the arms of the app's files.

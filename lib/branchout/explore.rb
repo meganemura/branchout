@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+# rbs_inline: enabled
 
 module Branchout
   # The test that runs explore from inside a suite. +test+ is the example or
@@ -6,7 +7,17 @@ module Branchout
   # reaches. +around+ runs one input and undoes what it wrote. +test_class+
   # is the class an emitted minitest file inherits from, and +spec_type+ the
   # type metadata an emitted RSpec file gives its describe.
-  Host = Data.define(:test, :around, :test_class, :spec_type) do
+  #
+  # Neither rbs-inline nor steep reads the methods of a Data.define block, so
+  # sig/branchout/host.rbs declares them, and steep does not check them.
+  Host = Data.define(
+    :test, #: untyped
+    :around, #: Proc
+    :test_class, #: String?
+    :spec_type #: untyped
+  ) do
+    # steep:ignore:start
+
     # Runs the block with the test's lets forgotten, then puts them back.
     # Returns the names of the lets the block read, the names among them
     # that the test had not made before, and the block's result.
@@ -32,25 +43,28 @@ module Branchout
 
       [test, :@_memoized] if defined?(Minitest::Spec) && test.is_a?(Minitest::Spec)
     end
+
+    # steep:ignore:end
   end
 
   # The helper files a suite loads before its tests, most specific first.
   # An emitted test requires the first one loaded from the working directory.
-  HELPERS = %w[rails_helper.rb test_helper.rb spec_helper.rb].freeze
+  HELPERS = %w[rails_helper.rb test_helper.rb spec_helper.rb].freeze #: Array[String]
 
   # Each input runs in a savepoint that is rolled back, so no input sees the
   # rows another wrote, and the example's own rows are left as they were.
   # It marks the input as rolled back, also when an around calls it, so the
   # Runner knows that a second run of the input starts from the same rows.
+  # ActiveRecord is the app's, so its signatures are not in this check.
   ROLL_BACK = lambda do |&input|
-    ActiveRecord::Base.transaction(requires_new: true) do
+    ActiveRecord::Base.transaction(requires_new: true) do # steep:ignore UnknownConstant
       Thread.current[:branchout_rolled_back] = true
       input.call
-      raise ActiveRecord::Rollback
+      raise ActiveRecord::Rollback # steep:ignore UnknownConstant
     end
-  end
+  end #: Proc
 
-  RUN_ONLY = ->(&input) { input.call }
+  RUN_ONLY = ->(&input) { input.call } #: Proc
 
   module_function
 
@@ -58,6 +72,23 @@ module Branchout
   # returns the report the CLI prints. +within+ is the running test: pass
   # self. +inputs+ is the inputs file's list, or its path. The target is the
   # file that defines the entry, unless +target+ names it.
+  # @rbs entry: String
+  # @rbs within: untyped
+  # @rbs inputs: String | Array[untyped]
+  # @rbs target: String?
+  # @rbs emit_tests: String?
+  # @rbs format: String | Symbol | nil
+  # @rbs json: bool
+  # @rbs verbose: bool
+  # @rbs pin_keys: Array[String]
+  # @rbs requires: String | Array[String] | nil
+  # @rbs around: Proc?
+  # @rbs strategies: Array[String]
+  # @rbs seed: Integer
+  # @rbs random: Integer
+  # @rbs mutate_cap: Integer
+  # @rbs timeout: Integer | Float
+  # @rbs return: String
   def explore(entry, within:, inputs:, target: nil, emit_tests: nil, format: nil, json: false, verbose: false, pin_keys: [],
               requires: nil, around: nil, strategies: %w[inputs], seed: 0, random: 16, mutate_cap: 256, timeout: 1)
     if verbose && json
@@ -65,7 +96,7 @@ module Branchout
     end
     target ||= defining_file(entry)
     user_inputs, type_overrides, after = inputs.is_a?(String) ? InputFile.load(inputs) : [parse_inputs(inputs), nil, nil]
-    requires = requires.nil? ? [loaded_helper].compact : Array(requires)
+    requires = requires.nil? ? [loaded_helper].compact : Array(requires) #: Array[String]
     format = Emitters.resolve(format&.to_s, emit_tests) if emit_tests
     if emit_tests && requires.empty?
       raise Error, "the suite loaded no #{HELPERS.join(", ")} from #{Dir.pwd}, so an emitted test would not load the app; " \
@@ -78,13 +109,14 @@ module Branchout
       strategies: strategies, random: random, mutate_cap: mutate_cap, timeout: timeout, requires: requires, host: host, after: after
     )
     if emit_tests
-      warnings = Emitters.write(format, result, Target.parse(target, entry, type_overrides: type_overrides),
+      warnings = Emitters.write(format, result, Target.parse(target, entry, type_overrides: type_overrides), # steep:ignore ArgumentTypeMismatch
                                 emit_tests, require_by_name: true, pin_keys: pin_keys)
       warnings.each { |line| $stderr.puts line }
     end
     json ? Report.json(result, pin_keys: pin_keys) : Report.text(result, tests: emit_tests, verbose: verbose, verbose_flag: "verbose: true", pin_keys: pin_keys)
   end
 
+  #: (String) -> String
   def defining_file(entry)
     match = /\A(.+?)([.#])([^.#]+)\z/.match(entry)
     raise Error, "entry #{entry.inspect} is not Const.method or Const#method" unless match
@@ -100,12 +132,14 @@ module Branchout
   end
 
   # Symbol keys and JSON values come back as an inputs file would give them.
+  #: (untyped) -> Array[Input]
   def parse_inputs(inputs)
     raise Error, "inputs must be a list or an inputs file path" unless inputs.is_a?(Array)
 
     JSON.parse(JSON.generate(inputs)).each_with_index.map { |entry, index| InputFile.parse_entry(entry, "inputs[#{index}]") }
   end
 
+  #: () -> String?
   def loaded_helper
     root = "#{Dir.pwd}/"
     loaded = $LOADED_FEATURES.select { |path| path.start_with?(root) }
@@ -116,6 +150,7 @@ module Branchout
     nil
   end
 
+  #: (untyped) -> untyped
   def spec_type_of(test)
     test.class.metadata[:type] if test.class.respond_to?(:metadata)
   end

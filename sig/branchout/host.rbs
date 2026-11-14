@@ -1,0 +1,13 @@
+# rbs-inline reads the members of a Data.define, but not the methods its
+# block defines, so they are declared here.
+module Branchout
+  class Host
+    # The names of the lets the block read, the names among them that the
+    # test had not made before, and the block's result.
+    def lets_read_by: [T] () { () -> T } -> [Array[Symbol], Array[Symbol], T]
+
+    private
+
+    def let_values: () -> [untyped, Symbol]?
+  end
+end

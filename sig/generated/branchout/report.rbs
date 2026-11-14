@@ -1,0 +1,188 @@
+# Generated from lib/branchout/report.rb with RBS::Inline
+
+module Branchout
+  module Report
+    # What a group of inputs returned: [shown, Ruby literal or nil, pins].
+    type returned_row = [ String, String?, Array[Engine::Pin] ]
+
+    # What a group of afters read: [source, shown, Ruby literal or nil, pins].
+    type after_row = [ String, String, String?, Array[Engine::Pin] ]
+
+    # What the baselines command reports on.
+    type baselines_info = { target: String, entry: String, seed: Integer, random: Integer, mutate_cap: Integer, timeout: Integer | Float }
+
+    # What a sense asks of an input that reaches the decision.
+    WANTS: Hash[String, String]
+
+    SHOWN_INPUTS: Integer
+
+    # The default leads with what to act on: the counts, then each arm an
+    # input reached but did not take. The run settings and the covered arms
+    # are in +verbose+ and in the JSON.
+    # : (Engine::Result, ?tests: String?, ?verbose: bool, ?verbose_flag: String, ?pin_keys: Array[String]) -> String
+    def self?.text: (Engine::Result, ?tests: String?, ?verbose: bool, ?verbose_flag: String, ?pin_keys: Array[String]) -> String
+
+    # : (Array[String], Array[Engine::Arm]) -> void
+    def self?.frontier_brief: (Array[String], Array[Engine::Arm]) -> void
+
+    # : (Integer, String) -> String
+    def self?.count: (Integer, String) -> String
+
+    # Coverage counts the arms an input took, never what it returned, so a
+    # wrong value in code with no branch of its own shows only here. Each
+    # input of the inputs file and each arm's input, grouped by what it
+    # returned, as [shown, value, pins]: +value+ is the Ruby literal of the
+    # whole value, or nil for one with no literal, and +shown+ fits a line.
+    # Both mark a path of this machine (Support.marked) and do not drop
+    # it, so neither reads as a value the method did not return.
+    # : (Array[Engine::Pin], Array[String]) -> Array[returned_row]
+    def self?.returned: (Array[Engine::Pin], Array[String]) -> Array[returned_row]
+
+    SHOWN_WIDTH: Integer
+
+    SHOWN_INPUT_WIDTH: Integer
+
+    # A Hash too long for a line shows the leaves that tell it from the
+    # other values first, since a Hash with the same keys starts the same
+    # way, then the rest of its top-level scalars that fit, or nil when
+    # none fits. A part with no literal shows its class.
+    # : (Hash[untyped, untyped], Array[[Array[untyped], untyped]]) -> String?
+    def self?.shown_hash: (Hash[untyped, untyped], Array[[ Array[untyped], untyped ]]) -> String?
+
+    # An Array, a Struct, or a Data too long for a line says its size or
+    # its class, then the leaves that tell it from the other values of that
+    # size or class, since those start the same way and a cut start would
+    # read alike, then the rest of its leaves that fit, or nil when none
+    # fits. Values of another size or class are told apart by the start.
+    # : (untyped, Array[untyped]) -> String?
+    def self?.shown_composite: (untyped, Array[untyped]) -> String?
+
+    # : (untyped, untyped) -> bool
+    def self?.same_shape?: (untyped, untyped) -> bool
+
+    # path => leaf under an Array, a Hash, a Struct, or a Data, with a
+    # member as a Symbol key, so a path reads as a reader writes it:
+    # [0].kind.
+    # : (untyped, ?Array[untyped], ?Hash[Array[untyped], untyped]) -> Hash[Array[untyped], untyped]
+    def self?.composite_leaves: (untyped, ?Array[untyped], ?Hash[Array[untyped], untyped]) -> Hash[Array[untyped], untyped]
+
+    # : (untyped) -> String
+    def self?.leaf_text: (untyped) -> String
+
+    # An input from the inputs file too long for a line is named by its
+    # place there, and by its note when it has one; --json and --verbose
+    # keep the whole input.
+    # : (Engine::Pin) -> String
+    def self?.shown_input: (Engine::Pin) -> String
+
+    # An input as the JSON report writes it: the call, and the note of the
+    # inputs file, so an entry pasted back keeps its reason.
+    # : (Input) -> Hash[String, untyped]
+    def self?.input_hash: (Input) -> Hash[String, untyped]
+
+    # : (Array[String], Array[returned_row]) -> void
+    def self?.returned_brief: (Array[String], Array[returned_row]) -> void
+
+    # : (Array[String], Array[Engine::Finding]) -> void
+    def self?.exceptions_brief: (Array[String], Array[Engine::Finding]) -> void
+
+    # What each after read, once its call returned or raised, as
+    # [source, shown, value, pins], grouped as RETURNED groups what the
+    # calls returned. A call's value and its after are told apart, so a
+    # raise that left the receiver changed reads as both.
+    # : (Array[Engine::Pin]) -> Array[after_row]
+    def self?.after: (Array[Engine::Pin]) -> Array[after_row]
+
+    # The inputs whose after read nothing, as [source, reason, pins].
+    # : (Array[Engine::Pin]) -> Array[[String, String, Array[Engine::Pin]]]
+    def self?.after_unread: (Array[Engine::Pin]) -> Array[[ String, String, Array[Engine::Pin] ]]
+
+    # : (Engine::Pin) -> String
+    def self?.unread_reason: (Engine::Pin) -> String
+
+    # : (Array[String], Array[after_row], Array[[String, String, Array[Engine::Pin]]]) -> void
+    def self?.after_brief: (Array[String], Array[after_row], Array[[ String, String, Array[Engine::Pin] ]]) -> void
+
+    # : (Array[String], Array[Engine::Arm]) -> void
+    def self?.not_pinned_brief: (Array[String], Array[Engine::Arm]) -> void
+
+    # Each part of a returned value that an emitted test can check only by
+    # its class, as "value[:at]" => [class name, inputs that returned it].
+    # : (Array[Engine::Pin], Array[String]) -> Array[[String, String, Array[Input]]]
+    def self?.pinned_by_class: (Array[Engine::Pin], Array[String]) -> Array[[ String, String, Array[Input] ]]
+
+    # : (Array[String], Array[Engine::Pin], Array[String]) -> void
+    def self?.pinned_by_class_brief: (Array[String], Array[Engine::Pin], Array[String]) -> void
+
+    # : (Array[String], Array[Runner::Callee]) -> void
+    def self?.not_counted_brief: (Array[String], Array[Runner::Callee]) -> void
+
+    # : (Array[String], Array[Target::Operator]) -> void
+    def self?.operators_brief: (Array[String], Array[Target::Operator]) -> void
+
+    # : (Array[String], Array[Target::Operator]) -> void
+    def self?.boundaries_brief: (Array[String], Array[Target::Operator]) -> void
+
+    # : (Engine::Result, ?Array[String]) -> String
+    def self?.full_text: (Engine::Result, ?Array[String]) -> String
+
+    # : (Engine::Result, ?pin_keys: Array[String]) -> String
+    def self?.json: (Engine::Result, ?pin_keys: Array[String]) -> String
+
+    # : (Engine::Result) -> String
+    def self?.markdown: (Engine::Result) -> String
+
+    # : (baselines_info, Array[[String, Engine::Result]]) -> String
+    def self?.baselines_text: (baselines_info, Array[[ String, Engine::Result ]]) -> String
+
+    # : (baselines_info, Array[[String, Engine::Result]]) -> String
+    def self?.baselines_json: (baselines_info, Array[[ String, Engine::Result ]]) -> String
+
+    # : (baselines_info, Array[[String, Engine::Result]]) -> String
+    def self?.baselines_markdown: (baselines_info, Array[[ String, Engine::Result ]]) -> String
+
+    # A setting of a strategy that did not run is left out, so it does not
+    # read as active. The JSON report holds every setting.
+    # : (Engine::Result) -> Array[String]
+    def self?.header_lines: (Engine::Result) -> Array[String]
+
+    # : (Array[String], String, Array[untyped]) { (untyped) -> Array[String] } -> void
+    def self?.section: (Array[String], String, Array[untyped]) { (untyped) -> Array[String] } -> void
+
+    # : (Engine::Arm) -> Array[String]
+    def self?.covered_lines: (Engine::Arm) -> Array[String]
+
+    # : (Engine::Arm) -> Array[String]
+    def self?.frontier_lines: (Engine::Arm) -> Array[String]
+
+    # : (Engine::Finding) -> Array[String]
+    def self?.finding_lines: (Engine::Finding) -> Array[String]
+
+    # : (Runner::Callee) -> Array[String]
+    def self?.callee_lines: (Runner::Callee) -> Array[String]
+
+    # : (Target::Operator) -> Array[String]
+    def self?.operator_lines: (Target::Operator) -> Array[String]
+
+    # : (Target::Operator) -> Hash[String, untyped]
+    def self?.operator_hash: (Target::Operator) -> Hash[String, untyped]
+
+    # : (Runner::Callee) -> Hash[String, untyped]
+    def self?.callee_hash: (Runner::Callee) -> Hash[String, untyped]
+
+    # : (Array[String]?) -> String
+    def self?.format_path: (Array[String]?) -> String
+
+    # : (Engine::Arm) -> Hash[String, untyped]
+    def self?.covered_hash: (Engine::Arm) -> Hash[String, untyped]
+
+    # : (Engine::Arm) -> Hash[String, untyped]
+    def self?.frontier_hash: (Engine::Arm) -> Hash[String, untyped]
+
+    # : (Engine::Finding) -> Hash[String, untyped]
+    def self?.finding_hash: (Engine::Finding) -> Hash[String, untyped]
+
+    # : (Integer | Float | nil) -> String
+    def self?.format_timeout: (Integer | Float | nil) -> String
+  end
+end

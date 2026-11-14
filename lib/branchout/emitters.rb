@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+# rbs_inline: enabled
 
 require_relative "emitters/support"
 require_relative "emitters/minitest"
@@ -6,10 +7,11 @@ require_relative "emitters/rspec"
 
 module Branchout
   module Emitters
-    FORMATS = %w[minitest rspec].freeze
+    FORMATS = %w[minitest rspec].freeze #: Array[String]
 
     module_function
 
+    #: (String?, String?) -> String
     def resolve(explicit, path)
       if explicit
         unless FORMATS.include?(explicit)
@@ -27,6 +29,7 @@ module Branchout
     # project, and for each path of this machine that the test passes
     # as it is (Support.machine_paths), or pins in a returned value or an
     # error message, for the caller to print.
+    #: (String, Engine::Result, Target, String, ?require_by_name: bool, ?pin_keys: Array[String]) -> Array[String]
     def write(format, result, target, destination, require_by_name: false, pin_keys: [])
       pins = project_pins(result.pins, destination)
       Support.write_file(destination, render(format, result, target, destination, require_by_name: require_by_name, pin_keys: pin_keys))
@@ -35,7 +38,7 @@ module Branchout
       passed = pins.flat_map { |pin| Support.machine_paths(pin.input) }.uniq
       pinned = pins.flat_map do |pin|
         # A pattern pins the rest of its message as written, paths too.
-        message = pin.error.exact_message || pin.error.message if pin.error&.stable_message || pin.error&.message_pattern
+        message = pin.error.exact_message || pin.error.message if pin.error&.stable_message || pin.error&.message_pattern # steep:ignore NoMethod
         after = Support.after_pin(pin)
         read = Support.pinned_value(after.value, Support.keys_for(after, [])) if after && after.varying != :whole
         Support.machine_paths_in([Support.pinned_value(pin.value, Support.keys_for(pin, pin_keys)), message, read])
@@ -63,6 +66,7 @@ module Branchout
     # +from+ is the directory the test's runner starts in.
     # A file with no pin says whether no input ran or each one differed
     # between two runs.
+    #: (String, Engine::Result, Target, String, ?require_by_name: bool, ?pin_keys: Array[String], ?from: String) -> String
     def render(format, result, target, destination, require_by_name: false, pin_keys: [], from: Dir.pwd)
       pins = project_pins(result.pins, destination)
       emitter_for(format).render(result.dup.tap { |copy| copy.pins = pins }, target, destination,
@@ -70,24 +74,34 @@ module Branchout
                                  all_varied: pins.empty? && result.pins.any?)
     end
 
+    #: (Engine::Pin, Array[String]) -> String
     def varying_warning(pin, pin_keys)
       return "branchout: #{pin.input.text} returned a value that differed between two runs, so it has no test." if pin.varying == :whole
 
+      # A varying that is not :whole names the keys that differed.
+      # steep:ignore:start
+
       "branchout: #{pin.input.text} returned a Hash whose #{pin.varying.join(", ")} differed between two runs, " \
         "so its test pins only #{Support.keys_for(pin, pin_keys).join(", ")}."
+      # steep:ignore:end
     end
 
+    #: (Engine::Pin) -> String
     def after_varying_warning(pin)
-      return "branchout: the after #{pin.input.after.source} of #{pin.input.text} read a value that differed between two runs, so its test does not check it." if pin.varying == :whole
+      return "branchout: the after #{pin.input.after.source} of #{pin.input.text} read a value that differed between two runs, so its test does not check it." if pin.varying == :whole # steep:ignore NoMethod
+
+      # steep:ignore:start
 
       "branchout: the after #{pin.input.after.source} of #{pin.input.text} read a Hash whose #{pin.varying.join(", ")} differed between two runs, " \
         "so its test pins only #{Support.keys_for(pin, []).join(", ")}."
+      # steep:ignore:end
     end
 
     # Each pin with the paths under the test's project in its input, its
     # returned value, its error message, and what its after read written
     # from the test's file.
     # A pin whose value differed as a whole between two runs is left out.
+    #: (Array[Engine::Pin], String) -> Array[Engine::Pin]
     def project_pins(pins, destination)
       pins.reject { |pin| pin.varying == :whole }.map do |pin|
         pin.dup.tap do |copy|
@@ -104,7 +118,8 @@ module Branchout
       end
     end
 
-    def emitter_for(format)
+    #: (String) -> (singleton(Minitest) | singleton(RSpec))
+    def emitter_for(format) # steep:ignore MethodBodyTypeMismatch
       case resolve(format, nil)
       when "minitest" then Minitest
       when "rspec" then RSpec

@@ -1,0 +1,323 @@
+# Generated from lib/branchout/target.rb with RBS::Inline
+
+module Branchout
+  # Static picture of one method: where it lives, which same-file callees it
+  # reaches, the literals in that slice, and the condition text for each
+  # decision Prism can see.
+  class Target
+    # +kind+ is a Ruby parameter kind (:req, :opt, :rest, :keyreq, :key).
+    # +inferred_type+ is an input type name such as "int", or nil before
+    # inference.
+    class Parameter < Struct[Symbol | untyped | String?]
+      attr_accessor kind(): Symbol
+
+      attr_accessor name(): Symbol
+
+      attr_accessor default(): untyped
+
+      attr_accessor inferred_type(): String?
+
+      def self.new: (?kind: Symbol, ?name: Symbol, ?default: untyped, ?inferred_type: String?) -> instance
+                  | ({ ?kind: Symbol, ?name: Symbol, ?default: untyped, ?inferred_type: String? }) -> instance
+    end
+
+    class Literals < Struct[Array[Integer] | Array[Float] | Array[String]]
+      attr_accessor ints(): Array[Integer]
+
+      attr_accessor floats(): Array[Float]
+
+      attr_accessor strings(): Array[String]
+
+      def self.new: (?ints: Array[Integer], ?floats: Array[Float], ?strings: Array[String]) -> instance
+                  | ({ ?ints: Array[Integer], ?floats: Array[Float], ?strings: Array[String] }) -> instance
+    end
+
+    class DefInfo < Struct[String | bool | untyped]
+      attr_accessor const_name(): String
+
+      attr_accessor singleton(): bool
+
+      attr_accessor node(): untyped
+
+      def self.new: (?const_name: String, ?singleton: bool, ?node: untyped) -> instance
+                  | ({ ?const_name: String, ?singleton: bool, ?node: untyped }) -> instance
+    end
+
+    # An operator that branches where branch coverage counts no arm.
+    class Operator < Struct[String | Integer]
+      attr_accessor loc(): String
+
+      attr_accessor line(): Integer
+
+      attr_accessor column(): Integer
+
+      attr_accessor op(): String
+
+      attr_accessor text(): String
+
+      def self.new: (?loc: String, ?line: Integer, ?column: Integer, ?op: String, ?text: String) -> instance
+                  | ({ ?loc: String, ?line: Integer, ?column: Integer, ?op: String, ?text: String }) -> instance
+    end
+
+    STRING_METHODS: Array[Symbol]
+
+    ARRAY_METHODS: Array[Symbol]
+
+    HASH_METHODS: Array[Symbol]
+
+    NUMERIC_OPS: Array[Symbol]
+
+    ENTRY_RE: Regexp
+
+    attr_reader path: String
+
+    attr_reader display_path: String
+
+    attr_reader source: String
+
+    attr_reader const_name: String
+
+    attr_reader method_name: Symbol
+
+    attr_reader singleton: bool
+
+    attr_reader parameters: Array[Parameter]
+
+    attr_reader constructor: Array[Parameter]
+
+    attr_reader ranges: Array[Range[Integer]]
+
+    attr_reader literals: Literals
+
+    attr_reader entry: String
+
+    # [singleton, name] of each call on self that no method in this file
+    # answers. Ruby's own lookup decides after load where each one lives.
+    attr_reader outside_calls: Array[[ bool, Symbol ]]
+
+    # [namespace, class, name] of each call on an object the counted code
+    # builds with Class.new, kept in a local or an instance variable.
+    # +class+ is the constant as written, so Ruby resolves it in +namespace+.
+    attr_reader typed_calls: Array[[ String, String, Symbol ]]
+
+    # Each ||, &&, ||=, and &&= of the counted code. Coverage sees no side of
+    # them, so a method that branches only through them has no arm at all.
+    # An @ivar ||= or &&= on an ivar the file writes nowhere else is left
+    # out: it memoizes across calls on one object, and each input builds
+    # its own receiver, so no input can vary its left side.
+    attr_reader operators: Array[Operator]
+
+    # Each @ivar ||= or &&= that OPERATORS leaves out, for the hint on a
+    # method whose only branch is a memo.
+    attr_reader memos: Array[Operator]
+
+    # Each if or unless on defined?(@ivar), a memo that caches nil and
+    # false too. Coverage counts its arms, but an input reaches the cached
+    # arm only after a call on the same object, through setup, and then
+    # returns what the first call stored, so a covered memo pins the same
+    # value as no memo at all.
+    attr_reader defined_memos: Array[Operator]
+
+    # Each <, <=, >, and >= of the counted code. Coverage sees no side of
+    # them either, so every arm can be taken with no input where the sides
+    # are equal, where > and >= part.
+    attr_reader boundaries: Array[Operator]
+
+    ENUMERABLE_CALLS: Set[Symbol]
+
+    @conditions: Hash[[ Integer, Integer ], untyped]
+
+    @constant_values: Hash[Symbol, Array[untyped]]
+
+    @superclasses: Hash[String, [ Array[String], String ]]
+
+    @type_overrides: Array[String]?
+
+    # Evidence of each parameter's type: parameter name => type name => score.
+    type evidence = Hash[Symbol?, Hash[Symbol, Integer]]
+
+    # : (String, String, ?type_overrides: Array[String]?) -> Target
+    def self.parse: (String, String, ?type_overrides: Array[String]?) -> Target
+
+    # : (String, String, ?type_overrides: Array[String]?) -> void
+    def initialize: (String, String, ?type_overrides: Array[String]?) -> void
+
+    # : () -> self
+    def parse: () -> self
+
+    # : () -> Array[Parameter]
+    def positional: () -> Array[Parameter]
+
+    # : (Integer) -> bool
+    def covers_line?: (Integer) -> bool
+
+    # : (Symbol, Integer, Integer, Symbol, Integer, Integer) -> String
+    def condition_text: (Symbol, Integer, Integer, Symbol, Integer, Integer) -> String
+
+    # An arm as a reviewer reads it, as its line and text: the keyword as
+    # written (elsif, a modifier unless), the condition, and the arm. A case
+    # arm sits on its when, in, or else line, and its condition already names
+    # it (when 1, case x else). A ternary is written whole.
+    # : (Symbol, Integer, Integer, Symbol, Integer, Integer) -> [Integer, String]
+    def covered_arm: (Symbol, Integer, Integer, Symbol, Integer, Integer) -> [ Integer, String ]
+
+    # : (String) -> String
+    def self.display_path: (String) -> String
+
+    # The lines of the def that starts on +line+ of +path+, or nil when no
+    # def starts there, as with define_method.
+    # : (String, Integer) -> Range[Integer]?
+    def self.def_lines: (String, Integer) -> Range[Integer]?
+
+    private
+
+    # : (untyped, Array[untyped], Array[String]?, ?Array[[untyped, untyped]]) -> Array[Parameter]
+    def build_parameters: (untyped, Array[untyped], Array[String]?, ?Array[[ untyped, untyped ]]) -> Array[Parameter]
+
+    # +const+ and its superclasses declared in this file, nearest first. A
+    # superclass name resolves in the scope its class was written in.
+    # : (String, Array[DefInfo]) -> Array[String]
+    def lineage_of: (String, Array[DefInfo]) -> Array[String]
+
+    # The namespace a class or module body opens: class Cart::Line inside
+    # module Shop is Shop::Cart::Line, and class ::Top is Top anywhere.
+    # : (untyped, Array[String]) -> Array[String]
+    def namespace_of: (untyped, Array[String]) -> Array[String]
+
+    # : (Parameter, Hash[Symbol, Integer]) -> String
+    def choose_type: (Parameter, Hash[Symbol, Integer]) -> String
+
+    # : (untyped) -> String?
+    def type_from_default: (untyped) -> String?
+
+    # : (untyped, Symbol, Integer, Integer) -> String?
+    def condition_from: (untyped, Symbol, Integer, Integer) -> String?
+
+    # : (untyped, Integer, Integer) -> untyped
+    def case_arm: (untyped, Integer, Integer) -> untyped
+
+    # Coverage places a case arm at its body, not at its keyword.
+    # : (untyped, Symbol, Integer, Integer) -> Integer?
+    def case_arm_line: (untyped, Symbol, Integer, Integer) -> Integer?
+
+    # Coverage places a when or in arm at its body, or, when the body is
+    # empty, at the keyword. Ruby 3.3 puts an empty in arm at the end of its
+    # pattern instead.
+    # : (untyped, Integer, Integer) -> bool
+    def arm_matches?: (untyped, Integer, Integer) -> bool
+
+    # : (untyped) -> void
+    def index_conditions: (untyped) -> void
+
+    # : (untyped) -> bool
+    def condition_node?: (untyped) -> bool
+
+    # The instance variables the file sets other than with ||= or &&=.
+    # : (untyped, ?Array[Symbol]) -> Array[Symbol]
+    def ivars_written: (untyped, ?Array[Symbol]) -> Array[Symbol]
+
+    # +memos+ picks the memos instead of the operators.
+    # : (untyped, Array[Symbol], ?Array[Operator], ?memos: bool) -> Array[Operator]
+    def operators_in: (untyped, Array[Symbol], ?Array[Operator], ?memos: bool) -> Array[Operator]
+
+    COMPARISONS: Array[Symbol]
+
+    # : (untyped, ?Array[Operator]) -> Array[Operator]
+    def boundaries_in: (untyped, ?Array[Operator]) -> Array[Operator]
+
+    # Each if or unless on defined?(@ivar) of an ivar the file sets, as in
+    # return @value if defined?(@value).
+    # : (untyped, Array[Symbol], ?Array[Operator]) -> Array[Operator]
+    def defined_memos_in: (untyped, Array[Symbol], ?Array[Operator]) -> Array[Operator]
+
+    # : (untyped) -> void
+    def collect_literals: (untyped) -> void
+
+    # : (untyped, ?Array[untyped]) -> Array[untyped]
+    def bare_calls: (untyped, ?Array[untyped]) -> Array[untyped]
+
+    # Instance variables that a method of +const+ in this file sets to
+    # Class.new, as initialize does for a collaborator: name => class text.
+    # : (Array[DefInfo], String) -> Hash[Symbol, String]
+    def built_ivars: (Array[DefInfo], String) -> Hash[Symbol, String]
+
+    # [class text, method name] of each call on a value that this body
+    # builds with Class.new: a local it assigns, an instance variable in
+    # +ivars+, or the new call itself.
+    # : (untyped, Hash[Symbol, String]) -> Array[[String, Symbol]]
+    def calls_on_built: (untyped, Hash[Symbol, String]) -> Array[[ String, Symbol ]]
+
+    # : (untyped, Symbol, ?Array[[Symbol, String]]) -> Array[[Symbol, String]]
+    def assignments: (untyped, Symbol, ?Array[[ Symbol, String ]]) -> Array[[ Symbol, String ]]
+
+    # The class text of Class.new(...), or nil.
+    # : (untyped) -> String?
+    def built_class: (untyped) -> String?
+
+    # Methods a class method calls on an instance it builds itself, as in
+    # new(doc).apply, or new(path).tap(&:parse).
+    # : (untyped, ?Array[Symbol]) -> Array[Symbol]
+    def calls_on_new: (untyped, ?Array[Symbol]) -> Array[Symbol]
+
+    # tap(&:parse) and then(&:parse) call parse on the receiver.
+    # : (untyped) -> Symbol
+    def called_on_receiver: (untyped) -> Symbol
+
+    # : (untyped, evidence) -> void
+    def walk_evidence: (untyped, evidence) -> void
+
+    # : (untyped, evidence) -> void
+    def note_case: (untyped, evidence) -> void
+
+    # : (untyped, evidence) -> void
+    def note_call: (untyped, evidence) -> void
+
+    # held?(code) with def held?(state) = state == "held" makes code a
+    # String too: a positional argument takes the evidence of the
+    # parameter it fills.
+    # : (untyped, untyped, evidence) -> void
+    def pass_evidence: (untyped, untyped, evidence) -> void
+
+    # : (untyped) -> untyped
+    def first_arg: (untyped) -> untyped
+
+    # : (untyped) -> Symbol?
+    def lvar_name: (untyped) -> Symbol?
+
+    # : (untyped, Symbol) -> bool
+    def contains?: (untyped, Symbol) -> bool
+
+    # A container default stands in as an empty one of its kind: the type is
+    # what inference needs, and every mutated input passes the slot anyway.
+    # : (untyped) -> (Integer | Float | String | bool | Array[untyped] | Hash[untyped, untyped] | nil)
+    def literal_value: (untyped) -> (Integer | Float | String | bool | Array[untyped] | Hash[untyped, untyped] | nil)
+
+    # functions tracks module_function and extend self in the current module
+    # body: a bare module_function makes every later def a class method too,
+    # named arguments make those defs class methods too, and extend self
+    # makes every def in the body one, including those above it.
+    # : (untyped, Array[String], bool, Array[DefInfo], ?{ after: bool, names: Array[Symbol], all: bool }?) -> void
+    def collect_defs: (untyped, Array[String], bool, Array[DefInfo], ?{ after: bool, names: Array[Symbol], all: bool }?) -> void
+
+    # NAME = literal, by name alone: a helper's comparison against CLOSED is
+    # a comparison against its literal, wherever the file sets CLOSED.
+    # : (untyped) -> void
+    def note_constant: (untyped) -> void
+
+    # The body of the block in Struct.new(...) do ... end, Data.define, or
+    # Class.new, whose defs are methods of the class the call builds.
+    CLASS_BUILDERS: Hash[String, Symbol]
+
+    # : (untyped) -> untyped
+    def class_block_body: (untyped) -> untyped
+
+    # : (Integer) -> String
+    def source_line: (Integer) -> String
+
+    # : (String) -> String
+    def cut: (String) -> String
+
+    # : (untyped) -> String
+    def squash: (untyped) -> String
+  end
+end

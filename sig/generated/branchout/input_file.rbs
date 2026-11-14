@@ -1,0 +1,36 @@
+# Generated from lib/branchout/input_file.rb with RBS::Inline
+
+module Branchout
+  module InputFile
+    # The inputs, the types, and the file's after.
+    # : (String) -> [Array[Input], Array[String]?, Code?]
+    def self?.load: (String) -> [ Array[Input], Array[String]?, Code? ]
+
+    AFTER_EXAMPLE: String
+
+    # The Code of an after: one expression, which an emitted test pins as
+    # it pins a returned value.
+    # : (untyped, String) -> Code
+    def self?.parse_after: (untyped, String) -> Code
+
+    # Keys that say how the entry is called, so args may be left out for none.
+    CALL_KEYS: Array[String]
+
+    METHOD_NAME: Regexp
+
+    # : (untyped, String, ?Array[String]) -> Input
+    def self?.parse_entry: (untyped, String, ?Array[String]) -> Input
+
+    # A String argument wrapped in its own quotes, as "\"0306406150\"", is
+    # most often Ruby or JSON source written where a JSON value goes, and
+    # the method then gets the quotes too.
+    # : (Array[Input]) -> Array[String]
+    def self?.quoted_strings: (Array[Input]) -> Array[String]
+
+    # : (Hash[untyped, untyped]) -> bool
+    def self?.code?: (Hash[untyped, untyped]) -> bool
+
+    # : (untyped, String) -> Array[Input::SetupCall]
+    def self?.parse_setup: (untyped, String) -> Array[Input::SetupCall]
+  end
+end

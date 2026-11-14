@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+# rbs_inline: enabled
 
 module Branchout
   # Outside a bundle the first require of prism activates the newest one,
@@ -9,6 +10,7 @@ module Branchout
   module PrismChoice
     module_function
 
+    #: () -> void
     def activate
       return if defined?(::Bundler) || Gem.loaded_specs.key?("prism")
 
@@ -16,8 +18,12 @@ module Branchout
       gem "prism", "= #{version}" if version
     end
 
+    #: (Array[Gem::Version], Array[Gem::Specification]) -> Gem::Version?
     def accepted(versions, specs)
-      newest = specs.group_by(&:name).map { |_, same| same.max_by(&:version) }
+      # steep:ignore:start
+      # group_by makes no empty group, so max_by finds a spec in each.
+      newest = specs.group_by(&:name).map { |_, same| same.max_by(&:version) } #: Array[Gem::Specification]
+      # steep:ignore:end
       wanted = newest.flat_map { |spec| spec.runtime_dependencies.select { |dep| dep.name == "prism" }.map(&:requirement) }
       versions.select { |version| wanted.all? { |requirement| requirement.satisfied_by?(version) } }.max
     end

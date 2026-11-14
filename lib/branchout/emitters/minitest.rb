@@ -1,10 +1,19 @@
 # frozen_string_literal: true
+# rbs_inline: enabled
 
 module Branchout
   module Emitters
     module Minitest
       module_function
 
+      # @rbs result: Engine::Result
+      # @rbs target: Target
+      # @rbs destination: String
+      # @rbs require_by_name: bool
+      # @rbs pin_keys: Array[String]
+      # @rbs from: String
+      # @rbs all_varied: bool
+      # @rbs return: String
       def render(result, target, destination, require_by_name: false, pin_keys: [], from: Dir.pwd, all_varied: false)
         lines = Support.header(target, "tests", destination)
         lines << ""
@@ -28,6 +37,7 @@ module Branchout
         "#{lines.join("\n")}\n"
       end
 
+      #: (Target, Engine::Pin, String, Array[Symbol], Array[String], ?String) -> Array[String]
       def example_lines(target, pin, name, private_calls, pin_keys, const = target.const_name)
         lines = ["  def #{name}"]
         lines.concat(Support.cover_comment(pin, "    "))
@@ -41,7 +51,7 @@ module Branchout
         if pin.error
           lines.concat(Support.indent(arrange, "    ")) if after
           lines << "    error = assert_raises(#{pin.error.class_name}) do"
-          lines.concat(Support.indent((after ? [] : arrange) + [call], "      "))
+          lines.concat(Support.indent((after ? [] : arrange) + [call], "      ")) # steep:ignore UnannotatedEmptyCollection
           lines << "    end"
           if pin.error.name
             lines << "    assert_equal #{pin.error.name.inspect}, error.name"
@@ -55,7 +65,7 @@ module Branchout
           lines.concat(value_lines(pin, call, Support.keys_for(pin, pin_keys)))
         end
         if after && after.varying != :whole
-          source = after.input.after.source
+          source = after.input.after.source # steep:ignore NoMethod
           lines.concat(value_lines(after, source, Support.keys_for(after, []), on: Support.receiver_form(source)))
         end
         lines << "  end"
@@ -63,8 +73,9 @@ module Branchout
 
       # The assertions that pin +pin+'s value, which +call+ gives.
       # +on+ is +call+ as a method's receiver.
+      #: (Engine::Pin, String, Array[String], ?on: String) -> Array[String]
       def value_lines(pin, call, keys, on: call)
-        lines = []
+        lines = [] #: Array[String]
         pinned = Support.pinned_value(pin.value, keys)
         if !pinned.equal?(pin.value) && Support.literal?(pinned)
           keys = pinned.keys.map { |key| Support.ruby_literal(key) }.join(", ")
@@ -93,8 +104,9 @@ module Branchout
       # The stable keys of a Hash with no literal: its literal entries by
       # value, and each other one by its shape, as RSpec's include pins it.
       # The call runs once, since a second call could make another record.
+      #: (Hash[untyped, untyped], String) -> Array[String]
       def part_lines(pinned, call)
-        literal, other = pinned.partition { |_, item| Support.literal?(item) }.map(&:to_h)
+        literal, other = pinned.partition { |_, item| Support.literal?(item) }.map(&:to_h) #: [Hash[untyped, untyped], Hash[untyped, untyped]]
         lines = ["    value = #{call}"]
         unless literal.empty?
           keys = literal.keys.map { |key| Support.ruby_literal(key) }.join(", ")

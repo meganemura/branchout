@@ -1,10 +1,11 @@
 # frozen_string_literal: true
+# rbs_inline: enabled
 
 require "fileutils"
 
 module Branchout
   module CLI
-    HELP = <<~TEXT
+    HELP = <<~TEXT #: String
       branchout #{VERSION}
 
       Usage:
@@ -43,8 +44,19 @@ module Branchout
         --version
     TEXT
 
+    # @rbs!
+    #   type options = {
+    #     seed: Integer, random: Integer, mutate_cap: Integer, timeout: Integer | Float,
+    #     strategies: Array[String], json: bool, verbose: bool, inputs: String?, entry: String?,
+    #     json_out: String?, md_out: String?, emit_tests: String?, format: String?,
+    #     require_by_name: bool, pin_keys: Array[String], requires: Array[String],
+    #     load_paths: Array[String], ?after: Code?
+    #   }
+
     module_function
 
+    # The exit status.
+    #: (Array[String]) -> Integer
     def start(argv)
       run(argv)
     rescue Error => e
@@ -52,6 +64,7 @@ module Branchout
       1
     end
 
+    #: (Array[String]) -> Integer
     def run(argv)
       args = argv.map(&:dup)
       if args.empty? || args == ["--help"] || args == ["-h"]
@@ -84,15 +97,15 @@ module Branchout
         pin_keys: [],
         requires: [],
         load_paths: []
-      }
-      positionals = []
+      } #: options
+      positionals = [] #: Array[String]
       until args.empty?
         arg = args.shift
         case arg
         when "--inputs" then opts[:inputs] = take(args, arg)
         when "--require" then opts[:requires] << take(args, arg)
         when "-I" then opts[:load_paths] << take(args, arg)
-        when /\A-I(.+)/ then opts[:load_paths] << Regexp.last_match(1)
+        when /\A-I(.+)/ then opts[:load_paths] << Regexp.last_match(1) # steep:ignore ArgumentTypeMismatch
         when "--seed" then opts[:seed] = parse_int(take(args, arg), "seed")
         when "--random" then opts[:random] = parse_int(take(args, arg), "random")
         when "--mutate-cap" then opts[:mutate_cap] = parse_int(take(args, arg), "mutate-cap")
@@ -144,11 +157,11 @@ module Branchout
         # jitcatch copies a test under .jitcatch/ to the root of each
         # checkout, and its rerun line loads the test where it was written.
         # A require_relative names a different file from each place.
-        opts[:require_by_name] ||= File.expand_path(opts[:emit_tests]).split("/").include?(".jitcatch")
+        opts[:require_by_name] ||= File.expand_path(opts[:emit_tests]).split("/").include?(".jitcatch") # steep:ignore ArgumentTypeMismatch
       end
 
-      user_inputs = []
-      type_overrides = nil
+      user_inputs = [] #: Array[Input]
+      type_overrides = nil #: Array[String]?
       if opts[:inputs]
         user_inputs, type_overrides, opts[:after] = InputFile.load(opts[:inputs])
         InputFile.quoted_strings(user_inputs).each { |line| $stderr.puts "branchout: #{line}" }
@@ -218,12 +231,12 @@ module Branchout
           random: opts[:random],
           mutate_cap: opts[:mutate_cap],
           timeout: opts[:timeout]
-        }
+        } #: Report::baselines_info
         rows = [
           ["random", run_strategy(target, entry, user_inputs, type_overrides, opts, ["random"])],
           ["mutate", run_strategy(target, entry, user_inputs, type_overrides, opts, ["mutate"])],
           ["agent", run_strategy(target, entry, user_inputs, type_overrides, opts, ["inputs"])]
-        ]
+        ] #: Array[[String, Engine::Result]]
         stdout = opts[:json] ? Report.baselines_json(info, rows) : Report.baselines_text(info, rows)
         $stdout.write(stdout)
         write_optional(opts[:json_out], Report.baselines_json(info, rows))
@@ -232,6 +245,7 @@ module Branchout
       0
     end
 
+    #: (String, String, Array[Input], Array[String]?, options, Array[String]) -> Engine::Result
     def run_strategy(target, entry, user_inputs, type_overrides, opts, strategies)
       Engine.explore(
         target: target,
@@ -252,6 +266,7 @@ module Branchout
 
     # A file outside the test's project has had its warning from
     # Emitters.write already.
+    #: (Engine::Result, String, String) -> void
     def warn_unnamed(result, target, destination)
       required = (target unless result.target_required)
       unnamed = Emitters::Support.unnamed_requires(result.requires, required, load_paths: result.load_paths).map { |path| File.expand_path(path) } -
@@ -262,6 +277,7 @@ module Branchout
       end
     end
 
+    #: (String?, String) -> void
     def write_optional(path, content)
       return unless path
 
@@ -269,6 +285,7 @@ module Branchout
       File.write(path, content)
     end
 
+    #: (Array[String], String) -> String
     def take(args, flag)
       value = args.shift
       raise Error, "#{flag} needs a value" unless value
@@ -276,12 +293,14 @@ module Branchout
       value
     end
 
+    #: (String, String) -> Integer
     def parse_int(text, label)
       Integer(text)
     rescue ArgumentError
       raise Error, "#{label} must be an integer"
     end
 
+    #: (String) -> (Integer | Float)
     def parse_timeout(text)
       value = Float(text)
       raise Error, "timeout must be > 0" unless value.positive?
@@ -291,6 +310,7 @@ module Branchout
       raise Error, "timeout must be a number"
     end
 
+    #: (String) -> Array[String]
     def parse_keys(text)
       keys = text.split(",").map(&:strip).reject(&:empty?)
       raise Error, "--pin-keys list is empty" if keys.empty?
@@ -298,6 +318,7 @@ module Branchout
       keys
     end
 
+    #: (String) -> Array[String]
     def parse_strategies(text)
       names = text.split(",").map(&:strip).reject(&:empty?)
       unknown = names - Engine::STRATEGY_ORDER

@@ -1,0 +1,26 @@
+# The parts of RubyGems that branchout calls and that RBS's core
+# signatures of RubyGems leave out.
+
+class Gem::Specification < Gem::BasicSpecification
+  def self.find_all_by_name: (String name, *String requirements) -> Array[Gem::Specification]
+
+  def self.to_a: () -> Array[Gem::Specification]
+
+  def name: () -> String
+
+  def version: () -> Gem::Version
+
+  def runtime_dependencies: () -> Array[Gem::Dependency]
+end
+
+class Gem::Dependency
+  def name: () -> String
+
+  def requirement: () -> Gem::Requirement
+end
+
+module Kernel
+  private
+
+  def gem: (String name, *String requirements) -> bool
+end

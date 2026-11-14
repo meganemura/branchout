@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+# rbs_inline: enabled
 
 module Branchout
   # Literal mutation in the style of a cheap comparison-guided fuzzer.
@@ -6,8 +7,12 @@ module Branchout
   # product of the first two numeric slots comes after that, so a magic
   # constant is not dropped just because it sorts late.
   class Mutator
-    TYPES = %w[int float string array hash bool].freeze
+    TYPES = %w[int float string array hash bool].freeze #: Array[String]
 
+    # @rbs @target: Target
+    # @rbs @cap: Integer
+
+    #: (Target, cap: Integer) -> void
     def initialize(target, cap:)
       @target = target
       @cap = cap
@@ -17,8 +22,12 @@ module Branchout
     # A slot is one value an input passes: a positional or required keyword
     # parameter of the entry, or of initialize when the entry is an instance
     # method. Optional keywords keep their defaults.
-    Slot = Struct.new(:owner, :param)
+    Slot = Struct.new(
+      :owner, #: :entry | :new
+      :param #: Target::Parameter
+    )
 
+    #: () -> Array[Input]
     def inputs
       return [] if @cap.zero?
 
@@ -31,16 +40,17 @@ module Branchout
         pools[slot].each { |value| tier_one << build(base.merge(slot => value)) }
       end
 
-      tier_two = []
-      first, second = slots.select { |slot| slot.owner == :entry && slot.param.kind != :keyreq }
+      tier_two = [] #: Array[Input]
+      # A second slot means a first one.
+      first, second = slots.select { |slot| slot.owner == :entry && slot.param.kind != :keyreq } #: [Slot, Slot?]
       if second && numeric?(first.param) && numeric?(second.param)
         pools[first].each do |left|
           pools[second].each { |right| tier_two << build(base.merge(first => left, second => right)) }
         end
       end
 
-      deduped = []
-      seen = {}
+      deduped = [] #: Array[Input]
+      seen = {} #: Hash[String, bool]
       (sort_inputs(tier_one) + sort_inputs(tier_two)).each do |input|
         key = input.canonical
         next if seen[key]
@@ -54,10 +64,12 @@ module Branchout
 
     # Every input passes each required keyword, or the call stops at
     # ArgumentError before the method body runs.
+    #: (:entry | :new, Array[Target::Parameter]) -> Array[Slot]
     def slots_of(owner, parameters)
       parameters.select { |param| %i[req opt keyreq].include?(param.kind) }.map { |param| Slot.new(owner, param) }
     end
 
+    #: (Hash[Slot, untyped]) -> Input
     def build(values)
       entry = values.select { |slot, _| slot.owner == :entry }
       made = values.reject { |slot, _| slot.owner == :entry }
@@ -65,12 +77,14 @@ module Branchout
       arguments(entry, receiver)
     end
 
+    #: (Hash[Slot, untyped], ?Input?) -> Input
     def arguments(values, receiver = nil)
       args = values.reject { |slot, _| slot.param.kind == :keyreq }.values
       kwargs = values.select { |slot, _| slot.param.kind == :keyreq }.to_h { |slot, value| [slot.param.name.to_s, value] }
       Input.new(args: args, kwargs: kwargs, receiver: receiver)
     end
 
+    #: (Target::Parameter) -> Array[untyped]
     def pool_for(param)
       literals = @target.literals
       case param.inferred_type
@@ -107,16 +121,19 @@ module Branchout
       end
     end
 
+    #: (Target::Parameter) -> untyped
     def base_value(param)
       return param.default unless param.default.nil?
 
       Input.zero(param.inferred_type)
     end
 
+    #: (Target::Parameter) -> bool
     def numeric?(param)
       param.inferred_type == "int" || param.inferred_type == "float"
     end
 
+    #: (Array[Input]) -> Array[Input]
     def sort_inputs(list)
       list.sort_by(&:canonical)
     end

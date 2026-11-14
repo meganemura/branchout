@@ -1,0 +1,16 @@
+# Generated from lib/branchout/prism_choice.rb with RBS::Inline
+
+module Branchout
+  # Outside a bundle the first require of prism activates the newest one,
+  # and a target that then requires a gem pinned to an older prism, as
+  # minitest 6 is to prism ~> 1.5, fails to activate that gem. The CLI
+  # parses the target before it loads it, so it activates the newest prism
+  # that the newest installed version of every gem accepts.
+  module PrismChoice
+    # : () -> void
+    def self?.activate: () -> void
+
+    # : (Array[Gem::Version], Array[Gem::Specification]) -> Gem::Version?
+    def self?.accepted: (Array[Gem::Version], Array[Gem::Specification]) -> Gem::Version?
+  end
+end

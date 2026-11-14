@@ -1,0 +1,272 @@
+# Generated from lib/branchout/engine.rb with RBS::Inline
+
+module Branchout
+  class Engine
+    STRATEGY_ORDER: Array[String]
+
+    class Result < Struct[String | Integer | Array[String] | Integer | Float | Array[Arm] | Array[Finding] | Array[Pin] | bool | Array[Symbol] | Array[Runner::Callee] | Array[Target::Operator] | String? | untyped]
+      attr_accessor command(): String
+
+      attr_accessor target(): String
+
+      attr_accessor entry(): String
+
+      attr_accessor seed(): Integer
+
+      attr_accessor strategies(): Array[String]
+
+      attr_accessor random(): Integer
+
+      attr_accessor mutate_cap(): Integer
+
+      attr_accessor timeout(): Integer | Float
+
+      attr_accessor inputs_ran(): Integer
+
+      attr_accessor mutate_ran(): Integer
+
+      attr_accessor random_ran(): Integer
+
+      attr_accessor executions(): Integer
+
+      attr_accessor covered(): Array[Arm]
+
+      attr_accessor frontier(): Array[Arm]
+
+      attr_accessor exceptions(): Array[Finding]
+
+      attr_accessor pins(): Array[Pin]
+
+      attr_accessor requires(): Array[String]
+
+      attr_accessor load_paths(): Array[String]
+
+      attr_accessor target_required(): bool
+
+      attr_accessor private_calls(): Array[Symbol]
+
+      attr_accessor const_expression(): String
+
+      attr_accessor repeated_inputs(): Integer
+
+      attr_accessor not_counted(): Array[Runner::Callee]
+
+      attr_accessor operators(): Array[Target::Operator]
+
+      attr_accessor memos(): Array[Target::Operator]
+
+      attr_accessor defined_memos(): Array[Target::Operator]
+
+      attr_accessor boundaries(): Array[Target::Operator]
+
+      attr_accessor test_class(): String?
+
+      attr_accessor spec_type(): untyped
+
+      def self.new: (?command: String, ?target: String, ?entry: String, ?seed: Integer, ?strategies: Array[String], ?random: Integer, ?mutate_cap: Integer, ?timeout: Integer | Float, ?inputs_ran: Integer, ?mutate_ran: Integer, ?random_ran: Integer, ?executions: Integer, ?covered: Array[Arm], ?frontier: Array[Arm], ?exceptions: Array[Finding], ?pins: Array[Pin], ?requires: Array[String], ?load_paths: Array[String], ?target_required: bool, ?private_calls: Array[Symbol], ?const_expression: String, ?repeated_inputs: Integer, ?not_counted: Array[Runner::Callee], ?operators: Array[Target::Operator], ?memos: Array[Target::Operator], ?defined_memos: Array[Target::Operator], ?boundaries: Array[Target::Operator], ?test_class: String?, ?spec_type: untyped) -> instance
+                  | ({ ?command: String, ?target: String, ?entry: String, ?seed: Integer, ?strategies: Array[String], ?random: Integer, ?mutate_cap: Integer, ?timeout: Integer | Float, ?inputs_ran: Integer, ?mutate_ran: Integer, ?random_ran: Integer, ?executions: Integer, ?covered: Array[Arm], ?frontier: Array[Arm], ?exceptions: Array[Finding], ?pins: Array[Pin], ?requires: Array[String], ?load_paths: Array[String], ?target_required: bool, ?private_calls: Array[Symbol], ?const_expression: String, ?repeated_inputs: Integer, ?not_counted: Array[Runner::Callee], ?operators: Array[Target::Operator], ?memos: Array[Target::Operator], ?defined_memos: Array[Target::Operator], ?boundaries: Array[Target::Operator], ?test_class: String?, ?spec_type: untyped }) -> instance
+    end
+
+    # +pinned+ is false for a covered arm whose every input differed as a
+    # whole between two runs, so no emitted test checks it.
+    class Arm < Struct[String | Integer | Input? | Array[String]? | bool | bool?]
+      attr_accessor id(): String
+
+      attr_accessor loc(): String
+
+      attr_accessor line(): Integer
+
+      attr_accessor column(): Integer
+
+      attr_accessor cond(): String
+
+      attr_accessor sense(): String
+
+      attr_accessor input(): Input?
+
+      attr_accessor parent(): String
+
+      attr_accessor nearest(): Input?
+
+      attr_accessor path(): Array[String]?
+
+      attr_accessor covered(): bool
+
+      attr_accessor pinned(): bool?
+
+      def self.new: (?id: String, ?loc: String, ?line: Integer, ?column: Integer, ?cond: String, ?sense: String, ?input: Input?, ?parent: String, ?nearest: Input?, ?path: Array[String]?, ?covered: bool, ?pinned: bool?) -> instance
+                  | ({ ?id: String, ?loc: String, ?line: Integer, ?column: Integer, ?cond: String, ?sense: String, ?input: Input?, ?parent: String, ?nearest: Input?, ?path: Array[String]?, ?covered: bool, ?pinned: bool? }) -> instance
+    end
+
+    # +covers+ lists the arms the input took, in source order.
+    # +thawed+ marks an input that ran with unfrozen Strings (Runner::Execution).
+    # +varying+ is Runner::Execution's: what differed between two runs.
+    # +listed_at+ is the input's index in the inputs file, or nil for an
+    # input branchout made.
+    # +observed+ is the Runner::Observation of what the input's after read,
+    # or nil when the input has no after or its call timed out.
+    class Pin < Struct[Input | untyped | Runner::ExceptionInfo? | Array[Cover] | bool | Runner::varying | Integer? | Runner::Observation?]
+      attr_accessor input(): Input
+
+      attr_accessor value(): untyped
+
+      attr_accessor error(): Runner::ExceptionInfo?
+
+      attr_accessor covers(): Array[Cover]
+
+      attr_accessor thawed(): bool
+
+      attr_accessor varying(): Runner::varying
+
+      attr_accessor listed_at(): Integer?
+
+      attr_accessor observed(): Runner::Observation?
+
+      def self.new: (?input: Input, ?value: untyped, ?error: Runner::ExceptionInfo?, ?covers: Array[Cover], ?thawed: bool, ?varying: Runner::varying, ?listed_at: Integer?, ?observed: Runner::Observation?) -> instance
+                  | ({ ?input: Input, ?value: untyped, ?error: Runner::ExceptionInfo?, ?covers: Array[Cover], ?thawed: bool, ?varying: Runner::varying, ?listed_at: Integer?, ?observed: Runner::Observation? }) -> instance
+    end
+
+    class Cover < Struct[Integer | String]
+      attr_accessor line(): Integer
+
+      attr_accessor column(): Integer
+
+      attr_accessor text(): String
+
+      def self.new: (?line: Integer, ?column: Integer, ?text: String) -> instance
+                  | ({ ?line: Integer, ?column: Integer, ?text: String }) -> instance
+    end
+
+    class Finding < Struct[String | String? | Input | bool]
+      attr_accessor class_name(): String
+
+      attr_accessor message(): String
+
+      attr_accessor loc(): String?
+
+      attr_accessor input(): Input
+
+      attr_accessor stable_message(): bool
+
+      def self.new: (?class_name: String, ?message: String, ?loc: String?, ?input: Input, ?stable_message: bool) -> instance
+                  | ({ ?class_name: String, ?message: String, ?loc: String?, ?input: Input, ?stable_message: bool }) -> instance
+    end
+
+    @host: Host?
+
+    @after: Code?
+
+    @path: String
+
+    @load_paths: Array[String]
+
+    @requires: Array[String]
+
+    @entry: String
+
+    @user_inputs: Array[Input]
+
+    @type_overrides: Array[String]?
+
+    @seed: Integer
+
+    @strategies: Array[String]
+
+    @random: Integer
+
+    @mutate_cap: Integer
+
+    @timeout: Integer | Float
+
+    @command: String
+
+    # @rbs target: String
+    # @rbs entry: String
+    # @rbs user_inputs: Array[Input]
+    # @rbs type_overrides: Array[String]?
+    # @rbs seed: Integer
+    # @rbs strategies: Array[String]
+    # @rbs random: Integer
+    # @rbs mutate_cap: Integer
+    # @rbs timeout: Integer | Float
+    # @rbs command: String
+    # @rbs requires: Array[String]
+    # @rbs load_paths: Array[String]
+    # @rbs host: Host?
+    # @rbs after: Code?
+    # @rbs return: Result
+    def self.explore: (target: String, entry: String, ?user_inputs: Array[Input], ?type_overrides: Array[String]?, ?seed: Integer, ?strategies: Array[String], ?random: Integer, ?mutate_cap: Integer, ?timeout: Integer | Float, ?command: String, ?requires: Array[String], ?load_paths: Array[String], ?host: Host?, ?after: Code?) -> Result
+
+    # +after+ is the inputs file's own after, the Code that reads what each
+    # call left. The listed inputs have it already; the inputs that mutate
+    # and random make get it here, so every call of the run reads the same.
+    # @rbs target: String
+    # @rbs entry: String
+    # @rbs user_inputs: Array[Input]
+    # @rbs type_overrides: Array[String]?
+    # @rbs seed: Integer
+    # @rbs strategies: Array[String]
+    # @rbs random: Integer
+    # @rbs mutate_cap: Integer
+    # @rbs timeout: Integer | Float
+    # @rbs command: String
+    # @rbs requires: Array[String]
+    # @rbs load_paths: Array[String]
+    # @rbs host: Host?
+    # @rbs after: Code?
+    # @rbs return: void
+    def initialize: (target: String, entry: String, user_inputs: Array[Input], type_overrides: Array[String]?, seed: Integer, strategies: Array[String], random: Integer, mutate_cap: Integer, timeout: Integer | Float, command: String, requires: Array[String], load_paths: Array[String], host: Host?, ?after: Code?) -> void
+
+    # : () -> Result
+    def explore: () -> Result
+
+    private
+
+    # A require that names no file under the working directory is a
+    # feature, as Ruby's own -r reads it: found on an -I directory, then on
+    # the load path. Nil when it is found nowhere.
+    # : (String) -> String?
+    def required_file: (String) -> String?
+
+    # In the words of the caller: Branchout.explore, the one caller that
+    # passes a host, takes requires: and no -I.
+    # : (String) -> String
+    def require_not_found: (String) -> String
+
+    # : (Target, Runner, Array[Runner::Execution], Hash[Symbol, Integer], Integer) -> Result
+    def build_result: (Target, Runner, Array[Runner::Execution], Hash[Symbol, Integer], Integer) -> Result
+
+    # : (Target, Runner::branch_key, Runner::branch_key, Array[Runner::Execution]) -> Arm
+    def make_arm: (Target, Runner::branch_key, Runner::branch_key, Array[Runner::Execution]) -> Arm
+
+    # : (Array[Runner::Execution]) -> Array[Finding]
+    def collect_findings: (Array[Runner::Execution]) -> Array[Finding]
+
+    # : (Target, Array[Runner::Execution], Array[Arm], Array[Finding]) -> Array[Pin]
+    def collect_pins: (Target, Array[Runner::Execution], Array[Arm], Array[Finding]) -> Array[Pin]
+
+    # : (Target, Runner::Execution) -> Array[Cover]
+    def covers_of: (Target, Runner::Execution) -> Array[Cover]
+
+    # : (Array[Runner::Execution]) -> Runner::Execution?
+    def best_execution: (Array[Runner::Execution]) -> Runner::Execution?
+
+    # : (Runner::Execution, Runner::branch_key) -> bool
+    def parent_reached?: (Runner::Execution, Runner::branch_key) -> bool
+
+    # : (Runner::Execution, Runner::branch_key, Runner::branch_key) -> Integer
+    def count_of: (Runner::Execution, Runner::branch_key, Runner::branch_key) -> Integer
+
+    # : (Runner::Execution) -> Array[String]
+    def path_ids: (Runner::Execution) -> Array[String]
+
+    # : (Runner::Execution) -> Array[String]
+    def path_with_counts: (Runner::Execution) -> Array[String]
+
+    # : (Runner::branch_key, Runner::branch_key) -> String
+    def format_id: (Runner::branch_key, Runner::branch_key) -> String
+
+    # : (Symbol, Symbol) -> String
+    def sense_for: (Symbol, Symbol) -> String
+  end
+end

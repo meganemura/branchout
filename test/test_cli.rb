@@ -325,9 +325,10 @@ class CLITest < Minitest::Test
       spec = File.join(dir, "shelf_spec.rb")
       _out, stderr, status = run_cli("explore", target, "Shelf.count", "--inputs", inputs, "--strategy", "inputs", "--format", "rspec", "--emit-tests", spec)
       assert status.success?, stderr
-      # Under LANG=C, inspect writes 名前 as \u escapes.
+      # Under LANG=C, inspect writes 名前 as \u escapes; under a UTF-8 locale
+      # it writes the characters, which undump refuses.
       assert_equal ['returns 1 (one line)', 'returns 1 (three lines)', 'returns 1 (名前)'],
-                   File.read(spec, encoding: "UTF-8").scan(/it ("[^"]+")/).flatten.map(&:undump).sort
+                   File.read(spec, encoding: "UTF-8").scan(/it ("[^"]+")/).flatten.map { _1.ascii_only? ? _1.undump : _1[1..-2] }.sort
 
       json = JSON.parse(run_cli("explore", target, "Shelf.count", "--inputs", inputs, "--strategy", "inputs", "--json").first)
       assert_equal ["one line", "three lines", "名前"], json["returned"].first["inputs"].map { |input| input["note"] }

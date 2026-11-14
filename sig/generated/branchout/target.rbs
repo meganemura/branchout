@@ -125,7 +125,7 @@ module Branchout
 
     ENUMERABLE_CALLS: Set[Symbol]
 
-    @conditions: Hash[[ Integer, Integer ], untyped]
+    @conditions: Hash[[ Integer, Integer, Symbol ], untyped]
 
     @constant_values: Hash[Symbol, Array[untyped]]
 
@@ -209,8 +209,10 @@ module Branchout
     # : (untyped) -> void
     def index_conditions: (untyped) -> void
 
-    # : (untyped) -> bool
-    def condition_node?: (untyped) -> bool
+    # The branch type coverage gives each condition. A modifier can start
+    # where its statement starts, as the if of case x ... end if y does, so
+    # the branch type tells the two conditions there apart.
+    CONDITION_BRANCHES: Hash[Symbol, Symbol]
 
     # The instance variables the file sets other than with ||= or &&=.
     # : (untyped, ?Array[Symbol]) -> Array[Symbol]

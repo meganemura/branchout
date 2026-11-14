@@ -92,7 +92,7 @@ module Branchout
     # @rbs @type_overrides: Array[String]?
     # @rbs @superclasses: Hash[String, [Array[String], String]]
     # @rbs @constant_values: Hash[Symbol, Array[untyped]]
-    # @rbs @conditions: Hash[[Integer, Integer], untyped]
+    # @rbs @conditions: Hash[[Integer, Integer, Symbol], untyped]
 
     # @rbs!
     #   # Evidence of each parameter's type: parameter name => type name => score.
@@ -226,7 +226,7 @@ module Branchout
 
     #: (Symbol, Integer, Integer, Symbol, Integer, Integer) -> String
     def condition_text(branch_type, bline, bcol, arm_type, aline, acol)
-      node = @conditions[[bline, bcol]]
+      node = @conditions[[bline, bcol, branch_type]]
       text = condition_from(node, arm_type, aline, acol) if node
       text = squash(source_line(bline)) if text.nil? || text.empty?
       cut(text)
@@ -239,7 +239,7 @@ module Branchout
     #: (Symbol, Integer, Integer, Symbol, Integer, Integer) -> [Integer, String]
     def covered_arm(branch_type, bline, bcol, arm_type, aline, acol)
       cond = condition_text(branch_type, bline, bcol, arm_type, aline, acol)
-      node = @conditions[[bline, bcol]]
+      node = @conditions[[bline, bcol, branch_type]]
       case branch_type
       when :case then [case_arm_line(node, arm_type, aline, acol) || bline, cond]
       when :"&." then [bline, "#{cond} -> &. receiver #{arm_type == :then ? "present" : "nil"}"]
@@ -428,17 +428,20 @@ module Branchout
     def index_conditions(node)
       return if node.type == :def_node
 
-      if condition_node?(node)
+      branch = CONDITION_BRANCHES[node.type]
+      if branch
         loc = node.location
-        @conditions[[loc.start_line, loc.start_column]] = node
+        @conditions[[loc.start_line, loc.start_column, branch]] = node
       end
       node.compact_child_nodes.each { |child| index_conditions(child) }
     end
 
-    #: (untyped) -> bool
-    def condition_node?(node)
-      %i[if_node unless_node while_node until_node case_node case_match_node].include?(node.type)
-    end
+    # The branch type coverage gives each condition. A modifier can start
+    # where its statement starts, as the if of case x ... end if y does, so
+    # the branch type tells the two conditions there apart.
+    CONDITION_BRANCHES = {
+      if_node: :if, unless_node: :unless, while_node: :while, until_node: :until, case_node: :case, case_match_node: :case
+    }.freeze #: Hash[Symbol, Symbol]
 
     # The instance variables the file sets other than with ||= or &&=.
     #: (untyped, ?Array[Symbol]) -> Array[Symbol]

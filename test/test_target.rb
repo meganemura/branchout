@@ -234,6 +234,15 @@ class TargetTest < Minitest::Test
     end
   end
 
+  # A modifier if starts where its case starts, and each arm reads its own.
+  def test_a_case_under_a_modifier_if_reads_apart_from_the_if
+    parse_source("module T\n  def self.f(x, y)\n    case x\n    when 1 then :a\n    end if y\n  end\nend\n", "T.f") do |target|
+      assert_equal [3, "if y -> then"], target.covered_arm(:if, 3, 4, :then, 3, 4)
+      assert_equal [4, "when 1 then :a"], target.covered_arm(:case, 3, 4, :when, 4, 16)
+      assert_equal [3, "case x else"], target.covered_arm(:case, 3, 4, :else, 3, 4)
+    end
+  end
+
   def test_condition_text_for_each_kind_of_decision
     expected = {
       "pick" => { "case@5:4/else@10:6" => "case x else", "case@5:4/when@6:19" => "when 1, 2 then :low",

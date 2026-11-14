@@ -70,7 +70,11 @@ module Branchout
       lines << "" if reached.any?
       lines << (reached.any? ? "not reached yet; take the arms above first:" : "no input reached these decisions:")
       # An id is "kind@line:column/arm@line:column"; its first half names the decision.
-      decisions = waiting.group_by { |arm| arm.id.split("/").first.match(/\A(.+)@(\d+):(\d+)\z/).captures } # steep:ignore NoMethod
+      decisions = waiting.group_by do |arm|
+        decision = arm.id.split("/").first #: String
+        found = decision.match(/\A(.+)@(\d+):(\d+)\z/) #: MatchData
+        found.captures
+      end
       decisions.sort_by { |(_, line, column), _| [line.to_i, column.to_i] }.each do |(kind, line, _), arms|
         file = arms.first.loc.sub(/:\d+:\d+\z/, "")
         conds = arms.map(&:cond).uniq
@@ -100,9 +104,10 @@ module Branchout
 
         shown = shown_hash(pinned.value, []) if Emitters::Support.keyed?(pinned.value)
         [:shown, shown || Emitters::Support.outcome_text(pinned, []).delete_prefix("returns ")]
-      end
+      end #: Hash[[Symbol, untyped], Array[Engine::Pin]]
       values = groups.keys.select { |kind, _| kind == :value }.map(&:last)
-      differences = values.zip(Emitters::Support.hash_differences(values)).to_h
+      # hash_differences gives each value its entry.
+      differences = values.zip(Emitters::Support.hash_differences(values)).to_h #: Hash[untyped, Array[Emitters::Support::leaf]]
       rows = groups.map do |(kind, value), group|
         next [value, nil, group] if kind == :shown
 
@@ -110,16 +115,16 @@ module Branchout
         next [whole, whole, group] if whole.length <= SHOWN_WIDTH
 
         shown = if Emitters::Support.keyed?(value)
-          shown_hash(value, differences.fetch(value)) # steep:ignore ArgumentTypeMismatch
+          shown_hash(value, differences.fetch(value))
         elsif value.is_a?(Array) || value.is_a?(Struct) || value.is_a?(Data)
           shown_composite(value, values)
         end
         [shown || "#{whole[0, SHOWN_WIDTH - 3]}...", whole, group]
-      end
+      end #: Array[returned_row]
       # Two values that differ only in the directories a mark stands for
       # would read as one value returned twice.
       alike = rows.filter_map { |_, whole, _| whole }.tally
-      rows.map { |shown, whole, group| whole && alike[whole] > 1 ? ["#{shown} (another value differs from it in a path of this machine)", whole, group] : [shown, whole, group] } # steep:ignore BlockBodyTypeMismatch
+      rows.map { |shown, whole, group| whole && alike[whole] > 1 ? ["#{shown} (another value differs from it in a path of this machine)", whole, group] : [shown, whole, group] }
     end
 
     SHOWN_WIDTH = 72 #: Integer
@@ -129,7 +134,7 @@ module Branchout
     # other values first, since a Hash with the same keys starts the same
     # way, then the rest of its top-level scalars that fit, or nil when
     # none fits. A part with no literal shows its class.
-    #: (Hash[untyped, untyped], Array[[Array[untyped], untyped]]) -> String?
+    #: (Hash[untyped, untyped], Array[Emitters::Support::leaf]) -> String?
     def shown_hash(value, differing)
       leaf_text = ->(item) { Emitters::Support.literal?(item) ? Emitters::Support.ruby_literal(Emitters::Support.marked(item)) : Emitters::Support.article(Emitters::Support.class_literal(item)) }
       text = lambda do |entries|
@@ -166,7 +171,9 @@ module Branchout
       end
       told = [] #: Array[Array[untyped]]
       until peers.empty?
-        best = paths.each_with_index.max_by { |path, index| [peers.count { |peer| differs.(peer, path) }, -index] }.first # steep:ignore NoMethod
+        # A value with leaves has a path, so max_by finds one.
+        pick = paths.each_with_index.max_by { |path, index| [peers.count { |peer| differs.(peer, path) }, -index] } #: [Array[untyped], Integer]
+        best = pick.first
         break if peers.none? { |peer| differs.(peer, best) } || (told.any? && text.(told + [best]).length > SHOWN_WIDTH)
 
         told << best
@@ -227,7 +234,7 @@ module Branchout
 
     # An input as the JSON report writes it: the call, and the note of the
     # inputs file, so an entry pasted back keeps its reason.
-    #: (Input) -> Hash[String, untyped]
+    #: (Input) -> Hash[String, plain]
     def input_hash(input)
       input.note ? input.to_h.merge("note" => input.note) : input.to_h
     end
@@ -261,16 +268,33 @@ module Branchout
     #: (Array[Engine::Pin]) -> Array[after_row]
     def after(pins)
       # Only an input with an after has what it observed.
-      pins.select(&:observed).group_by { |pin| pin.input.after.source }.sort_by(&:first).flat_map do |source, group| # steep:ignore NoMethod
-        returned(group.map { |pin| Emitters::Support.after_pin(pin) }, []).map { |shown, whole, read| [source, shown, whole, read] } # steep:ignore BlockBodyTypeMismatch
+      observed = pins.select(&:observed)
+      observed.group_by { |pin| after_source(pin) }.sort_by(&:first).flat_map do |source, group|
+        reads = group.map do |pin|
+          # A pin that observed has an after pin.
+          read = Emitters::Support.after_pin(pin) #: Engine::Pin
+          read
+        end
+        returned(reads, []).map do |shown, whole, read|
+          row = [source, shown, whole, read] #: after_row
+          row
+        end
       end
+    end
+
+    # The source of the after of +pin+'s input, which has one.
+    #: (Engine::Pin) -> String
+    def after_source(pin)
+      after = pin.input.after #: Code
+      after.source
     end
 
     # The inputs whose after read nothing, as [source, reason, pins].
     #: (Array[Engine::Pin]) -> Array[[String, String, Array[Engine::Pin]]]
     def after_unread(pins)
       unread = pins.select { |pin| pin.input.after && !pin.observed }
-      unread.group_by { |pin| [pin.input.after.source, unread_reason(pin)] }.sort_by(&:first).map { |(source, reason), group| [source, reason, group] } # steep:ignore NoMethod
+      grouped = unread.group_by { |pin| [after_source(pin), unread_reason(pin)] } #: Hash[[String, String], Array[Engine::Pin]]
+      grouped.sort_by(&:first).map { |(source, reason), group| [source, reason, group] }
     end
 
     #: (Engine::Pin) -> String
@@ -292,7 +316,7 @@ module Branchout
       return if arms.empty?
 
       lines << "" << "NOT PINNED (each input that took these arms returned a value that differed between two runs, so no emitted test checks them)"
-      arms.group_by { |arm| arm.input.text }.each do |input, group| # steep:ignore NoMethod
+      arms.group_by { |arm| arm_input(arm).text }.each do |input, group|
         lines << "input: #{input}"
         group.each { |arm| lines << "#{arm.loc} #{WANTS.fetch(arm.sense, "takes the arm at `%s`") % arm.cond}" }
       end
@@ -309,7 +333,7 @@ module Branchout
       # An after's value is pinned as a returned one is, so its parts with
       # no literal are checked by their class too.
       parts += pins.filter_map { |pin| Emitters::Support.after_pin(pin) }.reject { |pin| pin.varying == :whole }
-                   .flat_map { |pin| by_class.(pin, [], pin.input.after.source) } # steep:ignore NoMethod
+                   .flat_map { |pin| by_class.(pin, [], after_source(pin)) }
       parts.group_by(&:first).map do |(path, name), group|
         [path, name, group.map(&:last).uniq(&:canonical)]
       end
@@ -504,6 +528,9 @@ module Branchout
       ] #: Array[String]
     end
 
+    # Its records are of any kind the caller lists; as a type parameter,
+    # steep 2.1 does not destructure a tuple record into the block's
+    # parameters.
     #: (Array[String], String, Array[untyped]) { (untyped) -> Array[String] } -> void
     def section(lines, title, records)
       lines << ""
@@ -525,7 +552,7 @@ module Branchout
         "loc: #{arm.loc}",
         "cond: #{arm.cond}",
         "sense: #{arm.sense}",
-        "input: #{arm.input.text}", # steep:ignore NoMethod
+        "input: #{arm_input(arm).text}",
         *("pinned: no, the input differed between two runs" unless arm.pinned)
       ] #: Array[String]
     end
@@ -562,12 +589,12 @@ module Branchout
       ["loc: #{found.loc}", "op: #{found.op}", "text: #{found.text}"]
     end
 
-    #: (Target::Operator) -> Hash[String, untyped]
+    #: (Target::Operator) -> Hash[String, plain]
     def operator_hash(found)
       {"loc" => found.loc, "line" => found.line, "column" => found.column, "op" => found.op, "text" => found.text}
     end
 
-    #: (Runner::Callee) -> Hash[String, untyped]
+    #: (Runner::Callee) -> Hash[String, plain]
     def callee_hash(callee)
       {"callee" => callee.name, "loc" => callee.loc, "arms" => callee.arms}
     end
@@ -580,7 +607,7 @@ module Branchout
       path.join(", ")
     end
 
-    #: (Engine::Arm) -> Hash[String, untyped]
+    #: (Engine::Arm) -> Hash[String, plain]
     def covered_hash(arm)
       {
         "id" => arm.id,
@@ -589,11 +616,18 @@ module Branchout
         "column" => arm.column,
         "cond" => arm.cond,
         "sense" => arm.sense,
-        "input" => input_hash(arm.input) # steep:ignore ArgumentTypeMismatch
+        "input" => input_hash(arm_input(arm))
       }
     end
 
-    #: (Engine::Arm) -> Hash[String, untyped]
+    # The input that took +arm+, which a covered arm has.
+    #: (Engine::Arm) -> Input
+    def arm_input(arm)
+      input = arm.input #: Input
+      input
+    end
+
+    #: (Engine::Arm) -> Hash[String, plain]
     def frontier_hash(arm)
       {
         "id" => arm.id,
@@ -608,7 +642,7 @@ module Branchout
       }
     end
 
-    #: (Engine::Finding) -> Hash[String, untyped]
+    #: (Engine::Finding) -> Hash[String, plain]
     def finding_hash(finding)
       {
         "class" => finding.class_name,

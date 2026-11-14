@@ -46,8 +46,8 @@ module Branchout
     # other values first, since a Hash with the same keys starts the same
     # way, then the rest of its top-level scalars that fit, or nil when
     # none fits. A part with no literal shows its class.
-    # : (Hash[untyped, untyped], Array[[Array[untyped], untyped]]) -> String?
-    def self?.shown_hash: (Hash[untyped, untyped], Array[[ Array[untyped], untyped ]]) -> String?
+    # : (Hash[untyped, untyped], Array[Emitters::Support::leaf]) -> String?
+    def self?.shown_hash: (Hash[untyped, untyped], Array[Emitters::Support::leaf]) -> String?
 
     # An Array, a Struct, or a Data too long for a line says its size or
     # its class, then the leaves that tell it from the other values of that
@@ -77,8 +77,8 @@ module Branchout
 
     # An input as the JSON report writes it: the call, and the note of the
     # inputs file, so an entry pasted back keeps its reason.
-    # : (Input) -> Hash[String, untyped]
-    def self?.input_hash: (Input) -> Hash[String, untyped]
+    # : (Input) -> Hash[String, plain]
+    def self?.input_hash: (Input) -> Hash[String, plain]
 
     # : (Array[String], Array[returned_row]) -> void
     def self?.returned_brief: (Array[String], Array[returned_row]) -> void
@@ -92,6 +92,10 @@ module Branchout
     # raise that left the receiver changed reads as both.
     # : (Array[Engine::Pin]) -> Array[after_row]
     def self?.after: (Array[Engine::Pin]) -> Array[after_row]
+
+    # The source of the after of +pin+'s input, which has one.
+    # : (Engine::Pin) -> String
+    def self?.after_source: (Engine::Pin) -> String
 
     # The inputs whose after read nothing, as [source, reason, pins].
     # : (Array[Engine::Pin]) -> Array[[String, String, Array[Engine::Pin]]]
@@ -146,6 +150,9 @@ module Branchout
     # : (Engine::Result) -> Array[String]
     def self?.header_lines: (Engine::Result) -> Array[String]
 
+    # Its records are of any kind the caller lists; as a type parameter,
+    # steep 2.1 does not destructure a tuple record into the block's
+    # parameters.
     # : (Array[String], String, Array[untyped]) { (untyped) -> Array[String] } -> void
     def self?.section: (Array[String], String, Array[untyped]) { (untyped) -> Array[String] } -> void
 
@@ -164,23 +171,27 @@ module Branchout
     # : (Target::Operator) -> Array[String]
     def self?.operator_lines: (Target::Operator) -> Array[String]
 
-    # : (Target::Operator) -> Hash[String, untyped]
-    def self?.operator_hash: (Target::Operator) -> Hash[String, untyped]
+    # : (Target::Operator) -> Hash[String, plain]
+    def self?.operator_hash: (Target::Operator) -> Hash[String, plain]
 
-    # : (Runner::Callee) -> Hash[String, untyped]
-    def self?.callee_hash: (Runner::Callee) -> Hash[String, untyped]
+    # : (Runner::Callee) -> Hash[String, plain]
+    def self?.callee_hash: (Runner::Callee) -> Hash[String, plain]
 
     # : (Array[String]?) -> String
     def self?.format_path: (Array[String]?) -> String
 
-    # : (Engine::Arm) -> Hash[String, untyped]
-    def self?.covered_hash: (Engine::Arm) -> Hash[String, untyped]
+    # : (Engine::Arm) -> Hash[String, plain]
+    def self?.covered_hash: (Engine::Arm) -> Hash[String, plain]
 
-    # : (Engine::Arm) -> Hash[String, untyped]
-    def self?.frontier_hash: (Engine::Arm) -> Hash[String, untyped]
+    # The input that took +arm+, which a covered arm has.
+    # : (Engine::Arm) -> Input
+    def self?.arm_input: (Engine::Arm) -> Input
 
-    # : (Engine::Finding) -> Hash[String, untyped]
-    def self?.finding_hash: (Engine::Finding) -> Hash[String, untyped]
+    # : (Engine::Arm) -> Hash[String, plain]
+    def self?.frontier_hash: (Engine::Arm) -> Hash[String, plain]
+
+    # : (Engine::Finding) -> Hash[String, plain]
+    def self?.finding_hash: (Engine::Finding) -> Hash[String, plain]
 
     # : (Integer | Float | nil) -> String
     def self?.format_timeout: (Integer | Float | nil) -> String

@@ -51,7 +51,8 @@ module Branchout
         if pin.error
           lines.concat(Support.indent(arrange, "    ")) if after
           lines << "    error = assert_raises(#{pin.error.class_name}) do"
-          lines.concat(Support.indent((after ? [] : arrange) + [call], "      ")) # steep:ignore UnannotatedEmptyCollection
+          inside = after ? [] : arrange #: Array[String]
+          lines.concat(Support.indent(inside + [call], "      "))
           lines << "    end"
           if pin.error.name
             lines << "    assert_equal #{pin.error.name.inspect}, error.name"
@@ -65,7 +66,9 @@ module Branchout
           lines.concat(value_lines(pin, call, Support.keys_for(pin, pin_keys)))
         end
         if after && after.varying != :whole
-          source = after.input.after.source # steep:ignore NoMethod
+          # A pin reads after only when its input has an after.
+          read = after.input.after #: Code
+          source = read.source
           lines.concat(value_lines(after, source, Support.keys_for(after, []), on: Support.receiver_form(source)))
         end
         lines << "  end"

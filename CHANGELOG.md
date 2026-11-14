@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.2.0] - 2026-11-14
 
 - An entry, or the whole inputs file, takes an `after`: one Ruby expression (`{"after": {"ruby": "hold.held"}}`) that reads what the call left once it returned or raised, in the input's scope, so it reads the receiver by the name the emitted test gives it. The report lists what each after read under `AFTER` (`hold.held is [] for inputs[1] (ends without a pause), inputs[2] (raises before a pause)`), `--json` under `after`, and the emitted minitest and RSpec tests pin it after the value or the error, as a value is pinned: a value that differed between two runs is not pinned, a path is written from the test, and a part with no literal is listed under `PINNED BY CLASS`. The file's after reaches the inputs that `mutate` and `random` make too. Before, a test pinned only the value or the error, so a change that left the receiver in another state, such as `QuintDriver::Hold#start` keeping a name after its block raised, failed no test.
 - `RETURNED` and the `--json` `returns` and `value` mark a path under the temporary or the home directory as `<tmp>/.../` or `<home>/.../`, and two values that differ only there say so. Before, the directories were dropped, so the report showed a value the method never returned (`"No hit under app."`).

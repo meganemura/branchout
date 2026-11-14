@@ -869,6 +869,35 @@ class CLITest < Minitest::Test
     end
   end
 
+  # A memo on defined?(@ivar) has arms that coverage counts, and a second
+  # input through setup covers its cached arm, yet that arm returns what
+  # the first call stored, so the pinned values do not show the memo.
+  # stderr names it and says how to test it. A defined? on an ivar the
+  # file never sets is no memo.
+  def test_a_memo_on_defined_says_how_to_test_the_memo
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "lazy.rb")
+      File.write(target, <<~RUBY)
+        class Lazy
+          def initialize(compute) = @compute = compute
+          def value
+            return @value if defined?(@value)
+            return :unset unless defined?(@other)
+
+            @value = @compute.call
+          end
+        end
+      RUBY
+      inputs = write_inputs(dir, {"inputs" => [{"new" => [{"ruby" => "-> { 1 }"}]}, {"new" => [{"ruby" => "-> { 1 }"}], "setup" => [{"method" => "value"}]}]})
+      _stdout, stderr, status = run_cli("explore", target, "Lazy#value", "--strategy", "inputs", "--inputs", inputs)
+      assert status.success?, stderr
+      assert_equal "branchout: `return @value if defined?(@value)` at #{target}:4:21 is a memo. Its cached arm runs only on a second call " \
+                   "on the same object, and returns what the first call stored, so the value an input that covers it pins is the same " \
+                   "with the memo or without it. Test the memo by hand: call the method twice on one object and check that the second " \
+                   "call does not compute the value again, such as with a counter in what it calls.\n", stderr
+    end
+  end
+
   # An error whose message differs between two runs, as one that quotes a
   # generated id does, is pinned by its class alone.
   def test_an_error_whose_message_differs_between_runs_is_pinned_by_its_class

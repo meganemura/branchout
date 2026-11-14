@@ -192,6 +192,12 @@ module Branchout
                        "Only a bare call, a self. call, and a call on new are followed; target the method that branches. " \
                        "--emit-tests still pins the return value or error of each input."
         end
+        Array(result.defined_memos).each do |found|
+          $stderr.puts "branchout: `#{found.text}` at #{found.loc} is a memo. Its cached arm runs only on a second call on the same object, " \
+                       "and returns what the first call stored, so the value an input that covers it pins is the same with the memo or without it. " \
+                       "Test the memo by hand: call the method twice on one object and check that the second call does not compute the value again, " \
+                       "such as with a counter in what it calls."
+        end
         write_optional(opts[:json_out], Report.json(result, pin_keys: opts[:pin_keys]))
         write_optional(opts[:md_out], Report.markdown(result))
         if opts[:emit_tests]

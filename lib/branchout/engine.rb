@@ -8,7 +8,7 @@ module Branchout
       :command, :target, :entry, :seed, :strategies, :random, :mutate_cap, :timeout,
       :inputs_ran, :mutate_ran, :random_ran, :executions,
       :covered, :frontier, :exceptions, :pins, :requires, :load_paths, :target_required, :private_calls, :const_expression, :repeated_inputs, :not_counted,
-      :operators, :memos, :boundaries,
+      :operators, :memos, :defined_memos, :boundaries,
       :test_class, :spec_type,
       keyword_init: true
     )
@@ -149,6 +149,7 @@ module Branchout
         not_counted: runner.not_counted,
         operators: target.operators,
         memos: target.memos,
+        defined_memos: target.defined_memos,
         boundaries: target.boundaries,
         test_class: @host&.test_class,
         spec_type: @host&.spec_type

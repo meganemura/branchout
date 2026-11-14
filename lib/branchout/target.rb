@@ -40,6 +40,12 @@ module Branchout
     # Each @ivar ||= or &&= that OPERATORS leaves out, for the hint on a
     # method whose only branch is a memo.
     attr_reader :memos
+    # Each if or unless on defined?(@ivar), a memo that caches nil and
+    # false too. Coverage counts its arms, but an input reaches the cached
+    # arm only after a call on the same object, through setup, and then
+    # returns what the first call stored, so a covered memo pins the same
+    # value as no memo at all.
+    attr_reader :defined_memos
     # Each <, <=, >, and >= of the counted code. Coverage sees no side of
     # them either, so every arm can be taken with no input where the sides
     # are equal, where > and >= part.
@@ -146,6 +152,7 @@ module Branchout
       @operators = bodies.flat_map { |body| operators_in(body, written) }.sort_by { |found| [found.line, found.column] }
       @memos = bodies.flat_map { |body| operators_in(body, written, memos: true) }.sort_by { |found| [found.line, found.column] }
       @boundaries = bodies.flat_map { |body| boundaries_in(body) }.sort_by { |found| [found.line, found.column] }
+      @defined_memos = bodies.flat_map { |body| defined_memos_in(body, written) }.sort_by { |found| [found.line, found.column] }
       collect_literals(entry_def.node.parameters)
       bodies.each { |body| collect_literals(body) }
       @literals.ints = @literals.ints.uniq.sort
@@ -400,6 +407,21 @@ module Branchout
                             column: operator.start_column, op: operator.slice, text: cut(squash(node.slice)))
       end
       node.compact_child_nodes.each { |child| boundaries_in(child, acc) }
+      acc
+    end
+
+    # Each if or unless on defined?(@ivar) of an ivar the file sets, as in
+    # return @value if defined?(@value).
+    def defined_memos_in(node, written, acc = [])
+      return acc if node.type == :def_node
+
+      predicate = node.predicate if %i[if_node unless_node].include?(node.type)
+      if predicate&.type == :defined_node && predicate.value.type == :instance_variable_read_node && written.include?(predicate.value.name)
+        place = predicate.location
+        acc << Operator.new(loc: "#{display_path}:#{place.start_line}:#{place.start_column}", line: place.start_line,
+                            column: place.start_column, op: "defined?", text: cut(squash(node.slice)))
+      end
+      node.compact_child_nodes.each { |child| defined_memos_in(child, written, acc) }
       acc
     end
 

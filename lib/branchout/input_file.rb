@@ -8,7 +8,9 @@ module Branchout
       raise Error, "inputs file not found: #{path}" unless File.file?(path)
 
       begin
-        data = JSON.parse(File.read(path))
+        # JSON is UTF-8 whatever the locale says, and under LANG=C a note in
+        # another script would not read.
+        data = JSON.parse(File.read(path, encoding: "UTF-8"))
       rescue JSON::ParserError => e
         raise Error, "invalid JSON in #{path}: #{e.message}"
       end
@@ -71,8 +73,11 @@ module Branchout
 
           before = Code.parse(entry["before"]["ruby"])
         end
+        # A note that is not a String, which an earlier branchout ignored, is
+        # still ignored.
+        note = entry["note"] if entry["note"].is_a?(String)
         Input.new(args: entry.fetch("args", []), kwargs: entry["kwargs"] || {}, receiver: receiver, setup: setup, pin_keys: pin_keys, block: block,
-                  before: before)
+                  before: before, note: (note unless note&.strip&.empty?))
       else
         raise Error, "#{label} is #{JSON.generate(entry)}, not a call; write each call as an array of its arguments, such as #{JSON.generate([entry])}"
       end

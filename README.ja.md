@@ -553,7 +553,10 @@ RSpec はそれを入力の context の `before` として書き、minitest は�
 既定値が `[]`、`{}`、`true`、`false` の引数はその型になる。
 `bool` の引数には、変異とランダムサンプリングが `false` と `true` の両方を試す。
 `meta` のような他のトップレベルキーは無視する。
-各エントリの `note` も無視するので、その入力を選んだ理由をすぐ横に書ける。
+各エントリの `note` には、その入力を選んだ理由をすぐ横に書ける。
+`note` は呼び出しには加わらず、入力の名前になる。
+`RETURNED` は長い入力を位置と `note` で示し（`inputs[9] (one save)`）、`--json` は入力に `note` を添え、minitest のテスト名は `note` の語から作り（`test_one_save_returns_array_of_1`）、RSpec の例は結果のあとに `note` を括弧で書く（`returns 1 (one save)`）。
+ラテン文字も数字もない `note` からは名前の語ができないので、minitest はその入力を値で名づける。
 エントリの `pin_keys`（`{"args": [3], "pin_keys": ["tax"]}`）は、その入力のテストに限って `--pin-keys` の代わりになる。
 `"pin_keys": []` は、その Hash を丸ごと固定する。
 レコードや例外のように JSON で書けない値は、`{"ruby": "..."}` に Ruby で書く。

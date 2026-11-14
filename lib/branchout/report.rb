@@ -196,10 +196,19 @@ module Branchout
     end
 
     # An input from the inputs file too long for a line is named by its
-    # place there; --json and --verbose keep the whole input.
+    # place there, and by its note when it has one; --json and --verbose
+    # keep the whole input.
     def shown_input(pin)
       text = pin.input.text
-      text.length > SHOWN_INPUT_WIDTH && pin.listed_at ? "inputs[#{pin.listed_at}]" : text
+      return text unless text.length > SHOWN_INPUT_WIDTH && pin.listed_at
+
+      pin.input.note ? "inputs[#{pin.listed_at}] (#{pin.input.note})" : "inputs[#{pin.listed_at}]"
+    end
+
+    # An input as the JSON report writes it: the call, and the note of the
+    # inputs file, so an entry pasted back keeps its reason.
+    def input_hash(input)
+      input.note ? input.to_h.merge("note" => input.note) : input.to_h
     end
 
     def returned_brief(lines, groups)
@@ -311,14 +320,14 @@ module Branchout
         "arms_not_pinned" => result.covered.reject(&:pinned).map { |arm| covered_hash(arm) },
         "frontier" => result.frontier.map { |arm| frontier_hash(arm) },
         "returned" => returned(Array(result.pins), pin_keys).map { |shown, whole, group|
-          {"returns" => shown, "value" => whole, "inputs" => group.map { |pin| pin.input.to_h }}.compact
+          {"returns" => shown, "value" => whole, "inputs" => group.map { |pin| input_hash(pin.input) }}.compact
         },
         "exceptions" => result.exceptions.map { |finding| finding_hash(finding) },
         "not_counted" => Array(result.not_counted).map { |callee| callee_hash(callee) },
         "operators_not_counted" => Array(result.operators).map { |found| operator_hash(found) },
         "boundaries_not_counted" => Array(result.boundaries).map { |found| operator_hash(found) },
         "pinned_by_class" => pinned_by_class(Array(result.pins), pin_keys).map do |path, name, inputs|
-          {"path" => path, "class" => name, "inputs" => inputs.map(&:to_h)}
+          {"path" => path, "class" => name, "inputs" => inputs.map { |input| input_hash(input) }}
         end
       }
       "#{Canon.pretty(body)}\n"
@@ -486,7 +495,7 @@ module Branchout
         "column" => arm.column,
         "cond" => arm.cond,
         "sense" => arm.sense,
-        "input" => arm.input.to_h
+        "input" => input_hash(arm.input)
       }
     end
 
@@ -499,7 +508,7 @@ module Branchout
         "cond" => arm.cond,
         "sense" => arm.sense,
         "parent" => arm.parent,
-        "nearest" => arm.nearest&.to_h,
+        "nearest" => (input_hash(arm.nearest) if arm.nearest),
         "path" => arm.path
       }
     end
@@ -508,7 +517,7 @@ module Branchout
       {
         "class" => finding.class_name,
         "loc" => finding.loc,
-        "input" => finding.input.to_h,
+        "input" => input_hash(finding.input),
         "message" => finding.message
       }
     end

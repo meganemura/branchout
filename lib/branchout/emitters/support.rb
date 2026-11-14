@@ -157,7 +157,7 @@ module Branchout
         receiver = input.receiver.is_a?(Input) ? project_paths(input.receiver, destination) : input.receiver
         setup = input.setup.map { |call| Input::SetupCall.new(call.method_name, project_paths(call.arguments, destination)) }
         Input.new(args: rewrite.(input.args), kwargs: rewrite.(input.kwargs), receiver: receiver, setup: setup,
-                  pin_keys: input.pin_keys, block: input.block, before: input.before)
+                  pin_keys: input.pin_keys, block: input.block, before: input.before, note: input.note)
       end
 
       # +value+, a returned value or an error message, with each String
@@ -427,7 +427,7 @@ module Branchout
           roomy = !differing.empty? || (!pin.error && mixed_array?(pin.value))
           clip(outcome_words(pin, differing), roomy ? OUTCOME_LIMIT : 30)
         end
-        names = pins.each_with_index.map { |pin, index| name_of(input_words(pin.input), outcomes[index]) }
+        names = pins.each_with_index.map { |pin, index| name_of(named_input_words(pin.input), outcomes[index]) }
         names.each_index.group_by { |index| names[index] }.each_value do |siblings|
           next if siblings.one?
 
@@ -998,6 +998,15 @@ module Branchout
         when Prism::FalseNode then false
         else throw :not_plain
         end
+      end
+
+      # An input with a note is named by the note, which says why the input
+      # is there in the words of its author; the values, with their escapes
+      # and their Ruby, say it less well. A note with no Latin letter or
+      # digit gives no words, so its input is named by its values.
+      def named_input_words(input)
+        words = input.note ? tokens(input.note) : []
+        words.empty? ? input_words(input) : words
       end
 
       def input_words(input)

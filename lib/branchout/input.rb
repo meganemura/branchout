@@ -73,9 +73,12 @@ module Branchout
     # not in to_h. +block+ is the Code of the block the entry gets, or nil.
     # +before+ is the Code that makes what the call reads, such as the rows
     # a class method looks up, run first in the input's savepoint, or nil.
-    attr_reader :args, :kwargs, :receiver, :setup, :pin_keys, :block, :before
+    # +note+ is the reason the inputs file gives for the input, which names
+    # it in the report and in an emitted test. Like +pin_keys+, it is not
+    # part of the call, so it is not in to_h.
+    attr_reader :args, :kwargs, :receiver, :setup, :pin_keys, :block, :before, :note
 
-    def initialize(args:, kwargs: {}, receiver: nil, setup: [], pin_keys: nil, block: nil, before: nil)
+    def initialize(args:, kwargs: {}, receiver: nil, setup: [], pin_keys: nil, block: nil, before: nil, note: nil)
       @args = deep_freeze(normalize(args))
       unless @args.is_a?(Array)
         raise Error, "input args must be an array"
@@ -94,6 +97,7 @@ module Branchout
       @pin_keys = pin_keys&.map { |key| -key }.freeze
       @block = block
       @before = before
+      @note = note && -note
       freeze
     end
 

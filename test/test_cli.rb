@@ -301,6 +301,39 @@ class CLITest < Minitest::Test
     end
   end
 
+  # The note of an inputs file names its input: in RETURNED beside a long
+  # input's place, in the JSON report, and in each emitted test's name.
+  def test_a_note_names_its_input_in_the_report_and_the_tests
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "shelf.rb")
+      File.write(target, <<~RUBY)
+        module Shelf
+          def self.count(text) = text.lines.length
+        end
+      RUBY
+      inputs = write_inputs(dir, {"inputs" => [
+        {"args" => ["a\\nb\\nc, a long text that is longer than one line of the report"], "note" => "three lines"},
+        {"args" => ["a"], "note" => "one line"},
+        {"args" => ["b"], "note" => "名前"}
+      ]})
+      test = File.join(dir, "shelf_test.rb")
+      stdout, stderr, status = run_cli("explore", target, "Shelf.count", "--inputs", inputs, "--strategy", "inputs", "--emit-tests", test)
+      assert status.success?, stderr
+      assert_includes stdout, "returns 1 for [\"a\"], inputs[0] (three lines), [\"b\"]\n"
+      assert_equal %w[test_b_returns_1 test_one_line_returns_1 test_three_lines_returns_1], File.read(test).scan(/def (test_\w+)/).flatten.sort
+
+      spec = File.join(dir, "shelf_spec.rb")
+      _out, stderr, status = run_cli("explore", target, "Shelf.count", "--inputs", inputs, "--strategy", "inputs", "--format", "rspec", "--emit-tests", spec)
+      assert status.success?, stderr
+      # Under LANG=C, inspect writes 名前 as \u escapes.
+      assert_equal ['returns 1 (one line)', 'returns 1 (three lines)', 'returns 1 (名前)'],
+                   File.read(spec, encoding: "UTF-8").scan(/it ("[^"]+")/).flatten.map(&:undump).sort
+
+      json = JSON.parse(run_cli("explore", target, "Shelf.count", "--inputs", inputs, "--strategy", "inputs", "--json").first)
+      assert_equal ["one line", "three lines", "名前"], json["returned"].first["inputs"].map { |input| input["note"] }
+    end
+  end
+
   # A returned path of this machine shows where its directories were, so
   # RETURNED and --json never show a value the method did not return, and
   # two values apart only in those directories say so. A warning names the

@@ -181,6 +181,8 @@ module Branchout
           peers = members.flat_map { |member| pins_of(member) }
           texts = members.to_h do |member|
             others = members.reject { |other| other.equal?(member) }.flat_map { |other| pins_of(other) }
+            next [member, noted_text(member)] if member.is_a?(Example) && member.pin.input.note
+
             steps = member.is_a?(Example) ? member.facts : member.steps
             text = member_text(member, steps, peers)
             text = member_text(member, telling(steps, others), peers) if text.length > LIMIT || member.is_a?(Node)
@@ -194,6 +196,20 @@ module Branchout
             digest = " (input #{Digest::SHA256.hexdigest(pins_of(member).first.input.canonical)[0, 6]})"
             [member, text.length + digest.length > LIMIT ? "#{cut_after(text, kept_start(member, text), LIMIT - digest.length)}#{digest}" : "#{text}#{digest}"]
           end
+        end
+
+        # An example whose input has a note says its outcome and the note,
+        # which tells why the input is there better than its facts do. A
+        # text over LIMIT is cut at its end, never inside an error's outcome.
+        def noted_text(member)
+          note = " (#{member.pin.input.note})"
+          outcome = @outcomes[member.pin]
+          outcome = @short_outcomes[member.pin] if outcome.length + note.length > LIMIT
+          text = "#{outcome}#{note}"
+          return text if text.length <= LIMIT
+
+          kept = member.pin.error ? outcome.length : [outcome.length, LIMIT / 2].min
+          cut_after(text, kept)
         end
 
         # +text+ cut to +limit+ characters with "...", but never inside its

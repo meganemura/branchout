@@ -20,10 +20,9 @@ module Branchout
 
     #: (Array[Gem::Version], Array[Gem::Specification]) -> Gem::Version?
     def accepted(versions, specs)
-      # steep:ignore:start
-      # group_by makes no empty group, so max_by finds a spec in each.
-      newest = specs.group_by(&:name).map { |_, same| same.max_by(&:version) } #: Array[Gem::Specification]
-      # steep:ignore:end
+      # group_by makes no empty group, so max_by finds a spec in each and
+      # filter_map drops none.
+      newest = specs.group_by(&:name).filter_map { |_, same| same.max_by(&:version) }
       wanted = newest.flat_map { |spec| spec.runtime_dependencies.select { |dep| dep.name == "prism" }.map(&:requirement) }
       versions.select { |version| wanted.all? { |requirement| requirement.satisfied_by?(version) } }.max
     end

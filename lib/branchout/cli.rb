@@ -105,7 +105,8 @@ module Branchout
         when "--inputs" then opts[:inputs] = take(args, arg)
         when "--require" then opts[:requires] << take(args, arg)
         when "-I" then opts[:load_paths] << take(args, arg)
-        when /\A-I(.+)/ then opts[:load_paths] << Regexp.last_match(1) # steep:ignore ArgumentTypeMismatch
+        # The pattern matched, so its group holds a String.
+        when /\A-I(.+)/ then opts[:load_paths] << Regexp.last_match(1).to_s
         when "--seed" then opts[:seed] = parse_int(take(args, arg), "seed")
         when "--random" then opts[:random] = parse_int(take(args, arg), "random")
         when "--mutate-cap" then opts[:mutate_cap] = parse_int(take(args, arg), "mutate-cap")
@@ -152,12 +153,13 @@ module Branchout
       if opts[:format] && !opts[:emit_tests]
         raise Error, "--format requires --emit-tests"
       end
-      if opts[:emit_tests]
-        opts[:format] = Emitters.resolve(opts[:format], opts[:emit_tests])
+      emit_tests = opts[:emit_tests]
+      if emit_tests
+        opts[:format] = Emitters.resolve(opts[:format], emit_tests)
         # jitcatch copies a test under .jitcatch/ to the root of each
         # checkout, and its rerun line loads the test where it was written.
         # A require_relative names a different file from each place.
-        opts[:require_by_name] ||= File.expand_path(opts[:emit_tests]).split("/").include?(".jitcatch") # steep:ignore ArgumentTypeMismatch
+        opts[:require_by_name] ||= File.expand_path(emit_tests).split("/").include?(".jitcatch")
       end
 
       user_inputs = [] #: Array[Input]

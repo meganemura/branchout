@@ -4,7 +4,7 @@ module Branchout
   class Engine
     STRATEGY_ORDER: Array[String]
 
-    class Result < Struct[String | Integer | Array[String] | Integer | Float | Array[Arm] | Array[Finding] | Array[Pin] | bool | Array[Symbol] | Array[Runner::Callee] | Array[Target::Operator] | String? | untyped]
+    class Result < Struct[String | Integer | Array[String] | Integer | Float | Array[Arm] | Array[Finding] | Array[Pin] | bool | Array[Symbol] | Array[Runner::Callee] | Array[Target::Operator] | String? | Object?]
       attr_accessor command(): String
 
       attr_accessor target(): String
@@ -61,10 +61,10 @@ module Branchout
 
       attr_accessor test_class(): String?
 
-      attr_accessor spec_type(): untyped
+      attr_accessor spec_type(): Object?
 
-      def self.new: (?command: String, ?target: String, ?entry: String, ?seed: Integer, ?strategies: Array[String], ?random: Integer, ?mutate_cap: Integer, ?timeout: Integer | Float, ?inputs_ran: Integer, ?mutate_ran: Integer, ?random_ran: Integer, ?executions: Integer, ?covered: Array[Arm], ?frontier: Array[Arm], ?exceptions: Array[Finding], ?pins: Array[Pin], ?requires: Array[String], ?load_paths: Array[String], ?target_required: bool, ?private_calls: Array[Symbol], ?const_expression: String, ?repeated_inputs: Integer, ?not_counted: Array[Runner::Callee], ?operators: Array[Target::Operator], ?memos: Array[Target::Operator], ?defined_memos: Array[Target::Operator], ?boundaries: Array[Target::Operator], ?test_class: String?, ?spec_type: untyped) -> instance
-                  | ({ ?command: String, ?target: String, ?entry: String, ?seed: Integer, ?strategies: Array[String], ?random: Integer, ?mutate_cap: Integer, ?timeout: Integer | Float, ?inputs_ran: Integer, ?mutate_ran: Integer, ?random_ran: Integer, ?executions: Integer, ?covered: Array[Arm], ?frontier: Array[Arm], ?exceptions: Array[Finding], ?pins: Array[Pin], ?requires: Array[String], ?load_paths: Array[String], ?target_required: bool, ?private_calls: Array[Symbol], ?const_expression: String, ?repeated_inputs: Integer, ?not_counted: Array[Runner::Callee], ?operators: Array[Target::Operator], ?memos: Array[Target::Operator], ?defined_memos: Array[Target::Operator], ?boundaries: Array[Target::Operator], ?test_class: String?, ?spec_type: untyped }) -> instance
+      def self.new: (?command: String, ?target: String, ?entry: String, ?seed: Integer, ?strategies: Array[String], ?random: Integer, ?mutate_cap: Integer, ?timeout: Integer | Float, ?inputs_ran: Integer, ?mutate_ran: Integer, ?random_ran: Integer, ?executions: Integer, ?covered: Array[Arm], ?frontier: Array[Arm], ?exceptions: Array[Finding], ?pins: Array[Pin], ?requires: Array[String], ?load_paths: Array[String], ?target_required: bool, ?private_calls: Array[Symbol], ?const_expression: String, ?repeated_inputs: Integer, ?not_counted: Array[Runner::Callee], ?operators: Array[Target::Operator], ?memos: Array[Target::Operator], ?defined_memos: Array[Target::Operator], ?boundaries: Array[Target::Operator], ?test_class: String?, ?spec_type: Object?) -> instance
+                  | ({ ?command: String, ?target: String, ?entry: String, ?seed: Integer, ?strategies: Array[String], ?random: Integer, ?mutate_cap: Integer, ?timeout: Integer | Float, ?inputs_ran: Integer, ?mutate_ran: Integer, ?random_ran: Integer, ?executions: Integer, ?covered: Array[Arm], ?frontier: Array[Arm], ?exceptions: Array[Finding], ?pins: Array[Pin], ?requires: Array[String], ?load_paths: Array[String], ?target_required: bool, ?private_calls: Array[Symbol], ?const_expression: String, ?repeated_inputs: Integer, ?not_counted: Array[Runner::Callee], ?operators: Array[Target::Operator], ?memos: Array[Target::Operator], ?defined_memos: Array[Target::Operator], ?boundaries: Array[Target::Operator], ?test_class: String?, ?spec_type: Object? }) -> instance
     end
 
     # +pinned+ is false for a covered arm whose every input differed as a

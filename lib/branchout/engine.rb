@@ -34,7 +34,7 @@ module Branchout
       :defined_memos, #: Array[Target::Operator]
       :boundaries, #: Array[Target::Operator]
       :test_class, #: String?
-      :spec_type, #: untyped
+      :spec_type, #: Object?
       keyword_init: true
     )
 
@@ -339,7 +339,7 @@ module Branchout
     def collect_pins(target, executions, covered, findings)
       by_input = executions.to_h { |execution| [execution.input.canonical, execution] }
       keys = executions.select { |execution| execution.origin == :inputs }.map { |execution| execution.input.canonical } |
-             covered.map { |arm| arm.input.canonical } | findings.map { |finding| finding.input.canonical } # steep:ignore NoMethod
+             covered.filter_map { |arm| arm.input&.canonical } | findings.map { |finding| finding.input.canonical }
       listed = {} #: Hash[String, Integer]
       @user_inputs.each_with_index { |input, at| listed[input.canonical] ||= at }
       keys.sort.map do |key|

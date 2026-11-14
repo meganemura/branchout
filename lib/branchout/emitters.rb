@@ -38,7 +38,8 @@ module Branchout
       passed = pins.flat_map { |pin| Support.machine_paths(pin.input) }.uniq
       pinned = pins.flat_map do |pin|
         # A pattern pins the rest of its message as written, paths too.
-        message = pin.error.exact_message || pin.error.message if pin.error&.stable_message || pin.error&.message_pattern # steep:ignore NoMethod
+        error = pin.error
+        message = error.exact_message || error.message if error && (error.stable_message || error.message_pattern)
         after = Support.after_pin(pin)
         read = Support.pinned_value(after.value, Support.keys_for(after, [])) if after && after.varying != :whole
         Support.machine_paths_in([Support.pinned_value(pin.value, Support.keys_for(pin, pin_keys)), message, read])
@@ -74,27 +75,25 @@ module Branchout
                                  all_varied: pins.empty? && result.pins.any?)
     end
 
+    # +pin+ is one whose value varied: as a whole, or in the keys it names.
     #: (Engine::Pin, Array[String]) -> String
     def varying_warning(pin, pin_keys)
-      return "branchout: #{pin.input.text} returned a value that differed between two runs, so it has no test." if pin.varying == :whole
+      keys = pin.varying
+      return "branchout: #{pin.input.text} returned a value that differed between two runs, so it has no test." unless keys.is_a?(Array)
 
-      # A varying that is not :whole names the keys that differed.
-      # steep:ignore:start
-
-      "branchout: #{pin.input.text} returned a Hash whose #{pin.varying.join(", ")} differed between two runs, " \
+      "branchout: #{pin.input.text} returned a Hash whose #{keys.join(", ")} differed between two runs, " \
         "so its test pins only #{Support.keys_for(pin, pin_keys).join(", ")}."
-      # steep:ignore:end
     end
 
+    # +pin+ is an after_pin whose read varied, so its input has an after.
     #: (Engine::Pin) -> String
     def after_varying_warning(pin)
-      return "branchout: the after #{pin.input.after.source} of #{pin.input.text} read a value that differed between two runs, so its test does not check it." if pin.varying == :whole # steep:ignore NoMethod
+      keys = pin.varying
+      source = pin.input.after&.source
+      return "branchout: the after #{source} of #{pin.input.text} read a value that differed between two runs, so its test does not check it." unless keys.is_a?(Array)
 
-      # steep:ignore:start
-
-      "branchout: the after #{pin.input.after.source} of #{pin.input.text} read a Hash whose #{pin.varying.join(", ")} differed between two runs, " \
+      "branchout: the after #{source} of #{pin.input.text} read a Hash whose #{keys.join(", ")} differed between two runs, " \
         "so its test pins only #{Support.keys_for(pin, []).join(", ")}."
-      # steep:ignore:end
     end
 
     # Each pin with the paths under the test's project in its input, its
@@ -119,11 +118,9 @@ module Branchout
     end
 
     #: (String) -> (singleton(Minitest) | singleton(RSpec))
-    def emitter_for(format) # steep:ignore MethodBodyTypeMismatch
-      case resolve(format, nil)
-      when "minitest" then Minitest
-      when "rspec" then RSpec
-      end
+    def emitter_for(format)
+      # resolve gives minitest or rspec, or raises.
+      resolve(format, nil) == "rspec" ? RSpec : Minitest
     end
   end
 end

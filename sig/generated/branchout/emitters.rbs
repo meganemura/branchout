@@ -21,9 +21,11 @@ module Branchout
     # : (String, Engine::Result, Target, String, ?require_by_name: bool, ?pin_keys: Array[String], ?from: String) -> String
     def self?.render: (String, Engine::Result, Target, String, ?require_by_name: bool, ?pin_keys: Array[String], ?from: String) -> String
 
+    # +pin+ is one whose value varied: as a whole, or in the keys it names.
     # : (Engine::Pin, Array[String]) -> String
     def self?.varying_warning: (Engine::Pin, Array[String]) -> String
 
+    # +pin+ is an after_pin whose read varied, so its input has an after.
     # : (Engine::Pin) -> String
     def self?.after_varying_warning: (Engine::Pin) -> String
 

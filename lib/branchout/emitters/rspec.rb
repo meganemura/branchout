@@ -525,7 +525,9 @@ module Branchout
         def parameter_names
           return [] unless @target.respond_to?(:positional) && @target.parameters
 
-          @target.positional.map { |param| param.name.to_s }
+          # A destructured parameter has no name, so its leaves start at
+          # "argument 1" as an argument past the parameters does.
+          @target.positional.map { |param| param.name&.to_s }
         end
 
         # "with new(10)", or "with create(:loan)" for a receiver the input builds.

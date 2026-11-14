@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - The gem ships RBS signatures for its classes in `sig/`, so steep and other RBS tools in a project that uses branchout can check calls to it.
+- A target method with a destructured parameter, `def self.f((a, b), c)`, is explored, and an RSpec example names that argument `argument 1`. Before, explore stopped with a `NoMethodError` backtrace on `Prism::MultiTargetNode`.
 
 ## [0.2.0] - 2026-11-14
 

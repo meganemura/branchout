@@ -1734,6 +1734,8 @@ class EmitterTest < Minitest::Test
     labels = render.(target_for.(:node, :env), [[node.(7), 1], [node.(0), 1]])
     assert_includes labels, %q('returns 1 when node["args"][0]["value"] is 7 and node["a b"] is 7')
     assert_includes render.(target_for.(:x), [[7], [0]]), '"returns 1 when x is 7"'
+    # A destructured parameter has no name: its leaf reads as the argument.
+    assert_includes render.(target_for.(nil), [[7], [0]]), '"returns 1 when argument 1 is 7"'
   end
 
   # A context says only the facts that tell it from its siblings: every

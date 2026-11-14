@@ -227,6 +227,13 @@ class TargetTest < Minitest::Test
     end
   end
 
+  # A destructured parameter has no name, as Method#parameters gives it.
+  def test_a_destructured_parameter_has_no_name
+    parse_source("module T\n  def self.f((a, b), c) = a > c ? b : c\nend\n", "T.f") do |target|
+      assert_equal [[:req, nil], [:req, :c]], target.parameters.map { |param| [param.kind, param.name] }
+    end
+  end
+
   def test_condition_text_for_each_kind_of_decision
     expected = {
       "pick" => { "case@5:4/else@10:6" => "case x else", "case@5:4/when@6:19" => "when 1, 2 then :low",

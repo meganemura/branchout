@@ -8,17 +8,17 @@ module Branchout
     # +kind+ is a Ruby parameter kind (:req, :opt, :rest, :keyreq, :key).
     # +inferred_type+ is an input type name such as "int", or nil before
     # inference.
-    class Parameter < Struct[Symbol | untyped | String?]
+    class Parameter < Struct[Symbol | Symbol? | untyped | String?]
       attr_accessor kind(): Symbol
 
-      attr_accessor name(): Symbol
+      attr_accessor name(): Symbol?
 
       attr_accessor default(): untyped
 
       attr_accessor inferred_type(): String?
 
-      def self.new: (?kind: Symbol, ?name: Symbol, ?default: untyped, ?inferred_type: String?) -> instance
-                  | ({ ?kind: Symbol, ?name: Symbol, ?default: untyped, ?inferred_type: String? }) -> instance
+      def self.new: (?kind: Symbol, ?name: Symbol?, ?default: untyped, ?inferred_type: String?) -> instance
+                  | ({ ?kind: Symbol, ?name: Symbol?, ?default: untyped, ?inferred_type: String? }) -> instance
     end
 
     class Literals < Struct[Array[Integer] | Array[Float] | Array[String]]

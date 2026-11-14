@@ -126,7 +126,7 @@ module Branchout
 
         def peer_values: ([ Array[untyped], untyped ], Array[Engine::Pin]) -> Array[untyped]
 
-        def parameter_names: () -> Array[String]
+        def parameter_names: () -> Array[String?]
 
         def receiver_label: (Input) -> String
 

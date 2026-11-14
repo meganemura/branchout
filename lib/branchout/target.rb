@@ -11,7 +11,7 @@ module Branchout
     # inference.
     Parameter = Struct.new(
       :kind, #: Symbol
-      :name, #: Symbol
+      :name, #: Symbol?
       :default, #: untyped
       :inferred_type, #: String?
       keyword_init: true
@@ -286,7 +286,10 @@ module Branchout
       return list unless params_node
 
       params_node.requireds.each do |node|
-        list << Parameter.new(kind: :req, name: node.name, default: nil, inferred_type: nil)
+        # A destructured parameter, def m((a, b)), has no name of its own, as
+        # Method#parameters gives it.
+        name = node.name if node.is_a?(Prism::RequiredParameterNode)
+        list << Parameter.new(kind: :req, name: name, default: nil, inferred_type: nil)
       end
       params_node.optionals.each do |node|
         list << Parameter.new(kind: :opt, name: node.name, default: literal_value(node.value), inferred_type: nil)

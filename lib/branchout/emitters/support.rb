@@ -12,6 +12,32 @@ module Branchout
     module Support
       module_function
 
+      # @rbs!
+      #   # A step of a path into an input or a value: a Symbol names a part
+      #   # of the input, a String a String Hash key, a SymbolKey a Symbol Hash
+      #   # key, an Integer a position, a CallHead the call before its
+      #   # keywords, and a TapBlock the block of a tap.
+      #   type step = Symbol | String | Integer | SymbolKey | CallHead | TapBlock
+      #
+      #   type path = Array[step]
+      #
+      #   # A path with its Symbol Hash keys as the Strings they name.
+      #   type plain_path = Array[Symbol | String | Integer | CallHead | TapBlock]
+      #
+      #   # A part of a Ruby call and the Ruby, or the plain value, it holds.
+      #   type part = [CallHead | SymbolKey | TapBlock, untyped]
+      #
+      #   # A path and the scalar or empty collection at its end: a part of
+      #   # an input or of a returned value, so any Ruby value.
+      #   type leaf = [path, untyped]
+      #
+      #   # A word of a name: a String, or a Hash key, which a cut keeps whole.
+      #   type word = String | Key
+
+      # What an empty collection compares equal to, typed for steep.
+      EMPTY_HASH = Hash.new.freeze #: Hash[untyped, untyped]
+      EMPTY_ARRAY = Array.new.freeze #: Array[untyped]
+
       #: (Target, String, String) -> Array[String]
       def header(target, kind, destination)
         [
@@ -61,13 +87,12 @@ module Branchout
       # names, as -I, each directory a require by name needs and the
       # runner does not put on the load path itself (+runner_load_paths+,
       # from +from+, where the runner starts).
-      # +target_path+ is a String or nil, which [*target_path] drops; steep
-      # does not follow that, so it is untyped here and in the methods below.
-      #: (Array[String], untyped, String, ?by_name: bool, ?load_paths: Array[String], ?runner_load_paths: Array[String], ?from: String) -> Array[String]
-      def require_lines(requires, target_path, destination, by_name: false, load_paths: [], runner_load_paths: [], from: Dir.pwd) # steep:ignore MethodBodyTypeMismatch
+      # +target_path+ is nil when the target needs no require of its own.
+      #: (Array[String], String?, String, ?by_name: bool, ?load_paths: Array[String], ?runner_load_paths: Array[String], ?from: String) -> Array[String]
+      def require_lines(requires, target_path, destination, by_name: false, load_paths: [], runner_load_paths: [], from: Dir.pwd)
         roots = name_roots(requires, target_path, load_paths)
         used = [] #: Array[String]
-        lines =[*requires, *target_path].flat_map do |path|
+        lines = (requires + [target_path].compact).flat_map do |path|
           absolute = File.expand_path(path)
           root = roots.find { |dir| absolute.start_with?(dir) }
           if by_name && root
@@ -77,7 +102,7 @@ module Branchout
 
           relative = relative_require(destination, path)
           note = "# Required by path: no -I or --require directory holds #{relative}." if by_name
-          [*note, "require_relative #{relative.inspect}"]
+          [note, "require_relative #{relative.inspect}"].compact
         end
         used -= runner_load_paths.map { |dir| "#{File.expand_path(dir, from)}/" }
         used.empty? ? lines : ["# Load path: #{used.map { |dir| "-I #{shown_directory(dir.chomp("/"), from: from)}" }.join(" ")}", *lines]
@@ -100,23 +125,23 @@ module Branchout
       # The files of +requires+ and +target_path+ that --require-by-name
       # cannot name, because no directory in +load_paths+ or of +requires+
       # holds them.
-      #: (Array[String], untyped, ?load_paths: Array[String]) -> Array[String]
+      #: (Array[String], String?, ?load_paths: Array[String]) -> Array[String]
       def unnamed_requires(requires, target_path, load_paths: [])
         roots = require_roots(requires, load_paths)
         return [] if roots.empty?
 
-        [*requires, *target_path].reject { |path| roots.any? { |dir| File.expand_path(path).start_with?(dir) } }
+        (requires + [target_path].compact).reject { |path| roots.any? { |dir| File.expand_path(path).start_with?(dir) } }
       end
 
       # The files require_lines requires by path that sit in another project
       # than +destination+, or under no project when it has one: their
       # require_relative names this machine's directories, absolute or
       # climbing out of the test's project.
-      #: (Array[String], untyped, String, ?by_name: bool, ?load_paths: Array[String]) -> Array[String]
+      #: (Array[String], String?, String, ?by_name: bool, ?load_paths: Array[String]) -> Array[String]
       def required_outside_project(requires, target_path, destination, by_name: false, load_paths: [])
         roots = by_name ? name_roots(requires, target_path, load_paths) : [] #: Array[String]
         home = project_root(File.dirname(File.expand_path(destination)))
-        [*requires, *target_path].map { |path| File.expand_path(path) }.select do |absolute|
+        (requires + [target_path].compact).map { |path| File.expand_path(path) }.select do |absolute|
           roots.none? { |dir| absolute.start_with?(dir) } &&
             (project_root(File.dirname(absolute)) != home || File.absolute_path?(relative_require(destination, absolute)))
         end
@@ -136,8 +161,9 @@ module Branchout
       #: (String) -> String
       def load_root(path)
         dir = File.dirname(File.expand_path(path))
-        lib = dir.split("/").rindex("lib")
-        "#{lib ? dir.split("/")[0..lib].join("/") : dir}/" # steep:ignore NoMethod
+        parts = dir.split("/")
+        lib = parts.rindex("lib")
+        "#{lib ? parts.first(lib + 1).join("/") : dir}/"
       end
 
       # Paths that share only / give the absolute path: a climb to / breaks
@@ -224,7 +250,12 @@ module Branchout
       def machine_paths_in(value)
         homes = machine_homes.map { |home| Regexp.escape(home) }.join("|")
         # A sentence's period or colon after a path ends the sentence, not the path.
-        strings(value).flat_map { |text| text.scan(%r{(?:#{homes})[^\s"'`(),;]+}) }.map { |path| path.sub(/[.:]+\z/, "") } # steep:ignore NoMethod
+        found = strings(value).flat_map do |text|
+          # A pattern with no group scans to Strings.
+          paths = text.scan(%r{(?:#{homes})[^\s"'`(),;]+}) #: Array[String]
+          paths
+        end
+        found.map { |path| path.sub(/[.:]+\z/, "") }
       end
 
       #: () -> Array[String]
@@ -413,7 +444,8 @@ module Branchout
         return false unless name && Object.const_get(name).equal?(value.class)
         return false unless value.to_h.each_value.all? { |item| literal?(item) }
 
-        positional?(value) ? value.class.new(*value.to_a) == value : value.class.new(**value.to_h) == value # steep:ignore UnannotatedEmptyCollection
+        members = value.to_h #: Hash[Symbol, untyped]
+        positional?(value) ? value.class.new(*value.to_a) == value : value.class.new(**members) == value
       rescue StandardError
         false
       end
@@ -467,17 +499,18 @@ module Branchout
         # A Hash outcome may take more room, so the leaves RSpec names fit, and
         # so may an Array of scalars and collections, so its keys fit after
         # "array".
-        outcomes = pinned.zip(differences).map do |pin, differing|
-          # zip pairs each pin with its entry, so differing is never nil.
-          roomy = !differing.empty? || (!pin.error && mixed_array?(pin.value)) # steep:ignore NoMethod
-          clip(outcome_words(pin, differing), roomy ? OUTCOME_LIMIT : 30) # steep:ignore ArgumentTypeMismatch
+        # hash_differences gives each pin its entry, so fetch finds each.
+        outcomes = pinned.each_with_index.map do |pin, index|
+          differing = differences.fetch(index)
+          roomy = !differing.empty? || (!pin.error && mixed_array?(pin.value))
+          clip(outcome_words(pin, differing), roomy ? OUTCOME_LIMIT : 30)
         end
-        names = pins.each_with_index.map { |pin, index| name_of(named_input_words(pin.input), outcomes[index]) }
+        names = pins.each_with_index.map { |pin, index| name_of(named_input_words(pin.input), outcomes.fetch(index)) }
         names.each_index.group_by { |index| names[index] }.each_value do |siblings|
           next if siblings.one?
 
-          words = differing_words(siblings.map { |index| pins[index].input })
-          siblings.zip(words) { |index, differing| names[index] = name_of(differing, outcomes[index]) } # steep:ignore ArgumentTypeMismatch
+          words = differing_words(siblings.map { |index| pins.fetch(index).input })
+          siblings.each_with_index { |index, at| names[index] = name_of(words.fetch(at), outcomes.fetch(index)) }
         end
         repeated = names.tally
         names = names.each_with_index.map do |name, index|
@@ -487,7 +520,7 @@ module Branchout
         names.map { |name| (seen[name] += 1) == 1 ? name : "#{name}_#{seen[name]}" }
       end
 
-      #: (Array[untyped], String) -> String
+      #: (Array[word], String) -> String
       def name_of(input_words, outcome)
         ["test", clip(input_words, 40), outcome].reject(&:empty?).join("_")
       end
@@ -498,10 +531,10 @@ module Branchout
       # they all start with, so a shared start does not fill the name.
       # Leaves keep their order in the first input by canonical form, so the
       # words do not depend on the order of +inputs+.
-      #: (Array[Input]) -> Array[Array[untyped]]
+      #: (Array[Input]) -> Array[Array[word]]
       def differing_words(inputs)
         leaves = inputs.map { |input| input_leaves(input).to_h }
-        paths = inputs.zip(leaves).sort_by { |input, _| input.canonical }.flat_map { |_, map| map.keys }.uniq # steep:ignore NoMethod
+        paths = inputs.each_index.sort_by { |index| inputs.fetch(index).canonical }.flat_map { |index| leaves.fetch(index).keys }.uniq
         differing = paths.reject do |path|
           leaves.all? { |map| map.key?(path) && map[path].eql?(leaves.first[path]) }
         end
@@ -529,7 +562,7 @@ module Branchout
             kept = map[path].is_a?(Code) ? [shared[path] - 1, 0].max : shared[path]
             rest = worded?(map[path]) ? tokens(map[path]).drop(kept) : [] #: Array[String]
             value = if !map.key?(path) then ["none"]
-            elsif map[path] == {} || map[path] == [] then ["empty"] # steep:ignore UnannotatedEmptyCollection
+            elsif map[path] == EMPTY_HASH || map[path] == EMPTY_ARRAY then ["empty"]
             elsif !rest.empty? then rest
             else value_words(map[path])
             end
@@ -541,14 +574,14 @@ module Branchout
       # A key that several leaves of an absent collection end in says
       # "none" once, and so do the missing items at the end of a shorter
       # Array, which have no key.
-      #: (Array[untyped]) -> Array[untyped]
+      #: (Array[word]) -> Array[word]
       def without_repeated_none(words)
-        out = [] #: Array[untyped]
+        out = [] #: Array[word]
         index = 0
         while index < words.length
           if words[index].is_a?(Key) && words[index + 1] == "none"
-            pair = words[index, 2]
-            out.concat(pair) unless out.each_cons(2).include?(pair) # steep:ignore ArgumentTypeMismatch
+            pair = words[index, 2] #: Array[word]
+            out.concat(pair) unless out.each_cons(2).include?(pair)
             index += 2
           elsif words[index] == "none" && out.last == "none" && !out[-2].is_a?(Key)
             index += 1
@@ -576,9 +609,9 @@ module Branchout
       # [path, value] for every scalar or empty collection of an input. A
       # Symbol step names a part of the input, a String a String Hash key, a
       # SymbolKey a Symbol Hash key, and an Integer a position.
-      #: (Input) -> Array[[Array[untyped], untyped]]
+      #: (Input) -> Array[leaf]
       def input_leaves(input)
-        out = [] #: Array[[Array[untyped], untyped]]
+        out = [] #: Array[leaf]
         input.args.each_with_index { |arg, index| collect_leaves(arg, [:args, index], out) }
         input.kwargs.each { |key, value| collect_leaves(value, [:kwargs, key], out) }
         if input.receiver.is_a?(Code)
@@ -598,7 +631,7 @@ module Branchout
 
       # +whole_arrays+ keeps an Array of scalars as one leaf, so a reader
       # sees items is [1, 2] and not each item by its position.
-      #: (untyped, Array[untyped], Array[[Array[untyped], untyped]], ?whole_arrays: bool) -> Array[[Array[untyped], untyped]]
+      #: (untyped, path, Array[leaf], ?whole_arrays: bool) -> void
       def collect_leaves(value, path, out, whole_arrays: false)
         return out << [path, value] if path.last.is_a?(TapBlock)
 
@@ -607,9 +640,9 @@ module Branchout
           when Code then call_parts(value)
           when Hash then value.map { |key, item| [key.is_a?(Symbol) ? SymbolKey.new(key.to_s) : key.to_s, item] }
           when Array
-            whole_arrays && value.none? { |item| collection?(item) } ? [] : value.each_with_index.map { |item, index| [index, item] } # steep:ignore UnannotatedEmptyCollection
-          else [] # steep:ignore UnannotatedEmptyCollection
-        end
+            whole_arrays && value.none? { |item| collection?(item) } ? [] : value.each_with_index.map { |item, index| [index, item] }
+          else []
+        end #: Array[[step, untyped]]
         return out << [path, value] if children.empty?
 
         children.each { |step, item| collect_leaves(item, path + [step], out, whole_arrays: whole_arrays) }
@@ -660,12 +693,13 @@ module Branchout
       # one. nil for a pin with no after read.
       #: (Engine::Pin) -> Engine::Pin?
       def after_pin(pin)
-        return nil unless pin.observed
+        observed = pin.observed
+        return nil unless observed
 
         pin.dup.tap do |copy|
           copy.input = pin.input.with(pin_keys: nil)
-          copy.value = pin.observed.value # steep:ignore NoMethod
-          copy.varying = pin.observed.varying # steep:ignore NoMethod
+          copy.value = observed.value
+          copy.varying = observed.varying
           copy.error = nil
           copy.observed = nil
         end
@@ -679,16 +713,17 @@ module Branchout
         source.match?(/\A[A-Za-z_@$][\w@$]*(?:(?:\.|::)[A-Za-z_]\w*[?!]?(?:\([^()]*\))?)*\z/) ? source : "(#{source})"
       end
 
-      #: (Engine::Pin, Array[[Array[untyped], untyped]], ?short: bool) -> String
+      #: (Engine::Pin, Array[leaf], ?short: bool) -> String
       def outcome_text(pin, differing, short: false)
         return "raises #{pin.error.class_name}" if pin.error
 
         value = pin.value
         unless differing.empty?
           entries = differing.map do |path, item|
-            [short ? telling_path(path, differing.map(&:first)) : path, ruby_literal(described(item))]
+            entry = [short ? telling_path(path, differing.map(&:first)) : path, ruby_literal(described(item))] #: [path, String]
+            entry
           end
-          return "returns #{entries_text(entries, merge: !short)}" # steep:ignore ArgumentTypeMismatch
+          return "returns #{entries_text(entries, merge: !short)}"
         end
         unless literal?(value)
           return "returns an Array of #{value.length}" if value.is_a?(Array)
@@ -720,7 +755,7 @@ module Branchout
       # leaves fewer than 12 characters.
       #: (String, Integer, Integer) -> Integer
       def word_end(text, start, finish)
-        return finish unless finish < text.length && text[finish - 1].match?(/\w/) && text[finish].match?(/\w/) # steep:ignore NoMethod
+        return finish unless finish < text.length && text[finish - 1]&.match?(/\w/) && text[finish]&.match?(/\w/)
 
         boundary = text.rindex(/\W/, finish - 1)
         boundary && boundary - start >= 12 ? boundary : finish
@@ -847,34 +882,45 @@ module Branchout
       # the most pairs apart, then has the most distinct values. A pick that would make a minitest outcome longer
       # than OUTCOME_LIMIT is left out, so both formats name the same
       # leaves. A value that is not a Hash has none.
-      #: (Array[untyped], ?Array[Input]) -> Array[Array[[Array[untyped], untyped]]]
+      #: (Array[untyped], ?Array[Input]) -> Array[Array[leaf]]
       def hash_differences(values, inputs = [])
         # A part with no literal is checked by its class, so it tells no
         # sibling apart.
         leaves = values.map { |value| named_leaves(value).select { |_, (_, leaf)| literal?(leaf) } if keyed?(value) }
-        echoes = leaves.each_index.map { |index| inputs[index] ? inputs[index].args.map { |arg| written_value(arg) }.grep(Hash).map { |arg| named_leaves(arg) }.reduce({}, :merge) : {} } # steep:ignore UnannotatedEmptyCollection
+        echoes = leaves.each_index.map do |index|
+          input = inputs[index]
+          none = {} #: Hash[plain_path, leaf]
+          input ? input.args.map { |arg| written_value(arg) }.grep(Hash).map { |arg| named_leaves(arg) }.reduce(none, :merge) : none
+        end #: Array[Hash[plain_path, leaf]]
         distinct = leaves.compact.uniq.sort_by(&:inspect)
         paths = distinct.flat_map(&:keys).uniq
-        pairs = distinct.combination(2).to_a
+        pairs = distinct.combination(2).to_a #: Array[[Hash[plain_path, leaf], Hash[plain_path, leaf]]]
         # A leaf every Hash has says something about each of them, so it
         # comes before one that only some have.
         shared = paths.to_h { |path| [path, distinct.all? { |map| map.key?(path) }] }
         # A leaf that holds what the input passed at the same path, such as
         # a document the method merges into, says nothing the input did not.
         echoed = paths.to_h do |path|
-          [path, leaves.each_index.all? { |index| !leaves[index]&.key?(path) || (echoes[index].key?(path) && echoes[index][path].eql?(leaves[index][path])) }] # steep:ignore NoMethod
+          held = leaves.each_index.all? do |index|
+            map = leaves[index]
+            echo = echoes.fetch(index)
+            !map || !map.key?(path) || (echo.key?(path) && echo[path].eql?(map[path]))
+          end
+          [path, held]
         end
-        chosen = [] #: Array[Array[untyped]]
+        chosen = [] #: Array[plain_path]
         entries = ->(map, picks) { picks.filter_map { |path| map[path] if map.key?(path) } }
         until pairs.empty? || chosen.length == 3
-          # pairs holds no nil: distinct is compacted.
-          told = paths.to_h { |path| [path, pairs.count { |a, b| leaves_differ?(a, b, path) }] } # steep:ignore ArgumentTypeMismatch
+          told = paths.to_h { |path| [path, pairs.count { |a, b| leaves_differ?(a, b, path) }] }
           spread = paths.to_h { |path| [path, distinct.map { |map| map.fetch(path, MISSING) }.uniq.length] }
-          best = paths.each_with_index.max_by { |path, index| [told[path].positive? && !echoed[path] ? 1 : 0, told[path].positive? && shared[path] ? 1 : 0, told[path], spread[path], -index] }.first # steep:ignore NoMethod
+          # Two different Hashes hold a leaf between them, so a pair means
+          # a path and max_by finds one.
+          pick = paths.each_with_index.max_by { |path, index| [told.fetch(path).positive? && !echoed[path] ? 1 : 0, told.fetch(path).positive? && shared[path] ? 1 : 0, told[path], spread[path], -index] } #: [plain_path, Integer]
+          best = pick.first
           break if chosen.any? && distinct.any? { |map| outcome_length(entries.(map, chosen + [best])) > OUTCOME_LIMIT }
 
           chosen << best
-          pairs.reject! { |a, b| leaves_differ?(a, b, best) } # steep:ignore ArgumentTypeMismatch
+          pairs.reject! { |a, b| leaves_differ?(a, b, best) }
         end
         leaves.map { |map| map ? entries.(map, chosen) : [] }
       end
@@ -884,36 +930,38 @@ module Branchout
       # the "and" before each of the second and third leaves too.
       OUTCOME_LIMIT = 51 #: Integer
 
-      #: (Array[[Array[untyped], untyped]]) -> Integer
+      #: (Array[leaf]) -> Integer
       def outcome_length(entries)
         clip(outcome_entry_words(entries), Float::INFINITY).length
       end
 
       # path => leaf for every scalar or empty collection under a Hash.
-      #: (untyped) -> Hash[Array[untyped], untyped]
+      #: (untyped) -> Hash[path, untyped]
       def hash_leaves(value)
-        [].tap { |out| collect_leaves(value, [], out) }.reject { |path, _| path.empty? }.to_h # steep:ignore UnannotatedEmptyCollection
+        out = [] #: Array[leaf]
+        collect_leaves(value, [], out)
+        out.reject { |path, _| path.empty? }.to_h
       end
 
       # hash_leaves by the names of their keys, each to its own [path, leaf],
       # so a key that one Hash holds as a Symbol and another as a String is
       # one leaf to compare, and each still reads as its Hash holds it.
-      #: (untyped) -> Hash[Array[untyped], [Array[untyped], untyped]]
+      #: (untyped) -> Hash[plain_path, leaf]
       def named_leaves(value)
         hash_leaves(value).to_h { |path, leaf| [path.map { |step| plain_step(step) }, [path, leaf]] }
       end
 
-      #: (Hash[Array[untyped], untyped], Hash[Array[untyped], untyped], Array[untyped]) -> bool
+      #: (Hash[plain_path, leaf], Hash[plain_path, leaf], plain_path) -> bool
       def leaves_differ?(a, b, path)
         !(a.key?(path) && b.key?(path) && a[path].eql?(b[path]))
       end
 
       # "returns", then each entry's key, as telling_key names it, and its
       # value.
-      #: (Array[[Array[untyped], untyped]]) -> Array[untyped]
+      #: (Array[leaf]) -> Array[word]
       def outcome_entry_words(entries)
         words = entries.flat_map do |path, item|
-          [telling_key(path, entries.map(&:first)), *(item == [] || item == {} ? ["empty"] : value_words(item))].compact # steep:ignore UnannotatedEmptyCollection
+          [telling_key(path, entries.map(&:first)), *(item == EMPTY_ARRAY || item == EMPTY_HASH ? ["empty"] : value_words(item))].compact
         end
         ["returns", *words]
       end
@@ -923,7 +971,7 @@ module Branchout
       # Symbol, [:"a b"]. A String key keeps its quotes, params["sku"], so a
       # String-keyed Hash does not read as if a Symbol lookup would find it.
       # +root+, when given, is the name the path starts from.
-      #: (Array[untyped], ?String?) -> String
+      #: (path, ?String?) -> String
       def path_text(path, root = nil)
         path.each_with_object(+"#{root}") do |step, text|
           text << if step.is_a?(CallHead) then ""
@@ -943,33 +991,43 @@ module Branchout
       # "counts" => {"discarded" => 0}. With +merge+, leaves under one key
       # share its literal, "tests" => [{"file" => "a.rb", "state" => "ok"}];
       # a short path does not, since its first key may sit at two depths.
-      #: (Array[[Array[untyped], String]], ?merge: bool) -> String
+      #: (Array[[path, String]], ?merge: bool) -> String
       def entries_text(entries, merge: true)
-        groups = [] #: Array[untyped]
+        groups = [] #: Array[String | Array[[path, String]]]
         entries.each do |path, text|
           name = path_text(path)
           next groups << "#{name}#{path.last.is_a?(String) ? " =>" : ":"} #{text}" unless name.start_with?("[")
 
           group = groups.find { |other| other.is_a?(Array) && other.first.first.first == path.first } if merge
-          group ? group << [path, text] : groups << [[path, text]]
+          # find gives an Array or nil.
+          group.is_a?(Array) ? group << [path, text] : groups << [[path, text]]
         end
         groups.map { |group| group.is_a?(Array) ? held_entries(group, braces: false) : group }.join(", ")
       end
 
       # Leaves that share a value, each a [path into it, value text], as
       # the literal of that value, with _ for an Array element no leaf is in.
-      #: (Array[[Array[untyped], String]], ?braces: bool) -> String
+      #: (Array[[path, String]], ?braces: bool) -> String
       def held_entries(entries, braces: true)
         return entries.first[1] if entries.first[0].empty?
 
-        steps = entries.group_by { |path, _| path.first }.transform_values { |group| group.map { |path, text| [path.drop(1), text] } }
-        return "[#{(0..steps.keys.max).map { |index| steps.key?(index) ? held_entries(steps[index]) : "_" }.join(", ")}]" if steps.keys.first.is_a?(Integer) # steep:ignore ArgumentTypeMismatch
+        steps = entries.group_by { |path, _| path.first }.transform_values do |group|
+          group.map do |path, text|
+            entry = [path.drop(1), text] #: [path, String]
+            entry
+          end
+        end
+        # The steps under one value are all positions or all keys.
+        if steps.keys.first.is_a?(Integer)
+          last = steps.keys.max #: Integer
+          return "[#{(0..last).map { |index| steps.key?(index) ? held_entries(steps.fetch(index)) : "_" }.join(", ")}]"
+        end
 
-        pairs = steps.map { |key, group| "#{key_literal(key)} #{held_entries(group)}" }.join(", ") # steep:ignore ArgumentTypeMismatch
+        pairs = steps.map { |key, group| "#{key_literal(key)} #{held_entries(group)}" }.join(", ")
         braces ? "{#{pairs}}" : pairs
       end
 
-      #: (untyped) -> String
+      #: (step?) -> String
       def key_literal(key)
         return "#{key.inspect} =>" unless key.is_a?(SymbolKey)
 
@@ -978,21 +1036,24 @@ module Branchout
 
       # A Symbol Hash key in a path. It is a step of its own, so a String key
       # of the same name makes another path and the two inputs read apart.
-      # sig/branchout/emitters/support.rbs declares its to_s, which rbs-inline
-      # does not read in a Data.define block.
       SymbolKey = Data.define(
         :name #: String
-      ) do
-        def to_s = name # steep:ignore
+      )
+
+      # Its method is in a class body, not in the block of Data.define, so
+      # that rbs-inline reads its type and steep checks it.
+      class SymbolKey
+        #: () -> String
+        def to_s = name
       end
 
-      #: (untyped) -> bool
+      #: (step?) -> bool
       def key_step?(step) = step.is_a?(String) || step.is_a?(SymbolKey)
 
-      #: (untyped) -> untyped
+      #: (step) -> (Symbol | String | Integer | CallHead | TapBlock)
       def plain_step(step) = step.is_a?(SymbolKey) ? step.name : step
 
-      #: (Array[untyped]) -> Array[String]
+      #: (path) -> Array[String]
       def key_texts(path) = path.select { |step| key_step?(step) }.map(&:to_s)
 
       # A Code that is a plain literal, such as [{sku: "B"}], names as the
@@ -1049,22 +1110,31 @@ module Branchout
       # head and each keyword, so inputs that share a long call read apart
       # by the keywords that differ (b is "Y") and not by a cut source.
       # Empty for any other Ruby, which stays one leaf.
-      #: (Code) -> Array[Array[untyped]]
+      #: (Code) -> Array[part]
       def call_parts(code)
         body = Prism.parse(code.source).value.statements&.body || []
         call = body.first if body.one?
+        return [] unless call.is_a?(Prism::CallNode)
         return tap_parts(call) if tapped?(call)
-        return [] unless call.is_a?(Prism::CallNode) && call.block.nil? && call.arguments
 
-        *positional, keywords = call.arguments.arguments # steep:ignore NoMethod
+        arguments = call.arguments
+        return [] unless call.block.nil? && arguments
+
+        *positional, keywords = arguments.arguments
         return [] unless keywords.is_a?(Prism::KeywordHashNode) &&
                          keywords.elements.all? { |pair| pair.is_a?(Prism::AssocNode) && pair.key.is_a?(Prism::SymbolNode) }
 
-        head = code.source[0...keywords.location.start_offset - call.location.start_offset].sub(/[(,\s]+\z/, "") # steep:ignore NoMethod
+        cut = code.source[0...keywords.location.start_offset - call.location.start_offset] #: String
+        head = cut.sub(/[(,\s]+\z/, "")
         head = "#{head})" if call.opening_loc && !positional.empty?
-        [[CallHead.new, Code.new(head)]] + keywords.elements.map do |pair|
+        first = [CallHead.new, Code.new(head)] #: part
+        [first] + keywords.elements.map do |element|
+          # The all? above holds each pair to a Symbol key.
+          pair = element #: Prism::AssocNode
+          key = pair.key #: Prism::SymbolNode
           plain = catch(:not_plain) { [plain_literal(pair.value)] }
-          [SymbolKey.new(pair.key.unescaped), plain ? plain.first : Code.new(pair.value.slice)] # steep:ignore NoMethod
+          entry = [SymbolKey.new(key.unescaped), plain ? plain.first : Code.new(pair.value.slice)] #: part
+          entry
         end
       end
 
@@ -1076,23 +1146,27 @@ module Branchout
         :name #: String
       )
 
-      #: (untyped) -> boolish
+      #: (Prism::CallNode) -> boolish
       def tapped?(call)
-        call.is_a?(Prism::CallNode) && %i[tap then].include?(call.name) && call.receiver && call.arguments.nil? &&
-          call.block.is_a?(Prism::BlockNode)
+        %i[tap then].include?(call.name) && call.receiver && call.arguments.nil? && call.block.is_a?(Prism::BlockNode)
       end
 
       # The parts of the receiver, as call_parts gives them or as one head,
-      # then the block on one line.
-      #: (untyped) -> Array[Array[untyped]]
+      # then the block on one line. tapped? holds +call+ to a receiver and
+      # a block.
+      #: (Prism::CallNode) -> Array[part]
       def tap_parts(call)
-        receiver = Code.new(call.receiver.slice)
+        receiver_node = call.receiver #: Prism::node
+        block = call.block #: Prism::BlockNode
+        receiver = Code.new(receiver_node.slice)
         parts = call_parts(receiver)
-        parts = [[CallHead.new, receiver]] if parts.empty?
-        parts + [[TapBlock.new(call.name.to_s), Code.new(block_text(call.block))]]
+        head = [CallHead.new, receiver] #: part
+        parts = [head] if parts.empty?
+        tail = [TapBlock.new(call.name.to_s), Code.new(block_text(block))] #: part
+        parts + [tail]
       end
 
-      #: (untyped) -> String
+      #: (Prism::BlockNode) -> String
       def block_text(block)
         body = block.body
         statements = body.is_a?(Prism::StatementsNode) ? body.body.map(&:slice) : [body&.slice].compact
@@ -1124,13 +1198,13 @@ module Branchout
       # is there in the words of its author; the values, with their escapes
       # and their Ruby, say it less well. A note with no Latin letter or
       # digit gives no words, so its input is named by its values.
-      #: (Input) -> Array[untyped]
+      #: (Input) -> Array[word]
       def named_input_words(input)
         words = input.note ? tokens(input.note) : [] #: Array[String]
         words.empty? ? input_words(input) : words
       end
 
-      #: (Input) -> Array[untyped]
+      #: (Input) -> Array[word]
       def input_words(input)
         words = input.args.flat_map { |arg| argument_words(arg) }
         words += input.kwargs.flat_map { |key, value| [key.to_s, *argument_words(value)] }
@@ -1147,7 +1221,7 @@ module Branchout
 
       # +differing+ is the pin's entry of hash_differences: a Hash whose
       # siblings differ in a leaf is named by those leaves.
-      #: (Engine::Pin, ?Array[[Array[untyped], untyped]]) -> Array[untyped]
+      #: (Engine::Pin, ?Array[leaf]) -> Array[word]
       def outcome_words(pin, differing = [])
         return ["raises", *snake_words(pin.error.class_name)] if pin.error
         return outcome_entry_words(differing) unless differing.empty?
@@ -1164,10 +1238,10 @@ module Branchout
 
       # A Hash is named by its keys and an Array of collections by its size,
       # so the start of a long value does not fill the name.
-      #: (untyped) -> Array[untyped]
+      #: (untyped) -> Array[word]
       def shape_words(value)
         case value
-        when {}, [] then ["empty", value.is_a?(Hash) ? "hash" : "array"] # steep:ignore UnannotatedEmptyCollection
+        when EMPTY_HASH, EMPTY_ARRAY then ["empty", value.is_a?(Hash) ? "hash" : "array"]
         when Hash then ["hash", *value.keys.each_with_index.map { |key, index| Key.new(key.to_s, index.positive?) }]
         when Array
           if value.all? { |item| composite?(item) } then ["array", "of", value.length.to_s]
@@ -1186,11 +1260,11 @@ module Branchout
       # its size, so a tree of arguments does not fill the name and two
       # trees of different sizes read apart. An empty argument still says
       # so (empty_array), so the name keeps every input.
-      #: (untyped) -> Array[untyped]
+      #: (untyped) -> Array[word]
       def argument_words(value)
         value = written_value(value)
         case value
-        when {}, [] then shape_words(value) # steep:ignore UnannotatedEmptyCollection
+        when EMPTY_HASH, EMPTY_ARRAY then shape_words(value)
         when Hash
           value.flat_map { |key, item| collection?(item) ? [key.to_s, item.empty? ? "empty" : item.length.to_s] : value_words(item) }
         when Array
@@ -1219,7 +1293,7 @@ module Branchout
       # The shortest end of +path+ that starts at a Hash key and ends no
       # other path in +paths+, so id at the top and items[0].id read apart.
       # With no key in +path+, the whole path.
-      #: (Array[untyped], Array[Array[untyped]]) -> Array[untyped]
+      #: (path, Array[path]) -> path
       def telling_path(path, paths)
         starts = path.each_index.select { |index| key_step?(path[index]) }
         return path if starts.empty?
@@ -1236,7 +1310,7 @@ module Branchout
       # path in +paths+, as one Key: items_id. Paths with the same keys,
       # such as args[0].value and args[1].value, cannot be told apart by
       # keys, so they do not lengthen each other's.
-      #: (Array[untyped], Array[Array[untyped]]) -> Key?
+      #: (path, Array[path]) -> Key?
       def telling_key(path, paths)
         keys = key_texts(path)
         return nil if keys.empty?
@@ -1312,17 +1386,18 @@ module Branchout
 
       #: (String) -> String
       def with_machine_marks(text)
-        # steep:ignore:start
-
-        labels = [[Dir.tmpdir, "<tmp>"], [Dir.home, "<home>"]].flat_map { |dir, label| [["#{dir}/", label], ["#{File.realpath(dir)}/", label]] }.uniq
+        homes = [[Dir.tmpdir, "<tmp>"], [Dir.home, "<home>"]] #: Array[[String, String]]
+        labels = homes.flat_map { |dir, label| [["#{dir}/", label], ["#{File.realpath(dir)}/", label]] }.uniq #: Array[[String, String]]
         # The longest first, so a home under the temporary directory is a home.
         labels = labels.sort_by { |dir, _| -dir.length }
         found = Regexp.union(labels.map(&:first))
         text.gsub(%r{(#{found})((?:[^\s"\x27`(),;/]+/)*)}) do
-          label = labels.find { |dir, _| dir == Regexp.last_match(1) }.last
-          "#{label}/#{".../" unless Regexp.last_match(2).empty?}"
+          # Both groups take part in every match, and the first is a
+          # directory of labels.
+          label = labels.find { |dir, _| dir == Regexp.last_match(1) } #: [String, String]
+          rest = Regexp.last_match(2) #: String
+          "#{label.last}/#{".../" unless rest.empty?}"
         end
-        # steep:ignore:end
       end
 
       # A number longer than LONG_NUMBER digits fills a name, so it keeps
@@ -1346,22 +1421,26 @@ module Branchout
       # so line_items reads as one key and not as the keys line and items.
       # A key that starts a list, such as the first key of each Hash in an
       # Array, does not follow the keys before it.
-      # sig/branchout/emitters/support.rbs declares Key, whose initialize
-      # neither rbs-inline nor steep reads.
+      # sig/branchout/emitters/support.rbs declares its new, which takes
+      # follows as optional, as the initialize below makes it.
       # @rbs skip
-      Key = Data.define(:text, :follows) do
-        def initialize(text:, follows: true) = super # steep:ignore
+      Key = Data.define(:text, :follows)
+
+      class Key
+        #: (text: String, ?follows: bool) -> void
+        def initialize(text:, follows: true) = super
       end
 
       # Joins words into identifier characters, at most +limit+ long, cut
       # between words. Only a first word longer than +limit+ is cut inside.
       # A key whose value the cut drops goes too, so a name never ends in a
       # key that says nothing.
-      #: (Array[untyped], Integer | Float) -> String
+      #: (Array[word], Integer | Float) -> String
       def clip(words, limit)
         listed = false
-        units = words.flat_map do |word|
-          next tokens(word).map { |token| ["_", token, false] } unless word.is_a?(Key)
+        units = [] #: Array[[String, String, bool]]
+        words.each do |word|
+          next units.concat(tokens(word).map { |token| ["_", token, false] }) unless word.is_a?(Key)
 
           # A key with no letter or digit, such as "", still says it is a key,
           # so its value is not read as the whole outcome, and so does a key
@@ -1373,18 +1452,22 @@ module Branchout
 
           joiner = listed && word.follows ? "_and_" : "_"
           listed = true
-          [[joiner, key, true]]
+          units << [joiner, key, true]
         end
         return "" if units.empty?
 
         text = units.first[1] #: String
-        return text[0, limit] if text.length > limit # steep:ignore ReturnTypeMismatch
+        if text.length > limit
+          # A cut from 0 is never nil.
+          start = text[0, limit] #: String
+          return start
+        end
 
         taken = 1
         units.drop(1).each do |joiner, unit|
-          break if text.length + joiner.length + unit.length > limit # steep:ignore NoMethod
+          break if text.length + joiner.length + unit.length > limit
 
-          text += joiner + unit # steep:ignore NoMethod
+          text += joiner + unit
           taken += 1
         end
         last, cut = units[taken - 1], units[taken]
@@ -1393,7 +1476,7 @@ module Branchout
         text
       end
 
-      #: (untyped) -> Array[String]
+      #: (_ToS) -> Array[String]
       def tokens(word)
         word.to_s.downcase.split(/[^a-z0-9]+/).reject(&:empty?)
       end

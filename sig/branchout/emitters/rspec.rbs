@@ -2,8 +2,8 @@
 module Branchout
   module Emitters
     module RSpec
-      # Its block defines an initialize that makes code and leaf optional,
-      # which rbs-inline does not read.
+      # Its initialize makes code and leaf optional, which rbs-inline does
+      # not read from Data.define.
       class Step < Data
         attr_reader kind(): Symbol
 
@@ -12,16 +12,14 @@ module Branchout
         attr_reader code(): String?
 
         # A fact's [path, value]; a before's or a let's [[kind], what it builds].
-        attr_reader leaf(): [Array[untyped], untyped]?
+        attr_reader leaf(): Support::leaf?
 
-        def self.new: (Symbol kind, String label, ?String? code, ?[Array[untyped], untyped]? leaf) -> instance
-                    | (kind: Symbol, label: String, ?code: String?, ?leaf: [Array[untyped], untyped]?) -> instance
+        def self.new: (Symbol kind, String label, ?String? code, ?Support::leaf? leaf) -> instance
+                    | (kind: Symbol, label: String, ?code: String?, ?leaf: Support::leaf?) -> instance
 
         def self.members: () -> [ :kind, :label, :code, :leaf ]
 
         def members: () -> [ :kind, :label, :code, :leaf ]
-
-        def initialize: (kind: Symbol, label: String, ?code: String?, ?leaf: [Array[untyped], untyped]?) -> void
       end
 
       # Its member +members+ has the name of Data#members, so rbs-inline
@@ -114,7 +112,7 @@ module Branchout
 
         def fact_steps: (Input) -> Array[Step]
 
-        def fact_label: ([ Array[untyped], untyped ], ?Array[Engine::Pin], ?short: bool) -> String
+        def fact_label: (Support::leaf, ?Array[Engine::Pin], ?short: bool) -> String
 
         def block_part: (String, Array[String], ?short: bool) -> String
 
@@ -122,9 +120,10 @@ module Branchout
 
         def parted: (String, Array[String]) -> String
 
-        def peer_paths: (untyped, Array[Engine::Pin]) -> Array[Array[untyped]]
+        def peer_paths: (Support::step?, Array[Engine::Pin]) -> Array[Support::path]
 
-        def peer_values: ([ Array[untyped], untyped ], Array[Engine::Pin]) -> Array[untyped]
+        # The values of the peers' facts at the path of +leaf+: any value.
+        def peer_values: (Support::leaf, Array[Engine::Pin]) -> Array[untyped]
 
         def parameter_names: () -> Array[String?]
 

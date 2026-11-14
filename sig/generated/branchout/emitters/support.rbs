@@ -4,6 +4,32 @@ module Branchout
   module Emitters
     # Shared, deterministic rendering used by every characterization emitter.
     module Support
+      # A step of a path into an input or a value: a Symbol names a part
+      # of the input, a String a String Hash key, a SymbolKey a Symbol Hash
+      # key, an Integer a position, a CallHead the call before its
+      # keywords, and a TapBlock the block of a tap.
+      type step = Symbol | String | Integer | SymbolKey | CallHead | TapBlock
+
+      type path = Array[step]
+
+      # A path with its Symbol Hash keys as the Strings they name.
+      type plain_path = Array[Symbol | String | Integer | CallHead | TapBlock]
+
+      # A part of a Ruby call and the Ruby, or the plain value, it holds.
+      type part = [ CallHead | SymbolKey | TapBlock, untyped ]
+
+      # A path and the scalar or empty collection at its end: a part of
+      # an input or of a returned value, so any Ruby value.
+      type leaf = [ path, untyped ]
+
+      # A word of a name: a String, or a Hash key, which a cut keeps whole.
+      type word = String | Key
+
+      # What an empty collection compares equal to, typed for steep.
+      EMPTY_HASH: Hash[untyped, untyped]
+
+      EMPTY_ARRAY: Array[untyped]
+
       # : (Target, String, String) -> Array[String]
       def self?.header: (Target, String, String) -> Array[String]
 
@@ -28,10 +54,9 @@ module Branchout
       # names, as -I, each directory a require by name needs and the
       # runner does not put on the load path itself (+runner_load_paths+,
       # from +from+, where the runner starts).
-      # +target_path+ is a String or nil, which [*target_path] drops; steep
-      # does not follow that, so it is untyped here and in the methods below.
-      # : (Array[String], untyped, String, ?by_name: bool, ?load_paths: Array[String], ?runner_load_paths: Array[String], ?from: String) -> Array[String]
-      def self?.require_lines: (Array[String], untyped, String, ?by_name: bool, ?load_paths: Array[String], ?runner_load_paths: Array[String], ?from: String) -> Array[String]
+      # +target_path+ is nil when the target needs no require of its own.
+      # : (Array[String], String?, String, ?by_name: bool, ?load_paths: Array[String], ?runner_load_paths: Array[String], ?from: String) -> Array[String]
+      def self?.require_lines: (Array[String], String?, String, ?by_name: bool, ?load_paths: Array[String], ?runner_load_paths: Array[String], ?from: String) -> Array[String]
 
       # A directory as a person passes it to -I: from the working directory
       # when it is under it, else from its project's root, named after it,
@@ -42,15 +67,15 @@ module Branchout
       # The files of +requires+ and +target_path+ that --require-by-name
       # cannot name, because no directory in +load_paths+ or of +requires+
       # holds them.
-      # : (Array[String], untyped, ?load_paths: Array[String]) -> Array[String]
-      def self?.unnamed_requires: (Array[String], untyped, ?load_paths: Array[String]) -> Array[String]
+      # : (Array[String], String?, ?load_paths: Array[String]) -> Array[String]
+      def self?.unnamed_requires: (Array[String], String?, ?load_paths: Array[String]) -> Array[String]
 
       # The files require_lines requires by path that sit in another project
       # than +destination+, or under no project when it has one: their
       # require_relative names this machine's directories, absolute or
       # climbing out of the test's project.
-      # : (Array[String], untyped, String, ?by_name: bool, ?load_paths: Array[String]) -> Array[String]
-      def self?.required_outside_project: (Array[String], untyped, String, ?by_name: bool, ?load_paths: Array[String]) -> Array[String]
+      # : (Array[String], String?, String, ?by_name: bool, ?load_paths: Array[String]) -> Array[String]
+      def self?.required_outside_project: (Array[String], String?, String, ?by_name: bool, ?load_paths: Array[String]) -> Array[String]
 
       # : (Array[String], String?, Array[String]) -> Array[String]
       def self?.name_roots: (Array[String], String?, Array[String]) -> Array[String]
@@ -193,8 +218,8 @@ module Branchout
       # : (Array[Engine::Pin], ?Array[String]) -> Array[String]
       def self?.test_names: (Array[Engine::Pin], ?Array[String]) -> Array[String]
 
-      # : (Array[untyped], String) -> String
-      def self?.name_of: (Array[untyped], String) -> String
+      # : (Array[word], String) -> String
+      def self?.name_of: (Array[word], String) -> String
 
       # For each input, the words of every leaf whose value is not the same
       # in all +inputs+: the deepest key above it, then its value, or "none"
@@ -202,14 +227,14 @@ module Branchout
       # they all start with, so a shared start does not fill the name.
       # Leaves keep their order in the first input by canonical form, so the
       # words do not depend on the order of +inputs+.
-      # : (Array[Input]) -> Array[Array[untyped]]
-      def self?.differing_words: (Array[Input]) -> Array[Array[untyped]]
+      # : (Array[Input]) -> Array[Array[word]]
+      def self?.differing_words: (Array[Input]) -> Array[Array[word]]
 
       # A key that several leaves of an absent collection end in says
       # "none" once, and so do the missing items at the end of a shorter
       # Array, which have no key.
-      # : (Array[untyped]) -> Array[untyped]
-      def self?.without_repeated_none: (Array[untyped]) -> Array[untyped]
+      # : (Array[word]) -> Array[word]
+      def self?.without_repeated_none: (Array[word]) -> Array[word]
 
       # A String, or the Ruby source of a receiver or argument, reads as words.
       # : (untyped) -> bool
@@ -222,13 +247,13 @@ module Branchout
       # [path, value] for every scalar or empty collection of an input. A
       # Symbol step names a part of the input, a String a String Hash key, a
       # SymbolKey a Symbol Hash key, and an Integer a position.
-      # : (Input) -> Array[[Array[untyped], untyped]]
-      def self?.input_leaves: (Input) -> Array[[ Array[untyped], untyped ]]
+      # : (Input) -> Array[leaf]
+      def self?.input_leaves: (Input) -> Array[leaf]
 
       # +whole_arrays+ keeps an Array of scalars as one leaf, so a reader
       # sees items is [1, 2] and not each item by its position.
-      # : (untyped, Array[untyped], Array[[Array[untyped], untyped]], ?whole_arrays: bool) -> Array[[Array[untyped], untyped]]
-      def self?.collect_leaves: (untyped, Array[untyped], Array[[ Array[untyped], untyped ]], ?whole_arrays: bool) -> Array[[ Array[untyped], untyped ]]
+      # : (untyped, path, Array[leaf], ?whole_arrays: bool) -> void
+      def self?.collect_leaves: (untyped, path, Array[leaf], ?whole_arrays: bool) -> void
 
       # What each pin's test pins, as RSpec says it: "raises KeyError",
       # "returns :miss". A Hash says the scalar entries that differ between
@@ -264,8 +289,8 @@ module Branchout
       # : (String) -> String
       def self?.receiver_form: (String) -> String
 
-      # : (Engine::Pin, Array[[Array[untyped], untyped]], ?short: bool) -> String
-      def self?.outcome_text: (Engine::Pin, Array[[ Array[untyped], untyped ]], ?short: bool) -> String
+      # : (Engine::Pin, Array[leaf], ?short: bool) -> String
+      def self?.outcome_text: (Engine::Pin, Array[leaf], ?short: bool) -> String
 
       # Where a cut of +text+ from +start+ to +finish+ ends: at +finish+,
       # or, when that falls inside a word, before the word, unless that
@@ -319,8 +344,8 @@ module Branchout
       # the most pairs apart, then has the most distinct values. A pick that would make a minitest outcome longer
       # than OUTCOME_LIMIT is left out, so both formats name the same
       # leaves. A value that is not a Hash has none.
-      # : (Array[untyped], ?Array[Input]) -> Array[Array[[Array[untyped], untyped]]]
-      def self?.hash_differences: (Array[untyped], ?Array[Input]) -> Array[Array[[ Array[untyped], untyped ]]]
+      # : (Array[untyped], ?Array[Input]) -> Array[Array[leaf]]
+      def self?.hash_differences: (Array[untyped], ?Array[Input]) -> Array[Array[leaf]]
 
       MISSING: Object
 
@@ -328,34 +353,34 @@ module Branchout
       # the "and" before each of the second and third leaves too.
       OUTCOME_LIMIT: Integer
 
-      # : (Array[[Array[untyped], untyped]]) -> Integer
-      def self?.outcome_length: (Array[[ Array[untyped], untyped ]]) -> Integer
+      # : (Array[leaf]) -> Integer
+      def self?.outcome_length: (Array[leaf]) -> Integer
 
       # path => leaf for every scalar or empty collection under a Hash.
-      # : (untyped) -> Hash[Array[untyped], untyped]
-      def self?.hash_leaves: (untyped) -> Hash[Array[untyped], untyped]
+      # : (untyped) -> Hash[path, untyped]
+      def self?.hash_leaves: (untyped) -> Hash[path, untyped]
 
       # hash_leaves by the names of their keys, each to its own [path, leaf],
       # so a key that one Hash holds as a Symbol and another as a String is
       # one leaf to compare, and each still reads as its Hash holds it.
-      # : (untyped) -> Hash[Array[untyped], [Array[untyped], untyped]]
-      def self?.named_leaves: (untyped) -> Hash[Array[untyped], [ Array[untyped], untyped ]]
+      # : (untyped) -> Hash[plain_path, leaf]
+      def self?.named_leaves: (untyped) -> Hash[plain_path, leaf]
 
-      # : (Hash[Array[untyped], untyped], Hash[Array[untyped], untyped], Array[untyped]) -> bool
-      def self?.leaves_differ?: (Hash[Array[untyped], untyped], Hash[Array[untyped], untyped], Array[untyped]) -> bool
+      # : (Hash[plain_path, leaf], Hash[plain_path, leaf], plain_path) -> bool
+      def self?.leaves_differ?: (Hash[plain_path, leaf], Hash[plain_path, leaf], plain_path) -> bool
 
       # "returns", then each entry's key, as telling_key names it, and its
       # value.
-      # : (Array[[Array[untyped], untyped]]) -> Array[untyped]
-      def self?.outcome_entry_words: (Array[[ Array[untyped], untyped ]]) -> Array[untyped]
+      # : (Array[leaf]) -> Array[word]
+      def self?.outcome_entry_words: (Array[leaf]) -> Array[word]
 
       # A path into a value as a reader writes it. A Symbol key that is a
       # plain name reads bare, lines[0].sku, and any other Symbol key as a
       # Symbol, [:"a b"]. A String key keeps its quotes, params["sku"], so a
       # String-keyed Hash does not read as if a Symbol lookup would find it.
       # +root+, when given, is the name the path starts from.
-      # : (Array[untyped], ?String?) -> String
-      def self?.path_text: (Array[untyped], ?String?) -> String
+      # : (path, ?String?) -> String
+      def self?.path_text: (path, ?String?) -> String
 
       # Leaves of a returned Hash, each a [path, value text], as a reader
       # writes them: due: 0 and lines[0].sku: "A" by their path, and a leaf
@@ -363,21 +388,19 @@ module Branchout
       # "counts" => {"discarded" => 0}. With +merge+, leaves under one key
       # share its literal, "tests" => [{"file" => "a.rb", "state" => "ok"}];
       # a short path does not, since its first key may sit at two depths.
-      # : (Array[[Array[untyped], String]], ?merge: bool) -> String
-      def self?.entries_text: (Array[[ Array[untyped], String ]], ?merge: bool) -> String
+      # : (Array[[path, String]], ?merge: bool) -> String
+      def self?.entries_text: (Array[[ path, String ]], ?merge: bool) -> String
 
       # Leaves that share a value, each a [path into it, value text], as
       # the literal of that value, with _ for an Array element no leaf is in.
-      # : (Array[[Array[untyped], String]], ?braces: bool) -> String
-      def self?.held_entries: (Array[[ Array[untyped], String ]], ?braces: bool) -> String
+      # : (Array[[path, String]], ?braces: bool) -> String
+      def self?.held_entries: (Array[[ path, String ]], ?braces: bool) -> String
 
-      # : (untyped) -> String
-      def self?.key_literal: (untyped) -> String
+      # : (step?) -> String
+      def self?.key_literal: (step?) -> String
 
       # A Symbol Hash key in a path. It is a step of its own, so a String key
       # of the same name makes another path and the two inputs read apart.
-      # sig/branchout/emitters/support.rbs declares its to_s, which rbs-inline
-      # does not read in a Data.define block.
       class SymbolKey < Data
         attr_reader name(): String
 
@@ -389,14 +412,21 @@ module Branchout
         def members: () -> [ :name ]
       end
 
-      # : (untyped) -> bool
-      def self?.key_step?: (untyped) -> bool
+      # Its method is in a class body, not in the block of Data.define, so
+      # that rbs-inline reads its type and steep checks it.
+      class SymbolKey
+        # : () -> String
+        def self?.to_s: () -> String
+      end
 
-      # : (untyped) -> untyped
-      def self?.plain_step: (untyped) -> untyped
+      # : (step?) -> bool
+      def self?.key_step?: (step?) -> bool
 
-      # : (Array[untyped]) -> Array[String]
-      def self?.key_texts: (Array[untyped]) -> Array[String]
+      # : (step) -> (Symbol | String | Integer | CallHead | TapBlock)
+      def self?.plain_step: (step) -> (Symbol | String | Integer | CallHead | TapBlock)
+
+      # : (path) -> Array[String]
+      def self?.key_texts: (path) -> Array[String]
 
       # A Code that is a plain literal, such as [{sku: "B"}], names as the
       # value it builds, so it reads in the style of a JSON value and its
@@ -438,8 +468,8 @@ module Branchout
       # head and each keyword, so inputs that share a long call read apart
       # by the keywords that differ (b is "Y") and not by a cut source.
       # Empty for any other Ruby, which stays one leaf.
-      # : (Code) -> Array[Array[untyped]]
-      def self?.call_parts: (Code) -> Array[Array[untyped]]
+      # : (Code) -> Array[part]
+      def self?.call_parts: (Code) -> Array[part]
 
       # The block of a tap or then, as a step of a path. A Ruby argument
       # that runs one, such as FactoryBot.build(:fact).tap { create(:part) },
@@ -456,16 +486,17 @@ module Branchout
         def members: () -> [ :name ]
       end
 
-      # : (untyped) -> boolish
-      def self?.tapped?: (untyped) -> boolish
+      # : (Prism::CallNode) -> boolish
+      def self?.tapped?: (Prism::CallNode) -> boolish
 
       # The parts of the receiver, as call_parts gives them or as one head,
-      # then the block on one line.
-      # : (untyped) -> Array[Array[untyped]]
-      def self?.tap_parts: (untyped) -> Array[Array[untyped]]
+      # then the block on one line. tapped? holds +call+ to a receiver and
+      # a block.
+      # : (Prism::CallNode) -> Array[part]
+      def self?.tap_parts: (Prism::CallNode) -> Array[part]
 
-      # : (untyped) -> String
-      def self?.block_text: (untyped) -> String
+      # : (Prism::BlockNode) -> String
+      def self?.block_text: (Prism::BlockNode) -> String
 
       # : (untyped) -> untyped
       def self?.plain_literal: (untyped) -> untyped
@@ -474,16 +505,16 @@ module Branchout
       # is there in the words of its author; the values, with their escapes
       # and their Ruby, say it less well. A note with no Latin letter or
       # digit gives no words, so its input is named by its values.
-      # : (Input) -> Array[untyped]
-      def self?.named_input_words: (Input) -> Array[untyped]
+      # : (Input) -> Array[word]
+      def self?.named_input_words: (Input) -> Array[word]
 
-      # : (Input) -> Array[untyped]
-      def self?.input_words: (Input) -> Array[untyped]
+      # : (Input) -> Array[word]
+      def self?.input_words: (Input) -> Array[word]
 
       # +differing+ is the pin's entry of hash_differences: a Hash whose
       # siblings differ in a leaf is named by those leaves.
-      # : (Engine::Pin, ?Array[[Array[untyped], untyped]]) -> Array[untyped]
-      def self?.outcome_words: (Engine::Pin, ?Array[[ Array[untyped], untyped ]]) -> Array[untyped]
+      # : (Engine::Pin, ?Array[leaf]) -> Array[word]
+      def self?.outcome_words: (Engine::Pin, ?Array[leaf]) -> Array[word]
 
       # A Hash whose keys all have a literal, so RSpec matches it key by key
       # and a name can say its keys.
@@ -492,16 +523,16 @@ module Branchout
 
       # A Hash is named by its keys and an Array of collections by its size,
       # so the start of a long value does not fill the name.
-      # : (untyped) -> Array[untyped]
-      def self?.shape_words: (untyped) -> Array[untyped]
+      # : (untyped) -> Array[word]
+      def self?.shape_words: (untyped) -> Array[word]
 
       # A Hash argument is named by its values, a collection in it by its
       # key and size (groups_3, tags_empty), and an Array of collections by
       # its size, so a tree of arguments does not fill the name and two
       # trees of different sizes read apart. An empty argument still says
       # so (empty_array), so the name keeps every input.
-      # : (untyped) -> Array[untyped]
-      def self?.argument_words: (untyped) -> Array[untyped]
+      # : (untyped) -> Array[word]
+      def self?.argument_words: (untyped) -> Array[word]
 
       # : (untyped) -> bool
       def self?.collection?: (untyped) -> bool
@@ -517,15 +548,15 @@ module Branchout
       # The shortest end of +path+ that starts at a Hash key and ends no
       # other path in +paths+, so id at the top and items[0].id read apart.
       # With no key in +path+, the whole path.
-      # : (Array[untyped], Array[Array[untyped]]) -> Array[untyped]
-      def self?.telling_path: (Array[untyped], Array[Array[untyped]]) -> Array[untyped]
+      # : (path, Array[path]) -> path
+      def self?.telling_path: (path, Array[path]) -> path
 
       # The fewest last Hash keys of +path+ that end the keys of no other
       # path in +paths+, as one Key: items_id. Paths with the same keys,
       # such as args[0].value and args[1].value, cannot be told apart by
       # keys, so they do not lengthen each other's.
-      # : (Array[untyped], Array[Array[untyped]]) -> Key?
-      def self?.telling_key: (Array[untyped], Array[Array[untyped]]) -> Key?
+      # : (path, Array[path]) -> Key?
+      def self?.telling_key: (path, Array[path]) -> Key?
 
       # : (untyped) -> Array[String]
       def self?.value_words: (untyped) -> Array[String]
@@ -568,15 +599,20 @@ module Branchout
       # : (String) -> Array[String]
       def self?.snake_words: (String) -> Array[String]
 
+      class Key
+        # : (text: String, ?follows: bool) -> void
+        def self?.initialize: (text: String, ?follows: bool) -> void
+      end
+
       # Joins words into identifier characters, at most +limit+ long, cut
       # between words. Only a first word longer than +limit+ is cut inside.
       # A key whose value the cut drops goes too, so a name never ends in a
       # key that says nothing.
-      # : (Array[untyped], Integer | Float) -> String
-      def self?.clip: (Array[untyped], Integer | Float) -> String
+      # : (Array[word], Integer | Float) -> String
+      def self?.clip: (Array[word], Integer | Float) -> String
 
-      # : (untyped) -> Array[String]
-      def self?.tokens: (untyped) -> Array[String]
+      # : (_ToS) -> Array[String]
+      def self?.tokens: (_ToS) -> Array[String]
 
       # Why a file holds no test, in the words of the report's NOT PINNED.
       # : (bool) -> String

@@ -10,6 +10,11 @@ module Branchout
     # steps share a context that holds them, so an example is left with the
     # outcome and the facts of its own.
     module RSpec
+      class Step
+        # : (kind: Symbol, label: String, ?code: String?, ?leaf: Support::leaf?) -> void
+        def initialize: (kind: Symbol, label: String, ?code: String?, ?leaf: Support::leaf?) -> void
+      end
+
       # The longest description or context text.
       LIMIT: Integer
 

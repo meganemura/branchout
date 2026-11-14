@@ -2,13 +2,8 @@
 module Branchout
   module Emitters
     module Support
-      # Its block defines to_s, which rbs-inline does not read.
-      class SymbolKey < Data
-        def to_s: () -> String
-      end
-
-      # Its block defines an initialize that makes follows optional, which
-      # rbs-inline does not read.
+      # Its initialize makes follows optional, which rbs-inline does not
+      # read from Data.define.
       class Key < Data
         attr_reader text(): String
 
@@ -20,8 +15,6 @@ module Branchout
         def self.members: () -> [ :text, :follows ]
 
         def members: () -> [ :text, :follows ]
-
-        def initialize: (text: String, ?follows: bool) -> void
       end
     end
   end

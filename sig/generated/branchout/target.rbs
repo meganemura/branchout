@@ -8,17 +8,17 @@ module Branchout
     # +kind+ is a Ruby parameter kind (:req, :opt, :rest, :keyreq, :key).
     # +inferred_type+ is an input type name such as "int", or nil before
     # inference.
-    class Parameter < Struct[Symbol | Symbol? | untyped | String?]
+    class Parameter < Struct[Symbol | Symbol? | default_value | String?]
       attr_accessor kind(): Symbol
 
       attr_accessor name(): Symbol?
 
-      attr_accessor default(): untyped
+      attr_accessor default(): default_value
 
       attr_accessor inferred_type(): String?
 
-      def self.new: (?kind: Symbol, ?name: Symbol?, ?default: untyped, ?inferred_type: String?) -> instance
-                  | ({ ?kind: Symbol, ?name: Symbol?, ?default: untyped, ?inferred_type: String? }) -> instance
+      def self.new: (?kind: Symbol, ?name: Symbol?, ?default: default_value, ?inferred_type: String?) -> instance
+                  | ({ ?kind: Symbol, ?name: Symbol?, ?default: default_value, ?inferred_type: String? }) -> instance
     end
 
     class Literals < Struct[Array[Integer] | Array[Float] | Array[String]]
@@ -32,15 +32,15 @@ module Branchout
                   | ({ ?ints: Array[Integer], ?floats: Array[Float], ?strings: Array[String] }) -> instance
     end
 
-    class DefInfo < Struct[String | bool | untyped]
+    class DefInfo < Struct[String | bool | Prism::DefNode]
       attr_accessor const_name(): String
 
       attr_accessor singleton(): bool
 
-      attr_accessor node(): untyped
+      attr_accessor node(): Prism::DefNode
 
-      def self.new: (?const_name: String, ?singleton: bool, ?node: untyped) -> instance
-                  | ({ ?const_name: String, ?singleton: bool, ?node: untyped }) -> instance
+      def self.new: (?const_name: String, ?singleton: bool, ?node: Prism::DefNode) -> instance
+                  | ({ ?const_name: String, ?singleton: bool, ?node: Prism::DefNode }) -> instance
     end
 
     # An operator that branches where branch coverage counts no arm.
@@ -125,9 +125,9 @@ module Branchout
 
     ENUMERABLE_CALLS: Set[Symbol]
 
-    @conditions: Hash[[ Integer, Integer, Symbol ], untyped]
+    @conditions: Hash[[ Integer, Integer, Symbol ], condition]
 
-    @constant_values: Hash[Symbol, Array[untyped]]
+    @constant_values: Hash[Symbol, Array[literal_node]]
 
     @superclasses: Hash[String, [ Array[String], String ]]
 
@@ -135,6 +135,16 @@ module Branchout
 
     # Evidence of each parameter's type: parameter name => type name => score.
     type evidence = Hash[Symbol?, Hash[Symbol, Integer]]
+
+    # A node whose arms branch coverage counts.
+    type condition = Prism::IfNode | Prism::UnlessNode | Prism::WhileNode | Prism::UntilNode | Prism::CaseNode | Prism::CaseMatchNode
+
+    # A literal that a constant names and inference reads through it.
+    type literal_node = Prism::IntegerNode | Prism::FloatNode | Prism::StringNode
+
+    # A parameter's default as inference reads it: a container default
+    # stands in as an empty one of its kind.
+    type default_value = Integer | Float | String | bool | Array[bot] | Hash[bot, bot] | nil
 
     # : (String, String, ?type_overrides: Array[String]?) -> Target
     def self.parse: (String, String, ?type_overrides: Array[String]?) -> Target
@@ -171,8 +181,8 @@ module Branchout
 
     private
 
-    # : (untyped, Array[untyped], Array[String]?, ?Array[[untyped, untyped]]) -> Array[Parameter]
-    def build_parameters: (untyped, Array[untyped], Array[String]?, ?Array[[ untyped, untyped ]]) -> Array[Parameter]
+    # : (Prism::ParametersNode?, Array[Prism::Node], Array[String]?, ?Array[[Prism::CallNode, Prism::ParametersNode?]]) -> Array[Parameter]
+    def build_parameters: (Prism::ParametersNode?, Array[Prism::Node], Array[String]?, ?Array[[ Prism::CallNode, Prism::ParametersNode? ]]) -> Array[Parameter]
 
     # +const+ and its superclasses declared in this file, nearest first. A
     # superclass name resolves in the scope its class was written in.
@@ -181,33 +191,34 @@ module Branchout
 
     # The namespace a class or module body opens: class Cart::Line inside
     # module Shop is Shop::Cart::Line, and class ::Top is Top anywhere.
-    # : (untyped, Array[String]) -> Array[String]
-    def namespace_of: (untyped, Array[String]) -> Array[String]
+    # : (Prism::ModuleNode | Prism::ClassNode, Array[String]) -> Array[String]
+    def namespace_of: (Prism::ModuleNode | Prism::ClassNode, Array[String]) -> Array[String]
 
     # : (Parameter, Hash[Symbol, Integer]) -> String
     def choose_type: (Parameter, Hash[Symbol, Integer]) -> String
 
-    # : (untyped) -> String?
-    def type_from_default: (untyped) -> String?
+    # : (default_value) -> String?
+    def type_from_default: (default_value) -> String?
 
-    # : (untyped, Symbol, Integer, Integer) -> String?
-    def condition_from: (untyped, Symbol, Integer, Integer) -> String?
+    # : (condition, Symbol, Integer, Integer) -> String?
+    def condition_from: (condition, Symbol, Integer, Integer) -> String?
 
-    # : (untyped, Integer, Integer) -> untyped
-    def case_arm: (untyped, Integer, Integer) -> untyped
+    # : (Prism::CaseNode | Prism::CaseMatchNode, Integer, Integer) -> (Prism::WhenNode | Prism::InNode)?
+    def case_arm: (Prism::CaseNode | Prism::CaseMatchNode, Integer, Integer) -> (Prism::WhenNode | Prism::InNode)?
 
-    # Coverage places a case arm at its body, not at its keyword.
-    # : (untyped, Symbol, Integer, Integer) -> Integer?
-    def case_arm_line: (untyped, Symbol, Integer, Integer) -> Integer?
+    # Coverage places a case arm at its body, not at its keyword. +node+ is
+    # the case that coverage names as the branch, so a case node.
+    # : (condition?, Symbol, Integer, Integer) -> Integer?
+    def case_arm_line: (condition?, Symbol, Integer, Integer) -> Integer?
 
     # Coverage places a when or in arm at its body, or, when the body is
     # empty, at the keyword. Ruby 3.3 puts an empty in arm at the end of its
     # pattern instead.
-    # : (untyped, Integer, Integer) -> bool
-    def arm_matches?: (untyped, Integer, Integer) -> bool
+    # : (Prism::WhenNode | Prism::InNode, Integer, Integer) -> boolish
+    def arm_matches?: (Prism::WhenNode | Prism::InNode, Integer, Integer) -> boolish
 
-    # : (untyped) -> void
-    def index_conditions: (untyped) -> void
+    # : (Prism::Node) -> void
+    def index_conditions: (Prism::Node) -> void
 
     # The branch type coverage gives each condition. A modifier can start
     # where its statement starts, as the if of case x ... end if y does, so
@@ -215,28 +226,28 @@ module Branchout
     CONDITION_BRANCHES: Hash[Symbol, Symbol]
 
     # The instance variables the file sets other than with ||= or &&=.
-    # : (untyped, ?Array[Symbol]) -> Array[Symbol]
-    def ivars_written: (untyped, ?Array[Symbol]) -> Array[Symbol]
+    # : (Prism::Node, ?Array[Symbol]) -> Array[Symbol]
+    def ivars_written: (Prism::Node, ?Array[Symbol]) -> Array[Symbol]
 
     # +memos+ picks the memos instead of the operators.
-    # : (untyped, Array[Symbol], ?Array[Operator], ?memos: bool) -> Array[Operator]
-    def operators_in: (untyped, Array[Symbol], ?Array[Operator], ?memos: bool) -> Array[Operator]
+    # : (Prism::Node, Array[Symbol], ?Array[Operator], ?memos: bool) -> Array[Operator]
+    def operators_in: (Prism::Node, Array[Symbol], ?Array[Operator], ?memos: bool) -> Array[Operator]
 
     COMPARISONS: Array[Symbol]
 
-    # : (untyped, ?Array[Operator]) -> Array[Operator]
-    def boundaries_in: (untyped, ?Array[Operator]) -> Array[Operator]
+    # : (Prism::Node, ?Array[Operator]) -> Array[Operator]
+    def boundaries_in: (Prism::Node, ?Array[Operator]) -> Array[Operator]
 
     # Each if or unless on defined?(@ivar) of an ivar the file sets, as in
     # return @value if defined?(@value).
-    # : (untyped, Array[Symbol], ?Array[Operator]) -> Array[Operator]
-    def defined_memos_in: (untyped, Array[Symbol], ?Array[Operator]) -> Array[Operator]
+    # : (Prism::Node, Array[Symbol], ?Array[Operator]) -> Array[Operator]
+    def defined_memos_in: (Prism::Node, Array[Symbol], ?Array[Operator]) -> Array[Operator]
 
-    # : (untyped) -> void
-    def collect_literals: (untyped) -> void
+    # : (Prism::Node?) -> void
+    def collect_literals: (Prism::Node?) -> void
 
-    # : (untyped, ?Array[untyped]) -> Array[untyped]
-    def bare_calls: (untyped, ?Array[untyped]) -> Array[untyped]
+    # : (Prism::Node?, ?Array[Prism::CallNode]) -> Array[Prism::CallNode]
+    def bare_calls: (Prism::Node?, ?Array[Prism::CallNode]) -> Array[Prism::CallNode]
 
     # Instance variables that a method of +const+ in this file sets to
     # Class.new, as initialize does for a collaborator: name => class text.
@@ -246,72 +257,74 @@ module Branchout
     # [class text, method name] of each call on a value that this body
     # builds with Class.new: a local it assigns, an instance variable in
     # +ivars+, or the new call itself.
-    # : (untyped, Hash[Symbol, String]) -> Array[[String, Symbol]]
-    def calls_on_built: (untyped, Hash[Symbol, String]) -> Array[[ String, Symbol ]]
+    # : (Prism::Node, Hash[Symbol, String]) -> Array[[String, Symbol]]
+    def calls_on_built: (Prism::Node, Hash[Symbol, String]) -> Array[[ String, Symbol ]]
 
-    # : (untyped, Symbol, ?Array[[Symbol, String]]) -> Array[[Symbol, String]]
-    def assignments: (untyped, Symbol, ?Array[[ Symbol, String ]]) -> Array[[ Symbol, String ]]
+    # +type+ is the node type of the write, local_variable_write_node or
+    # instance_variable_write_node.
+    # : (Prism::Node, Symbol, ?Array[[Symbol, String]]) -> Array[[Symbol, String]]
+    def assignments: (Prism::Node, Symbol, ?Array[[ Symbol, String ]]) -> Array[[ Symbol, String ]]
 
     # The class text of Class.new(...), or nil.
-    # : (untyped) -> String?
-    def built_class: (untyped) -> String?
+    # : (Prism::Node?) -> String?
+    def built_class: (Prism::Node?) -> String?
 
     # Methods a class method calls on an instance it builds itself, as in
     # new(doc).apply, or new(path).tap(&:parse).
-    # : (untyped, ?Array[Symbol]) -> Array[Symbol]
-    def calls_on_new: (untyped, ?Array[Symbol]) -> Array[Symbol]
+    # : (Prism::Node?, ?Array[Symbol]) -> Array[Symbol]
+    def calls_on_new: (Prism::Node?, ?Array[Symbol]) -> Array[Symbol]
 
     # tap(&:parse) and then(&:parse) call parse on the receiver.
-    # : (untyped) -> Symbol
-    def called_on_receiver: (untyped) -> Symbol
+    # : (Prism::CallNode) -> Symbol
+    def called_on_receiver: (Prism::CallNode) -> Symbol
 
-    # : (untyped, evidence) -> void
-    def walk_evidence: (untyped, evidence) -> void
+    # : (Prism::Node, evidence) -> void
+    def walk_evidence: (Prism::Node, evidence) -> void
 
-    # : (untyped, evidence) -> void
-    def note_case: (untyped, evidence) -> void
+    # : (Prism::CaseNode | Prism::CaseMatchNode, evidence) -> void
+    def note_case: (Prism::CaseNode | Prism::CaseMatchNode, evidence) -> void
 
-    # : (untyped, evidence) -> void
-    def note_call: (untyped, evidence) -> void
+    # : (Prism::CallNode, evidence) -> void
+    def note_call: (Prism::CallNode, evidence) -> void
 
     # held?(code) with def held?(state) = state == "held" makes code a
     # String too: a positional argument takes the evidence of the
     # parameter it fills.
-    # : (untyped, untyped, evidence) -> void
-    def pass_evidence: (untyped, untyped, evidence) -> void
+    # : (Prism::CallNode, Prism::ParametersNode?, evidence) -> void
+    def pass_evidence: (Prism::CallNode, Prism::ParametersNode?, evidence) -> void
 
-    # : (untyped) -> untyped
-    def first_arg: (untyped) -> untyped
+    # : (Prism::CallNode) -> Prism::node?
+    def first_arg: (Prism::CallNode) -> Prism::node?
 
-    # : (untyped) -> Symbol?
-    def lvar_name: (untyped) -> Symbol?
+    # : (Prism::Node?) -> Symbol?
+    def lvar_name: (Prism::Node?) -> Symbol?
 
-    # : (untyped, Symbol) -> bool
-    def contains?: (untyped, Symbol) -> bool
+    # : (Prism::Node?, Symbol) -> bool
+    def contains?: (Prism::Node?, Symbol) -> bool
 
     # A container default stands in as an empty one of its kind: the type is
     # what inference needs, and every mutated input passes the slot anyway.
-    # : (untyped) -> (Integer | Float | String | bool | Array[untyped] | Hash[untyped, untyped] | nil)
-    def literal_value: (untyped) -> (Integer | Float | String | bool | Array[untyped] | Hash[untyped, untyped] | nil)
+    # : (Prism::Node?) -> default_value
+    def literal_value: (Prism::Node?) -> default_value
 
     # functions tracks module_function and extend self in the current module
     # body: a bare module_function makes every later def a class method too,
     # named arguments make those defs class methods too, and extend self
     # makes every def in the body one, including those above it.
-    # : (untyped, Array[String], bool, Array[DefInfo], ?{ after: bool, names: Array[Symbol], all: bool }?) -> void
-    def collect_defs: (untyped, Array[String], bool, Array[DefInfo], ?{ after: bool, names: Array[Symbol], all: bool }?) -> void
+    # : (Prism::Node, Array[String], bool, Array[DefInfo], ?{ after: bool, names: Array[Symbol], all: bool }?) -> void
+    def collect_defs: (Prism::Node, Array[String], bool, Array[DefInfo], ?{ after: bool, names: Array[Symbol], all: bool }?) -> void
 
     # NAME = literal, by name alone: a helper's comparison against CLOSED is
     # a comparison against its literal, wherever the file sets CLOSED.
-    # : (untyped) -> void
-    def note_constant: (untyped) -> void
+    # : (Prism::ConstantWriteNode) -> void
+    def note_constant: (Prism::ConstantWriteNode) -> void
 
     # The body of the block in Struct.new(...) do ... end, Data.define, or
     # Class.new, whose defs are methods of the class the call builds.
     CLASS_BUILDERS: Hash[String, Symbol]
 
-    # : (untyped) -> untyped
-    def class_block_body: (untyped) -> untyped
+    # : (Prism::Node) -> Prism::node?
+    def class_block_body: (Prism::Node) -> Prism::node?
 
     # : (Integer) -> String
     def source_line: (Integer) -> String
@@ -319,7 +332,7 @@ module Branchout
     # : (String) -> String
     def cut: (String) -> String
 
-    # : (untyped) -> String
-    def squash: (untyped) -> String
+    # : (String?) -> String
+    def squash: (String?) -> String
   end
 end

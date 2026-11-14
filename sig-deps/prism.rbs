@@ -1,0 +1,14 @@
+# The parts of older prism versions that branchout reads and that the
+# signatures of the prism it is checked against leave out.
+
+module Prism
+  # prism before 1.0, the default gem of Ruby 3.3, names a case's else
+  # clause consequent; later versions name it else_clause.
+  class CaseNode
+    def consequent: () -> ElseNode?
+  end
+
+  class CaseMatchNode
+    def consequent: () -> ElseNode?
+  end
+end

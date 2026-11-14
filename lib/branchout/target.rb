@@ -12,7 +12,7 @@ module Branchout
     Parameter = Struct.new(
       :kind, #: Symbol
       :name, #: Symbol?
-      :default, #: untyped
+      :default, #: default_value
       :inferred_type, #: String?
       keyword_init: true
     )
@@ -25,7 +25,7 @@ module Branchout
     DefInfo = Struct.new(
       :const_name, #: String
       :singleton, #: bool
-      :node, #: untyped
+      :node, #: Prism::DefNode
       keyword_init: true
     )
     # An operator that branches where branch coverage counts no arm.
@@ -91,12 +91,22 @@ module Branchout
 
     # @rbs @type_overrides: Array[String]?
     # @rbs @superclasses: Hash[String, [Array[String], String]]
-    # @rbs @constant_values: Hash[Symbol, Array[untyped]]
-    # @rbs @conditions: Hash[[Integer, Integer, Symbol], untyped]
+    # @rbs @constant_values: Hash[Symbol, Array[literal_node]]
+    # @rbs @conditions: Hash[[Integer, Integer, Symbol], condition]
 
     # @rbs!
     #   # Evidence of each parameter's type: parameter name => type name => score.
     #   type evidence = Hash[Symbol?, Hash[Symbol, Integer]]
+    #
+    #   # A node whose arms branch coverage counts.
+    #   type condition = Prism::IfNode | Prism::UnlessNode | Prism::WhileNode | Prism::UntilNode | Prism::CaseNode | Prism::CaseMatchNode
+    #
+    #   # A literal that a constant names and inference reads through it.
+    #   type literal_node = Prism::IntegerNode | Prism::FloatNode | Prism::StringNode
+    #
+    #   # A parameter's default as inference reads it: a container default
+    #   # stands in as an empty one of its kind.
+    #   type default_value = Integer | Float | String | bool | Array[bot] | Hash[bot, bot] | nil
 
     #: (String, String, ?type_overrides: Array[String]?) -> Target
     def self.parse(path, entry, type_overrides: nil)
@@ -144,6 +154,7 @@ module Branchout
       lineage = lineage_of(const_name, defs)
       # The first definition along the superclass chain, as Ruby finds it
       # for the entry's own class.
+      # @type var find: ^(bool, Symbol) -> DefInfo?
       find = ->(in_singleton, name) { lineage.lazy.filter_map { |const| index[[const, in_singleton, name]] }.first }
       entry_def = find.(singleton, method_name)
       unless entry_def
@@ -153,15 +164,14 @@ module Branchout
 
       @ranges = []
       @outside_calls = []
-      argument_edges = [] #: Array[[untyped, untyped]]
+      argument_edges = [] #: Array[[Prism::CallNode, Prism::ParametersNode?]]
       @typed_calls = []
       @literals = Literals.new(ints: [], floats: [], strings: [])
       @conditions = {}
-      bodies = [] #: Array[untyped]
+      bodies = [] #: Array[Prism::Node]
       seen = {} #: Hash[DefInfo, bool]
       queue = [entry_def]
-      until queue.empty?
-        info = queue.shift
+      while (info = queue.shift)
         next if seen[info]
         seen[info] = true
 
@@ -244,9 +254,11 @@ module Branchout
       when :case then [case_arm_line(node, arm_type, aline, acol) || bline, cond]
       when :"&." then [bline, "#{cond} -> &. receiver #{arm_type == :then ? "present" : "nil"}"]
       else
-        keyword = if node.nil? then branch_type.to_s
-                  elsif node.respond_to?(:if_keyword) then node.if_keyword
-                  else node.keyword
+        return [bline, "#{branch_type} #{cond} -> #{arm_type}"] unless node
+
+        keyword = case node
+                  when Prism::IfNode then node.if_keyword
+                  when Prism::UnlessNode, Prism::WhileNode, Prism::UntilNode then node.keyword
                   end
         [bline, "#{keyword ? "#{keyword} #{cond}" : squash(node.slice)} -> #{arm_type}"]
       end
@@ -265,11 +277,10 @@ module Branchout
     # def starts there, as with define_method.
     #: (String, Integer) -> Range[Integer]?
     def self.def_lines(path, line)
-      stack = [Prism.parse(File.read(path)).value] #: Array[untyped]
-      until stack.empty?
-        node = stack.pop
+      stack = [Prism.parse(File.read(path)).value] #: Array[Prism::Node]
+      while (node = stack.pop)
         loc = node.location
-        return loc.start_line..loc.end_line if node.type == :def_node && loc.start_line == line
+        return loc.start_line..loc.end_line if node.is_a?(Prism::DefNode) && loc.start_line == line
 
         stack.concat(node.compact_child_nodes)
       end
@@ -280,7 +291,7 @@ module Branchout
 
     private
 
-    #: (untyped, Array[untyped], Array[String]?, ?Array[[untyped, untyped]]) -> Array[Parameter]
+    #: (Prism::ParametersNode?, Array[Prism::Node], Array[String]?, ?Array[[Prism::CallNode, Prism::ParametersNode?]]) -> Array[Parameter]
     def build_parameters(params_node, bodies, type_overrides, argument_edges = [])
       list = [] #: Array[Parameter]
       return list unless params_node
@@ -294,16 +305,18 @@ module Branchout
       params_node.optionals.each do |node|
         list << Parameter.new(kind: :opt, name: node.name, default: literal_value(node.value), inferred_type: nil)
       end
-      if params_node.rest
-        list << Parameter.new(kind: :rest, name: params_node.rest.name, default: nil, inferred_type: "array")
+      # A def's rest is a RestParameterNode; an ImplicitRestNode, the
+      # trailing comma of |a,|, is only a block's.
+      rest = params_node.rest
+      if rest.is_a?(Prism::RestParameterNode)
+        list << Parameter.new(kind: :rest, name: rest.name, default: nil, inferred_type: "array")
       end
       params_node.keywords.each do |node|
-        kind = node.type == :required_keyword_parameter_node ? :keyreq : :key
-        default = node.respond_to?(:value) ? literal_value(node.value) : nil
+        kind, default = node.is_a?(Prism::OptionalKeywordParameterNode) ? [:key, literal_value(node.value)] : [:keyreq, nil]
         list << Parameter.new(kind: kind, name: node.name, default: default, inferred_type: nil)
       end
 
-      evidence = Hash.new { |hash, key| hash[key] = Hash.new(0) }
+      evidence = Hash.new { |hash, key| hash[key] = Hash.new(0) } #: evidence
       bodies.each { |body| walk_evidence(body, evidence) }
       # Reversed, so a helper's helper passes its evidence up the chain first.
       argument_edges.reverse_each { |call, params| pass_evidence(call, params, evidence) }
@@ -341,7 +354,7 @@ module Branchout
 
     # The namespace a class or module body opens: class Cart::Line inside
     # module Shop is Shop::Cart::Line, and class ::Top is Top anywhere.
-    #: (untyped, Array[String]) -> Array[String]
+    #: (Prism::ModuleNode | Prism::ClassNode, Array[String]) -> Array[String]
     def namespace_of(node, stack)
       path = node.constant_path.slice
       path.start_with?("::") ? [path.delete_prefix("::")] : stack + [path]
@@ -367,7 +380,7 @@ module Branchout
       "int"
     end
 
-    #: (untyped) -> String?
+    #: (default_value) -> String?
     def type_from_default(value)
       case value
       when Integer then "int"
@@ -379,32 +392,36 @@ module Branchout
       end
     end
 
-    #: (untyped, Symbol, Integer, Integer) -> String?
+    #: (condition, Symbol, Integer, Integer) -> String?
     def condition_from(node, arm_type, aline, acol)
-      case node.type
-      when :if_node, :unless_node, :while_node, :until_node
-        squash(node.predicate&.slice)
-      when :case_node, :case_match_node
+      case node
+      when Prism::IfNode, Prism::UnlessNode, Prism::WhileNode, Prism::UntilNode
+        squash(node.predicate.slice)
+      else
         if arm_type == :when || arm_type == :in
           found = case_arm(node, aline, acol)
           found ? squash(found.slice.lines.first) : nil
         else
-          node.predicate ? "case #{squash(node.predicate.slice)} else" : "case else"
+          predicate = node.predicate
+          predicate ? "case #{squash(predicate.slice)} else" : "case else"
         end
       end
     end
 
-    #: (untyped, Integer, Integer) -> untyped
+    #: (Prism::CaseNode | Prism::CaseMatchNode, Integer, Integer) -> (Prism::WhenNode | Prism::InNode)?
     def case_arm(node, aline, acol)
-      node.conditions.find { |when_node| arm_matches?(when_node, aline, acol) }
+      arms = node.conditions #: Array[Prism::WhenNode | Prism::InNode]
+      arms.find { |when_node| arm_matches?(when_node, aline, acol) }
     end
 
-    # Coverage places a case arm at its body, not at its keyword.
-    #: (untyped, Symbol, Integer, Integer) -> Integer?
+    # Coverage places a case arm at its body, not at its keyword. +node+ is
+    # the case that coverage names as the branch, so a case node.
+    #: (condition?, Symbol, Integer, Integer) -> Integer?
     def case_arm_line(node, arm_type, aline, acol)
-      return unless node
+      return unless node.is_a?(Prism::CaseNode) || node.is_a?(Prism::CaseMatchNode)
 
-      # prism before 1.0, the default gem of Ruby 3.3, names the else clause consequent.
+      # prism before 1.0, the default gem of Ruby 3.3, names the else clause
+      # consequent; sig-deps/prism.rbs declares it.
       else_clause = node.respond_to?(:else_clause) ? node.else_clause : node.consequent
       arm = arm_type == :else ? else_clause : case_arm(node, aline, acol)
       arm&.location&.start_line
@@ -413,25 +430,25 @@ module Branchout
     # Coverage places a when or in arm at its body, or, when the body is
     # empty, at the keyword. Ruby 3.3 puts an empty in arm at the end of its
     # pattern instead.
-    #: (untyped, Integer, Integer) -> bool
+    #: (Prism::WhenNode | Prism::InNode, Integer, Integer) -> boolish
     def arm_matches?(when_node, aline, acol)
       arm = [aline, acol]
       body = when_node.statements&.location
       return [body.start_line, body.start_column] == arm if body
 
       keyword = when_node.location
-      pattern = when_node.pattern.location if when_node.type == :in_node
+      pattern = when_node.pattern.location if when_node.is_a?(Prism::InNode)
       [keyword.start_line, keyword.start_column] == arm || (pattern && [pattern.end_line, pattern.end_column] == arm)
     end
 
-    #: (untyped) -> void
+    #: (Prism::Node) -> void
     def index_conditions(node)
-      return if node.type == :def_node
+      return if node.is_a?(Prism::DefNode)
 
-      branch = CONDITION_BRANCHES[node.type]
-      if branch
+      case node
+      when Prism::IfNode, Prism::UnlessNode, Prism::WhileNode, Prism::UntilNode, Prism::CaseNode, Prism::CaseMatchNode
         loc = node.location
-        @conditions[[loc.start_line, loc.start_column, branch]] = node
+        @conditions[[loc.start_line, loc.start_column, CONDITION_BRANCHES.fetch(node.type)]] = node
       end
       node.compact_child_nodes.each { |child| index_conditions(child) }
     end
@@ -444,22 +461,38 @@ module Branchout
     }.freeze #: Hash[Symbol, Symbol]
 
     # The instance variables the file sets other than with ||= or &&=.
-    #: (untyped, ?Array[Symbol]) -> Array[Symbol]
+    #: (Prism::Node, ?Array[Symbol]) -> Array[Symbol]
     def ivars_written(node, acc = [])
-      acc << node.name if %i[instance_variable_write_node instance_variable_operator_write_node instance_variable_target_node].include?(node.type)
+      case node
+      when Prism::InstanceVariableWriteNode, Prism::InstanceVariableOperatorWriteNode, Prism::InstanceVariableTargetNode
+        acc << node.name
+      end
       node.compact_child_nodes.each { |child| ivars_written(child, acc) }
       acc
     end
 
     # +memos+ picks the memos instead of the operators.
-    #: (untyped, Array[Symbol], ?Array[Operator], ?memos: bool) -> Array[Operator]
+    #: (Prism::Node, Array[Symbol], ?Array[Operator], ?memos: bool) -> Array[Operator]
     def operators_in(node, written, acc = [], memos: false)
-      return acc if node.type == :def_node
+      return acc if node.is_a?(Prism::DefNode)
 
-      memo = %i[instance_variable_or_write_node instance_variable_and_write_node].include?(node.type) && !written.include?(node.name)
-      branching = node.type == :or_node || node.type == :and_node || node.type.to_s.end_with?("_or_write_node", "_and_write_node")
-      if branching && memo == memos
-        operator = node.operator_loc
+      case node
+      when Prism::OrNode, Prism::AndNode,
+           Prism::LocalVariableOrWriteNode, Prism::LocalVariableAndWriteNode,
+           Prism::InstanceVariableOrWriteNode, Prism::InstanceVariableAndWriteNode,
+           Prism::ClassVariableOrWriteNode, Prism::ClassVariableAndWriteNode,
+           Prism::GlobalVariableOrWriteNode, Prism::GlobalVariableAndWriteNode,
+           Prism::ConstantOrWriteNode, Prism::ConstantAndWriteNode,
+           Prism::ConstantPathOrWriteNode, Prism::ConstantPathAndWriteNode,
+           Prism::CallOrWriteNode, Prism::CallAndWriteNode,
+           Prism::IndexOrWriteNode, Prism::IndexAndWriteNode
+        memo = case node
+               when Prism::InstanceVariableOrWriteNode, Prism::InstanceVariableAndWriteNode then !written.include?(node.name)
+               else false
+               end
+        operator = node.operator_loc if memo == memos
+      end
+      if operator
         line = operator.start_line
         column = operator.start_column
         acc << Operator.new(loc: "#{display_path}:#{line}:#{column}", line: line, column: column, op: operator.slice,
@@ -471,12 +504,13 @@ module Branchout
 
     COMPARISONS = %i[< <= > >=].freeze #: Array[Symbol]
 
-    #: (untyped, ?Array[Operator]) -> Array[Operator]
+    #: (Prism::Node, ?Array[Operator]) -> Array[Operator]
     def boundaries_in(node, acc = [])
-      return acc if node.type == :def_node
+      return acc if node.is_a?(Prism::DefNode)
 
-      if node.type == :call_node && COMPARISONS.include?(node.name) && node.receiver && node.arguments&.arguments&.length == 1
-        operator = node.message_loc
+      # A call with a receiver and an operator name has a message_loc.
+      if node.is_a?(Prism::CallNode) && COMPARISONS.include?(node.name) && node.receiver && node.arguments&.arguments&.length == 1 &&
+         (operator = node.message_loc)
         acc << Operator.new(loc: "#{display_path}:#{operator.start_line}:#{operator.start_column}", line: operator.start_line,
                             column: operator.start_column, op: operator.slice, text: cut(squash(node.slice)))
       end
@@ -486,12 +520,13 @@ module Branchout
 
     # Each if or unless on defined?(@ivar) of an ivar the file sets, as in
     # return @value if defined?(@value).
-    #: (untyped, Array[Symbol], ?Array[Operator]) -> Array[Operator]
+    #: (Prism::Node, Array[Symbol], ?Array[Operator]) -> Array[Operator]
     def defined_memos_in(node, written, acc = [])
-      return acc if node.type == :def_node
+      return acc if node.is_a?(Prism::DefNode)
 
-      predicate = node.predicate if %i[if_node unless_node].include?(node.type)
-      if predicate&.type == :defined_node && predicate.value.type == :instance_variable_read_node && written.include?(predicate.value.name)
+      predicate = node.predicate if node.is_a?(Prism::IfNode) || node.is_a?(Prism::UnlessNode)
+      ivar = predicate.value if predicate.is_a?(Prism::DefinedNode)
+      if predicate && ivar.is_a?(Prism::InstanceVariableReadNode) && written.include?(ivar.name)
         place = predicate.location
         acc << Operator.new(loc: "#{display_path}:#{place.start_line}:#{place.start_column}", line: place.start_line,
                             column: place.start_column, op: "defined?", text: cut(squash(node.slice)))
@@ -500,35 +535,33 @@ module Branchout
       acc
     end
 
-    #: (untyped) -> void
+    #: (Prism::Node?) -> void
     def collect_literals(node)
-      return unless node.is_a?(Prism::Node)
-      return if node.type == :def_node
+      return unless node
+      return if node.is_a?(Prism::DefNode)
 
-      case node.type
-      # is_a? narrows the node to Prism::Node, which declares no method of a
-      # node type, so steep cannot see the methods each type has.
-      when :integer_node
-        @literals.ints << node.value # steep:ignore NoMethod
-      when :float_node
+      case node
+      when Prism::IntegerNode
+        @literals.ints << node.value
+      when Prism::FloatNode
         # 1e400 parses to Infinity, which JSON cannot write as an input.
-        @literals.floats << node.value if node.value.finite? # steep:ignore NoMethod
-      when :string_node
-        @literals.strings << node.unescaped # steep:ignore NoMethod
-      when :constant_read_node
-        Array(@constant_values[node.name]).each { |value| collect_literals(value) } # steep:ignore NoMethod
+        @literals.floats << node.value if node.value.finite?
+      when Prism::StringNode
+        @literals.strings << node.unescaped
+      when Prism::ConstantReadNode
+        Array(@constant_values[node.name]).each { |value| collect_literals(value) }
       end
       node.compact_child_nodes.each { |child| collect_literals(child) }
     end
 
-    #: (untyped, ?Array[untyped]) -> Array[untyped]
+    #: (Prism::Node?, ?Array[Prism::CallNode]) -> Array[Prism::CallNode]
     def bare_calls(node, acc = [])
-      return acc unless node.is_a?(Prism::Node)
-      return acc if node.type == :def_node
+      return acc unless node
+      return acc if node.is_a?(Prism::DefNode)
 
-      if node.type == :call_node
-        receiver = node.receiver # steep:ignore NoMethod
-        acc << node if receiver.nil? || receiver.type == :self_node
+      if node.is_a?(Prism::CallNode)
+        receiver = node.receiver
+        acc << node if receiver.nil? || receiver.is_a?(Prism::SelfNode)
       end
       node.compact_child_nodes.each { |child| bare_calls(child, acc) }
       acc
@@ -538,25 +571,26 @@ module Branchout
     # Class.new, as initialize does for a collaborator: name => class text.
     #: (Array[DefInfo], String) -> Hash[Symbol, String]
     def built_ivars(defs, const)
-      defs.select { |info| info.const_name == const && !info.singleton && info.node.body }
-          .flat_map { |info| assignments(info.node.body, :instance_variable_write_node) }.to_h
+      defs.select { |info| info.const_name == const && !info.singleton }.filter_map { |info| info.node.body }
+          .flat_map { |body| assignments(body, :instance_variable_write_node) }.to_h
     end
 
     # [class text, method name] of each call on a value that this body
     # builds with Class.new: a local it assigns, an instance variable in
     # +ivars+, or the new call itself.
-    #: (untyped, Hash[Symbol, String]) -> Array[[String, Symbol]]
+    #: (Prism::Node, Hash[Symbol, String]) -> Array[[String, Symbol]]
     def calls_on_built(body, ivars)
       locals = assignments(body, :local_variable_write_node).to_h
       found = [] #: Array[[String, Symbol]]
+      # @type var walk: ^(Prism::Node) -> void
       walk = lambda do |node|
-        next if node.type == :def_node
+        next if node.is_a?(Prism::DefNode)
 
-        if node.type == :call_node && (receiver = node.receiver)
-          const = case receiver.type
-                  when :local_variable_read_node then locals[receiver.name]
-                  when :instance_variable_read_node then ivars[receiver.name]
-                  when :call_node then built_class(receiver)
+        if node.is_a?(Prism::CallNode) && (receiver = node.receiver)
+          const = case receiver
+                  when Prism::LocalVariableReadNode then locals[receiver.name]
+                  when Prism::InstanceVariableReadNode then ivars[receiver.name]
+                  when Prism::CallNode then built_class(receiver)
                   end
           found << [const, node.name] if const
         end
@@ -566,82 +600,90 @@ module Branchout
       found.uniq
     end
 
-    #: (untyped, Symbol, ?Array[[Symbol, String]]) -> Array[[Symbol, String]]
+    # +type+ is the node type of the write, local_variable_write_node or
+    # instance_variable_write_node.
+    #: (Prism::Node, Symbol, ?Array[[Symbol, String]]) -> Array[[Symbol, String]]
     def assignments(node, type, acc = [])
-      return acc if node.type == :def_node
+      return acc if node.is_a?(Prism::DefNode)
 
-      if node.type == type && (const = built_class(node.value))
-        acc << [node.name, const]
+      case node
+      when Prism::LocalVariableWriteNode, Prism::InstanceVariableWriteNode
+        const = built_class(node.value) if node.type == type
+        acc << [node.name, const] if const
       end
       node.compact_child_nodes.each { |child| assignments(child, type, acc) }
       acc
     end
 
     # The class text of Class.new(...), or nil.
-    #: (untyped) -> String?
+    #: (Prism::Node?) -> String?
     def built_class(node)
-      return nil unless node&.type == :call_node && node.name == :new
-      return nil unless %i[constant_read_node constant_path_node].include?(node.receiver&.type)
+      return nil unless node.is_a?(Prism::CallNode) && node.name == :new
 
-      node.receiver.slice.delete_prefix("::")
+      receiver = node.receiver
+      return nil unless receiver.is_a?(Prism::ConstantReadNode) || receiver.is_a?(Prism::ConstantPathNode)
+
+      receiver.slice.delete_prefix("::")
     end
 
     # Methods a class method calls on an instance it builds itself, as in
     # new(doc).apply, or new(path).tap(&:parse).
-    #: (untyped, ?Array[Symbol]) -> Array[Symbol]
+    #: (Prism::Node?, ?Array[Symbol]) -> Array[Symbol]
     def calls_on_new(node, acc = [])
-      return acc unless node.is_a?(Prism::Node)
-      return acc if node.type == :def_node
+      return acc unless node
+      return acc if node.is_a?(Prism::DefNode)
 
-      if node.type == :call_node && node.receiver&.type == :call_node # steep:ignore NoMethod
-        maker = node.receiver # steep:ignore NoMethod
-        acc << called_on_receiver(node) if maker.name == :new && (maker.receiver.nil? || maker.receiver.type == :self_node)
+      if node.is_a?(Prism::CallNode)
+        maker = node.receiver
+        if maker.is_a?(Prism::CallNode) && maker.name == :new && (maker.receiver.nil? || maker.receiver.is_a?(Prism::SelfNode))
+          acc << called_on_receiver(node)
+        end
       end
       node.compact_child_nodes.each { |child| calls_on_new(child, acc) }
       acc
     end
 
     # tap(&:parse) and then(&:parse) call parse on the receiver.
-    #: (untyped) -> Symbol
+    #: (Prism::CallNode) -> Symbol
     def called_on_receiver(call)
       block = call.block
-      return call.name unless %i[tap then].include?(call.name) && block&.type == :block_argument_node
+      return call.name unless %i[tap then].include?(call.name) && block.is_a?(Prism::BlockArgumentNode)
 
-      block.expression&.type == :symbol_node ? block.expression.unescaped.to_sym : call.name
+      expression = block.expression
+      expression.is_a?(Prism::SymbolNode) ? expression.unescaped.to_sym : call.name
     end
 
-    #: (untyped, evidence) -> void
+    #: (Prism::Node, evidence) -> void
     def walk_evidence(node, evidence)
-      return if node.type == :def_node
-
-      if node.type == :call_node
-        note_call(node, evidence)
-      elsif node.type == :case_node || node.type == :case_match_node
-        note_case(node, evidence)
+      case node
+      when Prism::DefNode then return
+      when Prism::CallNode then note_call(node, evidence)
+      when Prism::CaseNode, Prism::CaseMatchNode then note_case(node, evidence)
       end
       node.compact_child_nodes.each { |child| walk_evidence(child, evidence) }
     end
 
-    #: (untyped, evidence) -> void
+    #: (Prism::CaseNode | Prism::CaseMatchNode, evidence) -> void
     def note_case(node, evidence)
       name = lvar_name(node.predicate)
       return unless name
 
-      node.conditions.each do |when_node|
-        next unless when_node.respond_to?(:conditions)
+      arms = node.conditions #: Array[Prism::WhenNode | Prism::InNode]
+      arms.each do |when_node|
+        # An in arm has a pattern, not conditions.
+        next unless when_node.is_a?(Prism::WhenNode)
 
-        Array(when_node.conditions).each do |condition|
-          # @type var condition: untyped
-          case condition.type
-          when :string_node then evidence[name][:string] += 1
-          when :integer_node then evidence[name][:int] += 1
-          when :float_node then evidence[name][:float] += 1
+        when_node.conditions.each do |condition|
+          case condition
+          when Prism::StringNode then evidence[name][:string] += 1
+          when Prism::IntegerNode then evidence[name][:int] += 1
+          when Prism::FloatNode then evidence[name][:float] += 1
           end
         end
       end
     end
 
-    #: (untyped, evidence) -> void
+    #: (Prism::CallNode, evidence) -> void
     def note_call(node, evidence)
       receiver_name = lvar_name(node.receiver)
       op = node.name
@@ -650,7 +692,7 @@ module Branchout
           evidence[receiver_name][:string] += 1
         elsif ARRAY_METHODS.include?(op)
           evidence[receiver_name][:array] += 1
-        elsif HASH_METHODS.include?(op) || (%i[[] dig].include?(op) && %i[string_node symbol_node].include?(first_arg(node)&.type))
+        elsif HASH_METHODS.include?(op) || (%i[[] dig].include?(op) && [Prism::StringNode, Prism::SymbolNode].any? { |kind| first_arg(node).is_a?(kind) })
           evidence[receiver_name][:hash] += 1
         elsif NUMERIC_OPS.include?(op)
           arg = first_arg(node)
@@ -683,54 +725,51 @@ module Branchout
     # held?(code) with def held?(state) = state == "held" makes code a
     # String too: a positional argument takes the evidence of the
     # parameter it fills.
-    #: (untyped, untyped, evidence) -> void
+    #: (Prism::CallNode, Prism::ParametersNode?, evidence) -> void
     def pass_evidence(call, params, evidence)
       return unless params
 
-      names = (params.requireds + params.optionals).map { |param| param.name if param.respond_to?(:name) }
+      # A destructured parameter has no name.
+      names = [*params.requireds, *params.optionals].map { |param| param.name unless param.is_a?(Prism::MultiTargetNode) }
       Array(call.arguments&.arguments).each_with_index do |arg, index|
-        # @type var arg: untyped
         # Past a splat, an argument's position no longer names its parameter.
-        break if arg.type == :splat_node
+        break if arg.is_a?(Prism::SplatNode)
 
         name = lvar_name(arg)
         evidence[names[index]].each { |kind, count| evidence[name][kind] += count } if name
       end
     end
 
-    #: (untyped) -> untyped
+    #: (Prism::CallNode) -> Prism::node?
     def first_arg(node)
       node.arguments&.arguments&.first
     end
 
-    #: (untyped) -> Symbol?
+    #: (Prism::Node?) -> Symbol?
     def lvar_name(node)
-      return unless node.is_a?(Prism::Node) && node.type == :local_variable_read_node
-
-      node.name # steep:ignore NoMethod
+      node.name if node.is_a?(Prism::LocalVariableReadNode)
     end
 
-    #: (untyped, Symbol) -> bool
+    #: (Prism::Node?, Symbol) -> bool
     def contains?(node, type)
-      return false unless node.is_a?(Prism::Node)
+      return false unless node
       return true if node.type == type
-      return true if node.type == :constant_read_node && Array(@constant_values[node.name]).any? { |value| value.type == type } # steep:ignore NoMethod
+      return true if node.is_a?(Prism::ConstantReadNode) && Array(@constant_values[node.name]).any? { |value| value.type == type }
 
       node.compact_child_nodes.any? { |child| contains?(child, type) }
     end
 
     # A container default stands in as an empty one of its kind: the type is
     # what inference needs, and every mutated input passes the slot anyway.
-    #: (untyped) -> (Integer | Float | String | bool | Array[untyped] | Hash[untyped, untyped] | nil)
+    #: (Prism::Node?) -> default_value
     def literal_value(node)
-      case node&.type
-      when :integer_node then node.value
-      when :float_node then node.value
-      when :string_node then node.unescaped
-      when :true_node then true
-      when :false_node then false
-      when :array_node then []
-      when :hash_node then {} #: Hash[untyped, untyped]
+      case node
+      when Prism::IntegerNode, Prism::FloatNode then node.value
+      when Prism::StringNode then node.unescaped
+      when Prism::TrueNode then true
+      when Prism::FalseNode then false
+      when Prism::ArrayNode then [] #: Array[bot]
+      when Prism::HashNode then {} #: Hash[bot, bot]
       end
     end
 
@@ -738,16 +777,18 @@ module Branchout
     # body: a bare module_function makes every later def a class method too,
     # named arguments make those defs class methods too, and extend self
     # makes every def in the body one, including those above it.
-    #: (untyped, Array[String], bool, Array[DefInfo], ?{ after: bool, names: Array[Symbol], all: bool }?) -> void
+    #: (Prism::Node, Array[String], bool, Array[DefInfo], ?{ after: bool, names: Array[Symbol], all: bool }?) -> void
     def collect_defs(node, stack, in_singleton, acc, functions = nil)
-      case node.type
-      when :module_node, :class_node
+      case node
+      when Prism::ModuleNode, Prism::ClassNode
         inner = namespace_of(node, stack)
-        @superclasses[inner.join("::")] = [stack, node.superclass.slice.delete_prefix("::")] if node.type == :class_node && node.superclass
-        return unless node.body
+        superclass = node.superclass if node.is_a?(Prism::ClassNode)
+        @superclasses[inner.join("::")] = [stack, superclass.slice.delete_prefix("::")] if superclass
+        body = node.body
+        return unless body
 
         functions = { after: false, names: [], all: false } #: { after: bool, names: Array[Symbol], all: bool }
-        collect_defs(node.body, inner, false, acc, functions)
+        collect_defs(body, inner, false, acc, functions)
         named = acc.select do |info|
           info.const_name == inner.join("::") && !info.singleton &&
             (functions[:all] || functions[:names].include?(info.node.name))
@@ -757,24 +798,25 @@ module Branchout
 
           acc << DefInfo.new(const_name: info.const_name, singleton: true, node: info.node)
         end
-      when :singleton_class_node
-        collect_defs(node.body, stack, true, acc) if node.body
-      when :constant_write_node, :constant_path_write_node
+      when Prism::SingletonClassNode
+        body = node.body
+        collect_defs(body, stack, true, acc) if body
+      when Prism::ConstantWriteNode, Prism::ConstantPathWriteNode
         body = class_block_body(node.value)
-        name = node.type == :constant_write_node ? node.name.to_s : node.target.slice.delete_prefix("::")
-        note_constant(node) if node.type == :constant_write_node
+        name = node.is_a?(Prism::ConstantWriteNode) ? node.name.to_s : node.target.slice.delete_prefix("::")
+        note_constant(node) if node.is_a?(Prism::ConstantWriteNode)
         body ? collect_defs(body, stack + [name], false, acc) : collect_defs(node.value, stack, in_singleton, acc, functions)
-      when :def_node
-        singleton = in_singleton || node.receiver&.type == :self_node
+      when Prism::DefNode
+        singleton = in_singleton || node.receiver.is_a?(Prism::SelfNode)
         acc << DefInfo.new(const_name: stack.join("::"), singleton: singleton, node: node)
         acc << DefInfo.new(const_name: stack.join("::"), singleton: true, node: node) if !singleton && functions&.dig(:after)
       else
-        if functions && node.type == :call_node && node.name == :module_function && node.receiver.nil?
+        if functions && node.is_a?(Prism::CallNode) && node.name == :module_function && node.receiver.nil?
           arguments = node.arguments&.arguments
           functions[:after] = true unless arguments
-          Array(arguments).each { |arg| functions[:names] << arg.unescaped.to_sym if arg.type == :symbol_node } # steep:ignore NoMethod
+          Array(arguments).each { |arg| functions[:names] << arg.unescaped.to_sym if arg.is_a?(Prism::SymbolNode) }
         end
-        if functions && node.type == :call_node && node.name == :extend && node.receiver.nil? &&
+        if functions && node.is_a?(Prism::CallNode) && node.name == :extend && node.receiver.nil? &&
            node.arguments&.arguments&.map(&:type) == [:self_node]
           functions[:all] = true
         end
@@ -784,23 +826,28 @@ module Branchout
 
     # NAME = literal, by name alone: a helper's comparison against CLOSED is
     # a comparison against its literal, wherever the file sets CLOSED.
-    #: (untyped) -> void
+    #: (Prism::ConstantWriteNode) -> void
     def note_constant(node)
       value = node.value
-      value = value.receiver if value.type == :call_node && value.name == :freeze && value.receiver
-      @constant_values[node.name] << value if %i[integer_node float_node string_node].include?(value&.type)
+      value = value.receiver if value.is_a?(Prism::CallNode) && value.name == :freeze && value.receiver
+      case value
+      when Prism::IntegerNode, Prism::FloatNode, Prism::StringNode then @constant_values[node.name] << value
+      end
     end
 
     # The body of the block in Struct.new(...) do ... end, Data.define, or
     # Class.new, whose defs are methods of the class the call builds.
     CLASS_BUILDERS = { "Struct" => :new, "Data" => :define, "Class" => :new }.freeze #: Hash[String, Symbol]
 
-    #: (untyped) -> untyped
+    #: (Prism::Node) -> Prism::node?
     def class_block_body(value)
-      return unless value.type == :call_node && value.block&.type == :block_node && value.receiver
+      return unless value.is_a?(Prism::CallNode)
 
-      receiver = value.receiver.slice.delete_prefix("::")
-      value.block.body if CLASS_BUILDERS[receiver] == value.name
+      block = value.block
+      receiver = value.receiver
+      return unless block.is_a?(Prism::BlockNode) && receiver
+
+      block.body if CLASS_BUILDERS[receiver.slice.delete_prefix("::")] == value.name
     end
 
     #: (Integer) -> String
@@ -811,7 +858,7 @@ module Branchout
     #: (String) -> String
     def cut(text) = text.length > 160 ? "#{text[0, 157]}..." : text
 
-    #: (untyped) -> String
+    #: (String?) -> String
     def squash(text)
       text.to_s.gsub(/\s+/, " ").strip
     end

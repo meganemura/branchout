@@ -720,7 +720,8 @@ module Branchout
     #: (Exception, String, String, ?fallback_line: Integer?) -> Runner::ExceptionInfo
     def self.from(exception, display_path, real_path, fallback_line: nil)
       raw = exception.message.to_s
-      clean = one_line(raw.gsub(/#<[^>]*>/, "#<obj>").gsub(/0x[0-9a-f]+/i, "0xID"))[0, 180]
+      # A cut from 0 is a String, empty when the message is.
+      clean = one_line(raw.gsub(/#<[^>]*>/, "#<obj>").gsub(/0x[0-9a-f]+/i, "0xID"))[0, 180] #: String
       pattern = frame_pattern(raw)
       whole = one_line(raw) == clean
       stable = pattern.nil? && whole
@@ -728,9 +729,14 @@ module Branchout
       if loc.nil? && fallback_line && exception.is_a?(Timeout::Error)
         loc = "#{display_path}:#{fallback_line}"
       end
-      missing = exception.name if exception.is_a?(NameError) && exception.name.is_a?(Symbol)
-      # An exception's class has a name unless it is anonymous.
-      new(class_name: exception.class.name, message: clean, loc: loc, stable_message: stable, name: missing, exact_message: (raw if stable), # steep:ignore UnresolvedOverloading
+      # RBS gives NameError#name as a String, but Ruby gives the Symbol.
+      named_error = exception.name if exception.is_a?(NameError) #: Object?
+      missing = named_error if named_error.is_a?(Symbol)
+      # An anonymous class has no name to pin, so its nearest named
+      # superclass stands in, as it does for a value: assert_raises and
+      # raise_error match a subclass too. Exception has a name, so one is found.
+      named = exception.class.ancestors.find { |mod| mod.is_a?(Class) && mod.name }&.name || "Exception"
+      new(class_name: named, message: clean, loc: loc, stable_message: stable, name: missing, exact_message: (raw if stable),
           message_pattern: (pattern if whole))
     end
 

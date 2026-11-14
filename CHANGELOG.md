@@ -5,6 +5,7 @@
 - The gem ships RBS signatures for its classes in `sig/`, so steep and other RBS tools in a project that uses branchout can check calls to it.
 - A target method with a destructured parameter, `def self.f((a, b), c)`, is explored, and an RSpec example names that argument `argument 1`. Before, explore stopped with a `NoMethodError` backtrace on `Prism::MultiTargetNode`.
 - A method with a modifier `if`, `unless`, `while`, or `until` on a `case`, as in `case x ... end if y`, is explored, and each arm reads its own condition. Before, the `case` hid the modifier at the same place, so explore stopped with a `NoMethodError` backtrace on `Prism::CaseNode`.
+- An error of an anonymous exception class, `raise Class.new(ArgumentError), "too big"`, is named by its nearest named superclass, `ArgumentError`, in the report and in each emitted test, which matches the subclass. Before, its class was empty: the report said `class:` with no name, an RSpec file held `raise_error(, "too big")`, which does not parse, and a minitest file stopped explore with a `NoMethodError` backtrace.
 
 ## [0.2.0] - 2026-11-14
 

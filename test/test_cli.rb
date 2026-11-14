@@ -2180,6 +2180,36 @@ class CLITest < Minitest::Test
     end
   end
 
+  # An anonymous exception class has no name, so its nearest named
+  # superclass names the error, in the report and in each emitted test.
+  def test_an_anonymous_exception_class_is_named_by_its_named_superclass
+    Dir.mktmpdir do |dir|
+      target = File.join(dir, "guard.rb")
+      File.write(target, <<~RUBY)
+        class Guard
+          def self.call(x)
+            raise Class.new(ArgumentError), "too big" if x > 1
+
+            x
+          end
+        end
+      RUBY
+      path = write_inputs(dir, { "inputs" => [[2], [0]] })
+      common = ["explore", target, "Guard.call", "--strategy", "inputs", "--random", "0", "--inputs", path]
+      stdout, stderr, status = run_cli(*common, "--verbose")
+      assert status.success?, stderr
+      assert_includes stdout, "class: ArgumentError\n"
+      test_file = File.join(dir, "guard_test.rb")
+      spec_file = File.join(dir, "guard_spec.rb")
+      _stdout, stderr, status = run_cli(*common, "--emit-tests", test_file)
+      assert status.success?, stderr
+      assert_includes File.read(test_file), "assert_raises(ArgumentError) do\n"
+      _stdout, stderr, status = run_cli(*common, "--emit-tests", spec_file)
+      assert status.success?, stderr
+      assert_includes File.read(spec_file), %(.to raise_error(ArgumentError, "too big"))
+    end
+  end
+
   # An input's Ruby that raises before the call says nothing about the
   # entry, so it is refused, not pinned.
   def test_an_error_raised_by_the_inputs_own_ruby_is_refused

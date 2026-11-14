@@ -642,6 +642,13 @@ bundle exec rspec spec/generated
 
 `test/run_all.rb` loads `test/test_*.rb` and `test/generated/*_test.rb`. The property tests use hegeltest, which needs Ruby 3.4 or newer. On Ruby 3.3, run `BUNDLE_WITHOUT=property bundle install`, and they report one skip. `spec/generated/` is the emitted RSpec for `examples/`. Coverage is process-global, so each CLI test runs branchout in a process of its own, forked from a preloaded server where fork exists.
 
+The gem ships RBS signatures in `sig/`. They are written from the type comments in `lib/`:
+
+```sh
+bundle exec rbs-inline --output=sig/generated lib
+bundle exec steep check
+```
+
 ## License
 
 MIT

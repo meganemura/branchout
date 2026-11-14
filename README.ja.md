@@ -994,6 +994,14 @@ Ruby 3.3 では `BUNDLE_WITHOUT=property bundle install` とし、プロパテ�
 `spec/generated/` は `examples/` から出した RSpec である。Coverage はプロセス全体で 1 系統なので、CLI のテストは branchout をそれぞれ別のプロセスで動かす。
 fork が使えるときは、branchout を読み込み済みのサーバーから fork する。
 
+gem は `sig/` に RBS のシグネチャを含む。
+シグネチャは `lib/` の型コメントから書き出す。
+
+```sh
+bundle exec rbs-inline --output=sig/generated lib
+bundle exec steep check
+```
+
 ## ライセンス
 
 MIT

@@ -21,10 +21,12 @@ jobs:
       matrix:
         include:
           # hegeltest needs Ruby 3.4, so the floor leaves the property group
-          # out and test/test_properties.rb reports one skip.
+          # out and test/test_properties.rb reports one skip. It leaves the
+          # types group out too: steep brings a prism gem into the bundle,
+          # and the floor tests branchout on the prism of Ruby itself.
           - ruby: "3.3"
             bundler: Gemfile.lock
-            without: property
+            without: "property:types"
             bundle_version: lockfile
           # Ruby 4.0's bundler would switch to the 2.6.9 that Gemfile.lock
           # names. That bundler redefines constants of Ruby 4.0's RubyGems
@@ -60,3 +62,24 @@ jobs:
         run: bundle exec ruby test/run_all.rb -n "/^CLITest#/"
       - name: Run the generated specs
         run: bundle exec rspec spec/generated
+
+  types:
+    name: Types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: "3.4"
+          bundler: Gemfile.lock
+          bundler-cache: true
+      - name: Write the signatures from lib
+        run: bundle exec rbs-inline --output=sig/generated lib
+      # intent-to-add makes a new .rbs that nobody committed show in the diff.
+      - name: Check that sig/generated is committed
+        run: git add --intent-to-add sig && git diff --exit-code sig
+      - name: Check the types
+        run: bundle exec steep check

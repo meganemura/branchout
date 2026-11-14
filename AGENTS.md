@@ -4,7 +4,7 @@ The usage loop for a coding agent that is driving branchout lives in [skills/bra
 
 ## Setup
 
-Ruby 3.3 or newer. `explore` uses the standard library. Development gems are minitest, rspec, and hegeltest. hegeltest needs Ruby 3.4 or newer, so on Ruby 3.3 leave its group out:
+Ruby 3.3 or newer. `explore` uses the standard library. Development gems are minitest, rspec, hegeltest, and, in the `types` group, steep and rbs-inline. hegeltest needs Ruby 3.4 or newer, so on Ruby 3.3 leave its group out:
 
 ```sh
 bundle install
@@ -18,7 +18,7 @@ ruby test/run_all.rb
 bundle exec rspec spec/generated
 ```
 
-In a checkout whose gems live only in the bundle, as in CI, run both under `bundle exec`. On Ruby 4.0 set `BUNDLE_VERSION=system` for `bundle install` and `bundle exec`. Otherwise bundler switches to the 2.6.9 that `Gemfile.lock` names, that bundler warns about Ruby 4.0's RubyGems constants in every Ruby the tests start, and the CLI tests that require an empty stderr fail. `.github/workflows/ci.yml` runs both on Ruby 3.3 (without the property group) and 4.0, and on 4.0 runs `CLITest` once more with `BRANCHOUT_TEST_SPAWN=1`.
+In a checkout whose gems live only in the bundle, as in CI, run both under `bundle exec`. On Ruby 4.0 set `BUNDLE_VERSION=system` for `bundle install` and `bundle exec`. Otherwise bundler switches to the 2.6.9 that `Gemfile.lock` names, that bundler warns about Ruby 4.0's RubyGems constants in every Ruby the tests start, and the CLI tests that require an empty stderr fail. `.github/workflows/ci.yml` runs both on Ruby 3.3 (without the property and types groups) and 4.0, and on 4.0 runs `CLITest` once more with `BRANCHOUT_TEST_SPAWN=1`.
 
 `test/run_all.rb` loads `test/test_*.rb` and `test/generated/*_test.rb`. Coverage is process-global, so each CLI test runs branchout in a process of its own: `test/support/cli.rb` forks it from a server that loaded branchout before any test ran, which saves the Ruby and prism boot of each run. Where fork does not exist, or with `BRANCHOUT_TEST_SPAWN=1`, each run spawns `bin/branchout` instead. `test/test_properties.rb` holds the hegeltest properties of the pure parts and of report determinism. On Ruby 3.3 it reports one skip.
 
@@ -26,7 +26,18 @@ In a checkout whose gems live only in the bundle, as in CI, run both under `bund
 
 `test/test_readme.rb` runs the `sh` blocks of the README's "Try it without an app" in one empty folder and compares each with the output block after it. It runs the Rails Quick start only when `BRANCHOUT_README_RAILS_APP` names a Rails app with RSpec, factory_bot, and the Quick start's `Loan#approve`, its gems installed and branchout not in its Gemfile: it copies the app, adds the Gemfile lines with this checkout as the gem's path, writes each spec file block when the steps reach it, and runs each `sh` block. The sample app the Quick start quotes holds `Borrower` and `Loan` models, a factory for each, `spec/rails_helper.rb`, and `spec/models/loan_spec.rb`, on activerecord, railties, sqlite3, factory_bot_rails, and rspec-rails. When the report or an emitted spec changes, rerun those steps and paste their output into both READMEs.
 
+## Types
+
+```sh
+bundle exec rbs-inline --output=sig/generated lib
+bundle exec steep check
+```
+
+The type comments in `lib/` (`# rbs_inline: enabled`, `#:`, `# @rbs`) are the source of the signatures. rbs-inline writes them to `sig/generated/`, which is committed and ships in the gem. `sig/*.rbs` holds by hand what rbs-inline cannot write, such as a `Data.define` with an `initialize` of its own, and `sig-deps/` holds stubs for parts of other libraries that RBS does not declare; the gem does not ship `sig-deps/`. steep and rbs-inline are in the Gemfile's `types` group. The `types` job of `.github/workflows/ci.yml` runs both commands on Ruby 3.4 and fails when `sig/generated/` differs from what rbs-inline writes.
+
 ## Invariants
+
+- A change to `lib/` keeps `bundle exec steep check` green and commits the `sig/generated/` that rbs-inline writes for it.
 
 - Do not add an LLM client, an API key, or an external command. The agent stays outside the process.
 - The same inputs, flags, and CRuby must produce the same stdout. No timestamps. Paths are relative to the working directory.

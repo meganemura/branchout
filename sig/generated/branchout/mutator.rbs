@@ -35,17 +35,17 @@ module Branchout
     # : (:entry | :new, Array[Target::Parameter]) -> Array[Slot]
     def slots_of: (:entry | :new, Array[Target::Parameter]) -> Array[Slot]
 
-    # : (Hash[Slot, untyped]) -> Input
-    def build: (Hash[Slot, untyped]) -> Input
+    # : (Hash[Slot, Input::value]) -> Input
+    def build: (Hash[Slot, Input::value]) -> Input
 
-    # : (Hash[Slot, untyped], ?Input?) -> Input
-    def arguments: (Hash[Slot, untyped], ?Input?) -> Input
+    # : (Hash[Slot, Input::value], ?Input?) -> Input
+    def arguments: (Hash[Slot, Input::value], ?Input?) -> Input
 
-    # : (Target::Parameter) -> Array[untyped]
-    def pool_for: (Target::Parameter) -> Array[untyped]
+    # : (Target::Parameter) -> Array[Input::value]
+    def pool_for: (Target::Parameter) -> Array[Input::value]
 
-    # : (Target::Parameter) -> untyped
-    def base_value: (Target::Parameter) -> untyped
+    # : (Target::Parameter) -> Input::value
+    def base_value: (Target::Parameter) -> Input::value
 
     # : (Target::Parameter) -> bool
     def numeric?: (Target::Parameter) -> bool

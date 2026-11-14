@@ -37,7 +37,7 @@ module Branchout
     #: (Array[Target::Parameter]) -> Input
     def draw(parameters)
       args = parameters.select { |param| param.kind == :req || param.kind == :opt }.map { |param| sample(param.inferred_type) }
-      kwargs = {} #: Hash[String, untyped]
+      kwargs = {} #: Hash[String, Input::value]
       parameters.each do |param|
         next unless param.kind == :keyreq
 

@@ -46,8 +46,8 @@ module Branchout
     AFTER_EXAMPLE = "{\"ruby\": \"cart.items\"}" #: String
 
     # The Code of an after: one expression, which an emitted test pins as
-    # it pins a returned value.
-    #: (untyped, String) -> Code
+    # it pins a returned value. +value+ is any JSON value.
+    #: (Object?, String) -> Code
     def parse_after(value, label)
       raise Error, "#{label} after must be Ruby such as #{AFTER_EXAMPLE}" unless value.is_a?(Hash) && code?(value)
 
@@ -63,7 +63,8 @@ module Branchout
 
     METHOD_NAME = /\A(?:[A-Za-z_][A-Za-z0-9_]*[?!=]?|<<|>>|\[\]=?|[-+*\/%&|^<>]|\*\*|<=>|==|!=|<=|>=|=~)\z/ #: Regexp
 
-    #: (untyped, String, ?Array[String]) -> Input
+    # +entry+ is any JSON value.
+    #: (Object?, String, ?Array[String]) -> Input
     def parse_entry(entry, label, keys = %w[args kwargs new receiver setup note pin_keys block before after])
       case entry
       when Array
@@ -132,12 +133,13 @@ module Branchout
       end
     end
 
-    #: (Hash[untyped, untyped]) -> bool
+    #: (Hash[Object?, Object?]) -> bool
     def code?(value)
       value.keys == ["ruby"] && value["ruby"].is_a?(String)
     end
 
-    #: (untyped, String) -> Array[Input::SetupCall]
+    # +steps+ is any JSON value.
+    #: (Object?, String) -> Array[Input::SetupCall]
     def parse_setup(steps, label)
       raise Error, "#{label} must be an array" unless steps.is_a?(Array)
 

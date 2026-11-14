@@ -5,9 +5,6 @@ module Branchout
   # exception, or a block, which JSON cannot write. An inputs file spells it
   # {"ruby": "Factories.loan(3)"}. Each call evaluates it again, so every
   # call gets a new object, and an emitted test writes it as it was given.
-  #
-  # Neither rbs-inline nor steep reads the methods of a Data.define block, so
-  # sig/branchout/code.rbs declares them, and steep does not check them.
   class Code < Data
     attr_reader source(): String
 
@@ -17,6 +14,28 @@ module Branchout
     def self.members: () -> [ :source ]
 
     def members: () -> [ :source ]
+  end
+
+  # Its methods are in a class body, not in the block of Data.define, so
+  # that rbs-inline reads their types and steep checks them.
+  class Code
+    # : (String) -> Code
+    def self.parse: (String) -> Code
+
+    # A block as a call takes it, written with braces so it binds to the
+    # call in an emitted assertion as it did in explore. +source+ is what
+    # an inputs file gives, so any JSON value.
+    # : (Object) -> Code
+    def self.block: (Object) -> Code
+
+    # One expression, as an emitted test passes it to assert_equal or
+    # expect: a modifier if or two statements would not parse there.
+    # +source+ is what an inputs file gives, so any JSON value.
+    # : (Object, String) -> Code
+    def self.expression: (Object, String) -> Code
+
+    # : () -> String
+    def to_s: () -> String
   end
 
   # A String input that names a path under the emitted test's project. The
@@ -47,8 +66,6 @@ module Branchout
   class Input
     # One call made on the receiver after new and before the entry.
     # +arguments+ is an Input with no receiver and no setup of its own.
-    # sig/branchout/input.rbs declares the method of the block, which neither
-    # rbs-inline nor steep reads.
     class SetupCall < Struct[String | Input]
       attr_accessor method_name(): String
 
@@ -58,24 +75,19 @@ module Branchout
                   | (?method_name: String, ?arguments: Input) -> instance
     end
 
-    # +receiver+ is the Input whose arguments go to new for a Const#method
-    # entry, the Code that builds the receiver itself (a factory call that
-    # returns a saved record), or nil to call new with none. +setup+ lists
-    # the SetupCalls that build the receiver's state. +pin_keys+, when not nil, replaces
-    # --pin-keys for this input's test. It is not part of the call, so it is
-    # not in to_h. +block+ is the Code of the block the entry gets, or nil.
-    # +before+ is the Code that makes what the call reads, such as the rows
-    # a class method looks up, run first in the input's savepoint, or nil.
-    # +note+ is the reason the inputs file gives for the input, which names
-    # it in the report and in an emitted test. Like +pin_keys+, it is not
-    # part of the call, so it is not in to_h.
-    # +after+ is the Code of one expression that reads what the call left,
-    # such as the receiver's state, once the call returned or raised, or
-    # nil. Its value is pinned beside the call's, so it is in to_h: two
-    # inputs that read different things are two tests.
-    attr_reader args: Array[untyped]
+    # Its method is in a class body, so that rbs-inline and steep read it.
+    class SetupCall
+      # : () -> Hash[String, plain]
+      def to_h: () -> Hash[String, plain]
+    end
 
-    attr_reader kwargs: Hash[String, untyped]
+    # An argument as normalize leaves it: a Symbol reads as a String, and
+    # a Hash has String keys.
+    type value = nil | bool | Integer | Float | String | Code | Array[value] | Hash[String, value]
+
+    attr_reader args: Array[value]
+
+    attr_reader kwargs: Hash[String, value]
 
     attr_reader receiver: Input | Code | nil
 
@@ -91,8 +103,8 @@ module Branchout
 
     attr_reader after: Code?
 
-    # @rbs args: Array[untyped]
-    # @rbs kwargs: Hash[String | Symbol, untyped]?
+    # @rbs args: Array[plain]
+    # @rbs kwargs: Hash[String | Symbol, plain]?
     # @rbs receiver: Input | Code | nil
     # @rbs setup: Array[SetupCall]
     # @rbs pin_keys: Array[String]?
@@ -101,14 +113,23 @@ module Branchout
     # @rbs note: String?
     # @rbs after: Code?
     # @rbs return: void
-    def initialize: (args: Array[untyped], ?kwargs: Hash[String | Symbol, untyped]?, ?receiver: Input | Code | nil, ?setup: Array[SetupCall], ?pin_keys: Array[String]?, ?block: Code?, ?before: Code?, ?note: String?, ?after: Code?) -> void
+    def initialize: (args: Array[plain], ?kwargs: Hash[String | Symbol, plain]?, ?receiver: Input | Code | nil, ?setup: Array[SetupCall], ?pin_keys: Array[String]?, ?block: Code?, ?before: Code?, ?note: String?, ?after: Code?) -> void
 
     # This input with +changes+ in place of its own parts.
-    # : (**untyped) -> Input
-    def with: (**untyped) -> Input
+    # @rbs args: Array[plain]
+    # @rbs kwargs: Hash[String | Symbol, plain]?
+    # @rbs receiver: Input | Code | nil
+    # @rbs setup: Array[SetupCall]
+    # @rbs pin_keys: Array[String]?
+    # @rbs block: Code?
+    # @rbs before: Code?
+    # @rbs note: String?
+    # @rbs after: Code?
+    # @rbs return: Input
+    def with: (?args: Array[plain], ?kwargs: Hash[String | Symbol, plain]?, ?receiver: Input | Code | nil, ?setup: Array[SetupCall], ?pin_keys: Array[String]?, ?block: Code?, ?before: Code?, ?note: String?, ?after: Code?) -> Input
 
-    # : () -> Hash[String, untyped]
-    def to_h: () -> Hash[String, untyped]
+    # : () -> Hash[String, plain]
+    def to_h: () -> Hash[String, plain]
 
     # : () -> String
     def canonical: () -> String
@@ -119,31 +140,31 @@ module Branchout
     # : () -> String
     def text: () -> String
 
-    # : () -> Hash[String, untyped]
-    def short_h: () -> Hash[String, untyped]
+    # : () -> Hash[String, plain]
+    def short_h: () -> Hash[String, plain]
 
     # Smaller is a simpler witness: absolute numeric size, then string
     # length, and each setup call counts one.
     # : () -> (Integer | Float)
     def weight: () -> (Integer | Float)
 
-    # : (untyped) -> (Integer | Float)
-    def self.weight_of: (untyped) -> (Integer | Float)
+    # : (value | Input) -> (Integer | Float)
+    def self.weight_of: (value | Input) -> (Integer | Float)
 
-    # : (String?) -> (Integer | Float | String | Array[untyped] | Hash[untyped, untyped] | bool)
-    def self.zero: (String?) -> (Integer | Float | String | Array[untyped] | Hash[untyped, untyped] | bool)
+    # : (String?) -> (Integer | Float | String | Array[bot] | Hash[bot, bot] | bool)
+    def self.zero: (String?) -> (Integer | Float | String | Array[bot] | Hash[bot, bot] | bool)
 
-    # : (untyped) -> untyped
-    def normalize: (untyped) -> untyped
+    # A value of another class is refused, whatever the signature says.
+    # : (plain) -> value
+    def normalize: (plain) -> value
 
     # {"ruby": "..."} is Ruby source. A Hash argument with one key "ruby"
     # is written as Ruby too: {"ruby": "{\"ruby\" => \"3.4\"}"}.
-    # : (Hash[untyped, untyped]) -> bool
-    def code?: (Hash[untyped, untyped]) -> bool
+    # : (Hash[String | Symbol, plain]) -> bool
+    def code?: (Hash[String | Symbol, plain]) -> bool
 
-    # It returns +value+ itself; steep does not narrow a type parameter in a
-    # case, so the signature cannot say so.
-    # : (untyped) -> untyped
-    def deep_freeze: (untyped) -> untyped
+    # Freezes +value+ and every Array and Hash in it, in place.
+    # : (value) -> void
+    def deep_freeze: (value) -> void
   end
 end

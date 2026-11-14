@@ -9,17 +9,18 @@ module Branchout
     AFTER_EXAMPLE: String
 
     # The Code of an after: one expression, which an emitted test pins as
-    # it pins a returned value.
-    # : (untyped, String) -> Code
-    def self?.parse_after: (untyped, String) -> Code
+    # it pins a returned value. +value+ is any JSON value.
+    # : (Object?, String) -> Code
+    def self?.parse_after: (Object?, String) -> Code
 
     # Keys that say how the entry is called, so args may be left out for none.
     CALL_KEYS: Array[String]
 
     METHOD_NAME: Regexp
 
-    # : (untyped, String, ?Array[String]) -> Input
-    def self?.parse_entry: (untyped, String, ?Array[String]) -> Input
+    # +entry+ is any JSON value.
+    # : (Object?, String, ?Array[String]) -> Input
+    def self?.parse_entry: (Object?, String, ?Array[String]) -> Input
 
     # A String argument wrapped in its own quotes, as "\"0306406150\"", is
     # most often Ruby or JSON source written where a JSON value goes, and
@@ -27,10 +28,11 @@ module Branchout
     # : (Array[Input]) -> Array[String]
     def self?.quoted_strings: (Array[Input]) -> Array[String]
 
-    # : (Hash[untyped, untyped]) -> bool
-    def self?.code?: (Hash[untyped, untyped]) -> bool
+    # : (Hash[Object?, Object?]) -> bool
+    def self?.code?: (Hash[Object?, Object?]) -> bool
 
-    # : (untyped, String) -> Array[Input::SetupCall]
-    def self?.parse_setup: (untyped, String) -> Array[Input::SetupCall]
+    # +steps+ is any JSON value.
+    # : (Object?, String) -> Array[Input::SetupCall]
+    def self?.parse_setup: (Object?, String) -> Array[Input::SetupCall]
   end
 end

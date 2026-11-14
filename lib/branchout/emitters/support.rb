@@ -160,6 +160,7 @@ module Branchout
         root = project_root(File.dirname(File.expand_path(destination)))
         return input unless root
 
+        # @type var rewrite: ^(Input::value) -> Input::value
         rewrite = lambda do |value|
           case value
           when ProjectPath then value
@@ -169,9 +170,10 @@ module Branchout
           else value
           end
         end
-        receiver = input.receiver.is_a?(Input) ? project_paths(input.receiver, destination) : input.receiver
+        built = input.receiver
+        receiver = built.is_a?(Input) ? project_paths(built, destination) : built
         setup = input.setup.map { |call| Input::SetupCall.new(call.method_name, project_paths(call.arguments, destination)) }
-        input.with(args: rewrite.(input.args), kwargs: rewrite.(input.kwargs), receiver: receiver, setup: setup)
+        input.with(args: input.args.map(&rewrite), kwargs: input.kwargs.transform_values(&rewrite), receiver: receiver, setup: setup)
       end
 
       # +value+, a returned value or an error message, with each String

@@ -14,7 +14,12 @@ autoload :Prism, "prism"
 require_relative "branchout/version"
 
 module Branchout
-  Error = Class.new(StandardError)
+  class Error < StandardError; end
+
+  # @rbs!
+  #   # A value Canon writes as JSON, and Input reads as an argument: what
+  #   # JSON writes, a Symbol for a String, and a Code for Ruby source.
+  #   type plain = nil | bool | Integer | Float | String | Symbol | Code | Array[plain] | Hash[String | Symbol, plain]
 end
 
 require_relative "branchout/canon"

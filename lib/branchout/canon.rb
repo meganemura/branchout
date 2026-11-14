@@ -7,7 +7,8 @@ module Branchout
   module Canon
     module_function
 
-    #: (untyped) -> String
+    # A value of another class is refused, whatever the signature says.
+    #: (plain) -> String
     def json(obj)
       case obj
       when nil then "null"
@@ -21,7 +22,9 @@ module Branchout
       when Array
         "[#{obj.map { |item| json(item) }.join(",")}]"
       when Hash
-        pairs = obj.map { |key, value| [key.to_s, value] }.sort_by { |key, _| key }
+        pairs = obj.map do |key, value|
+          [key.to_s, value] #: [String, plain]
+        end.sort_by { |key, _| key }
         "{#{pairs.map { |key, value| "#{json(key)}:#{json(value)}" }.join(",")}}"
       else
         raise Error, "cannot encode #{obj.class} as canonical JSON"
@@ -39,7 +42,7 @@ module Branchout
       value.to_s
     end
 
-    #: (untyped, ?Integer) -> String
+    #: (plain, ?Integer) -> String
     def pretty(obj, indent = 0)
       pad = "  " * indent
       case obj

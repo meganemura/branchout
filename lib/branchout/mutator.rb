@@ -69,7 +69,7 @@ module Branchout
       parameters.select { |param| %i[req opt keyreq].include?(param.kind) }.map { |param| Slot.new(owner, param) }
     end
 
-    #: (Hash[Slot, untyped]) -> Input
+    #: (Hash[Slot, Input::value]) -> Input
     def build(values)
       entry = values.select { |slot, _| slot.owner == :entry }
       made = values.reject { |slot, _| slot.owner == :entry }
@@ -77,14 +77,14 @@ module Branchout
       arguments(entry, receiver)
     end
 
-    #: (Hash[Slot, untyped], ?Input?) -> Input
+    #: (Hash[Slot, Input::value], ?Input?) -> Input
     def arguments(values, receiver = nil)
       args = values.reject { |slot, _| slot.param.kind == :keyreq }.values
       kwargs = values.select { |slot, _| slot.param.kind == :keyreq }.to_h { |slot, value| [slot.param.name.to_s, value] }
       Input.new(args: args, kwargs: kwargs, receiver: receiver)
     end
 
-    #: (Target::Parameter) -> Array[untyped]
+    #: (Target::Parameter) -> Array[Input::value]
     def pool_for(param)
       literals = @target.literals
       case param.inferred_type
@@ -121,7 +121,7 @@ module Branchout
       end
     end
 
-    #: (Target::Parameter) -> untyped
+    #: (Target::Parameter) -> Input::value
     def base_value(param)
       return param.default unless param.default.nil?
 

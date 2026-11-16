@@ -76,6 +76,8 @@ GEM
     terminal-table (4.0.0)
       unicode-display_width (>= 1.1.1, < 4)
     tsort (0.2.0)
+    typegap (0.1.0)
+      steep (>= 2.1.0, < 2.2)
     unicode-display_width (3.3.0)
       unicode-emoji (~> 4.3)
     unicode-emoji (4.3.0)
@@ -92,6 +94,7 @@ DEPENDENCIES
   rbs-inline (= 0.14.0)
   rspec (~> 3.13)
   steep (= 2.1.0)
+  typegap (= 0.1.0)
 
 BUNDLED WITH
    2.6.9

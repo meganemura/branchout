@@ -951,6 +951,9 @@ ln -s /path/to/branchout/skills/branchout .agents/skills/branchout
 
 `.claude/skills/` と `.cursor/skills/` でも同じ。
 
+**branchout 0.3.0 以降**の gem はスキルを同梱し、[Rails Hyperdrive](https://github.com/rails-hyperdrive/rails-hyperdrive) の companion としての導入に対応する。
+branchout を bundle している Rails アプリでは、`bin/rails hyperdrive:init` がスキルを `.claude/skills/branchout/SKILL.md` に入れる。
+
 ## 限界
 
 - 対象は実際に実行される。対象の標準出力と標準エラーは、ロード時も呼び出しごとにも捨てる。ファイル、グローバル、ネットワークはサンドボックスしない。

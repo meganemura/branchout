@@ -18,7 +18,10 @@ Gem::Specification.new do |spec|
     "source_code_uri" => spec.homepage,
     "changelog_uri" => "#{spec.homepage}/blob/main/CHANGELOG.md",
     "bug_tracker_uri" => "#{spec.homepage}/issues",
-    "rubygems_mfa_required" => "true"
+    "rubygems_mfa_required" => "true",
+    # Rails Hyperdrive installs skills/ into an app that bundles this gem.
+    "hyperdrive_targets" => "*",
+    "hyperdrive_artifacts" => "skill"
   }
   spec.required_ruby_version = ">= 3.3"
   spec.files = Dir["lib/**/*", "sig/**/*.rbs", "bin/*", "skills/**/*", "README.md", "README.ja.md", "AGENTS.md", "LICENSE", "examples/**/*"]

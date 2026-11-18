@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- The gem declares itself a [Rails Hyperdrive](https://github.com/rails-hyperdrive/rails-hyperdrive) companion in its metadata (`hyperdrive_targets: "*"`, `hyperdrive_artifacts: skill`). In a Rails app that bundles it, `bin/rails hyperdrive:init` installs the skill the gem ships to `.claude/skills/branchout/SKILL.md`.
+
 - The gem ships RBS signatures for its classes in `sig/`, so steep and other RBS tools in a project that uses branchout can check calls to it.
 - A target method with a destructured parameter, `def self.f((a, b), c)`, is explored, and an RSpec example names that argument `argument 1`. Before, explore stopped with a `NoMethodError` backtrace on `Prism::MultiTargetNode`.
 - A method with a modifier `if`, `unless`, `while`, or `until` on a `case`, as in `case x ... end if y`, is explored, and each arm reads its own condition. Before, the `case` hid the modifier at the same place, so explore stopped with a `NoMethodError` backtrace on `Prism::CaseNode`.

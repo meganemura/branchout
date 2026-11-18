@@ -615,6 +615,8 @@ ln -s /path/to/branchout/skills/branchout .agents/skills/branchout
 
 `.claude/skills/` and `.cursor/skills/` work the same way.
 
+**branchout 0.3.0 and later** bundle the skill and offer [Rails Hyperdrive](https://github.com/rails-hyperdrive/rails-hyperdrive) companion installation. For Rails apps bundling branchout, `bin/rails hyperdrive:init` installs it to `.claude/skills/branchout/SKILL.md`.
+
 ## Limits
 
 - The target runs. Its stdout and stderr, at load time and in each call, are discarded. Files, globals, and the network are not sandboxed.
